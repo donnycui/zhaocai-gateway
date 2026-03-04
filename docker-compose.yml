@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   zhaocai:
@@ -10,6 +10,9 @@ services:
       - ZHAOCAI_PORT=${ZHAOCAI_PORT:-8000}
       - ZHAOCAI_HOST=${ZHAOCAI_HOST:-0.0.0.0}
       - ZHAOCAI_LOG_LEVEL=${ZHAOCAI_LOG_LEVEL:-info}
+      - ZHAOCAI_CONFIG=/app/config.yaml
+      - ZHAOCAI_ADMIN_TOKEN=${ZHAOCAI_ADMIN_TOKEN:-change-me-admin-token}
+      - ZHAOCAI_CONTROL_DB=${ZHAOCAI_CONTROL_DB:-sqlite:///./data/control_plane.db}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
@@ -18,6 +21,7 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     volumes:
       - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
     restart: unless-stopped
     networks:
       - zhaocai-network
@@ -28,7 +32,6 @@ services:
       retries: 3
       start_period: 5s
 
-  # Cloudflare Tunnel - 暴露服务到公网（可选）
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: zhaocai-tunnel
@@ -38,11 +41,8 @@ services:
       - zhaocai
     networks:
       - zhaocai-network
-    # 或者使用配置文件方式
-    # volumes:
-    #   - ~/.cloudflared:/etc/cloudflared:ro
-    # command: tunnel run <tunnel-id>
 
 networks:
   zhaocai-network:
     driver: bridge
+

@@ -1,0 +1,5 @@
+interface:
+  display_name: "OpenClaw Gateway Manager"
+  short_description: "Manage provider/model config across OpenClaw nodes"
+  default_prompt: "Manage and troubleshoot multi-node OpenClaw configuration using this repository control-plane APIs and scripts."
+

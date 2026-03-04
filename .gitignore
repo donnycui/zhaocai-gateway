@@ -20,19 +20,24 @@ wheels/
 .installed.cfg
 *.egg
 
-# 虚拟环境
+# Virtual environments
 venv/
 ENV/
 env/
-.venv
+.venv/
 
-# 配置文件（包含敏感信息）
+# Local config and secrets
 config.yaml
 .env
 .env.local
 .env.*.local
 
-# IDE
+# Databases and generated runtime files
+data/
+*.db
+openclaw.json
+
+# IDE and OS
 .idea/
 .vscode/
 *.swp
@@ -40,11 +45,9 @@ config.yaml
 *~
 .DS_Store
 
-# 日志
+# Logs and coverage
 *.log
 logs/
-
-# 测试
 .pytest_cache/
 .coverage
 htmlcov/
@@ -52,3 +55,4 @@ htmlcov/
 # Cloudflare
 .cloudflared/
 *.pem
+

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zhaocai Control Plane</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --line: #dbe5f0;
+      --text: #0b1220;
+      --muted: #516175;
+      --brand: #2563eb;
+      --ok: #166534;
+      --bad: #991b1b;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      color: var(--text);
+      background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 50%, #eef2ff 100%);
+    }
+    .container {
+      max-width: 1100px;
+      margin: 24px auto 48px;
+      padding: 0 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 8px 18px rgba(11, 18, 32, 0.04);
+    }
+    h1, h2 {
+      margin: 0 0 10px 0;
+      font-weight: 650;
+    }
+    h1 { font-size: 22px; }
+    h2 { font-size: 17px; }
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    input, textarea, select, button {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    textarea {
+      min-height: 80px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    button {
+      cursor: pointer;
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+      font-weight: 600;
+    }
+    .inline {
+      display: flex;
+      gap: 8px;
+    }
+    .inline > * {
+      flex: 1;
+    }
+    pre {
+      margin: 0;
+      background: #0f172a;
+      color: #cbd5e1;
+      border-radius: 8px;
+      padding: 10px;
+      overflow: auto;
+      font-size: 12px;
+      min-height: 100px;
+    }
+    .status {
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Zhaocai Control Plane</h1>
+      <div class="muted">Manage providers, models, profiles, and nodes. Header for admin APIs: <code>X-Admin-Token</code>.</div>
+      <div class="inline" style="margin-top:10px;">
+        <input id="adminToken" placeholder="Admin token">
+        <button onclick="refreshAll()">Refresh All</button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Create Provider</h2>
+      <div class="grid">
+        <input id="providerName" placeholder="name (e.g. openai-main)">
+        <input id="providerType" placeholder="provider_type (openai/anthropic)" value="openai">
+        <input id="providerBaseUrl" placeholder="base_url">
+        <input id="providerAuth" placeholder="auth_scheme (bearer/x-api-key)" value="bearer">
+        <input id="providerApiKey" placeholder="api_key">
+        <input id="providerSecretRef" placeholder="secret_ref (optional)">
+      </div>
+      <textarea id="providerHeaders" placeholder='extra_headers JSON, e.g. {"anthropic-version":"2023-06-01"}'></textarea>
+      <button onclick="createProvider()">Create Provider</button>
+    </div>
+
+    <div class="card">
+      <h2>Create Model</h2>
+      <div class="grid">
+        <input id="modelProviderId" placeholder="provider_id">
+        <input id="modelUpstream" placeholder="upstream_model">
+        <input id="modelAlias" placeholder="alias (used by nodes)">
+      </div>
+      <textarea id="modelCaps" placeholder='capabilities JSON array, e.g. ["chat","reasoning"]'></textarea>
+      <button onclick="createModel()">Create Model</button>
+    </div>
+
+    <div class="card">
+      <h2>Create Profile And Bindings</h2>
+      <div class="inline">
+        <input id="profileName" placeholder="profile name">
+        <input id="profileDesc" placeholder="description">
+      </div>
+      <button onclick="createProfile()">Create Profile</button>
+      <div class="inline" style="margin-top:8px;">
+        <input id="bindProfileId" placeholder="profile_id">
+        <input id="bindModelIds" placeholder="model_ids comma-separated">
+      </div>
+      <button onclick="setBindings()">Set Bindings</button>
+    </div>
+
+    <div class="card">
+      <h2>Create Node And Pull Config</h2>
+      <div class="inline">
+        <input id="nodeName" placeholder="node name">
+        <input id="nodeProfileId" placeholder="profile_id">
+      </div>
+      <button onclick="createNode()">Create Node</button>
+      <div class="inline" style="margin-top:8px;">
+        <input id="pullNodeId" placeholder="node_id">
+        <input id="pullToken" placeholder="pull token (or use admin token)">
+      </div>
+      <button onclick="pullNodeConfig()">Get openclaw.json</button>
+    </div>
+
+    <div class="card">
+      <h2>Data Snapshot</h2>
+      <div class="grid">
+        <div><div class="muted">Providers</div><pre id="providersOut"></pre></div>
+        <div><div class="muted">Models</div><pre id="modelsOut"></pre></div>
+        <div><div class="muted">Profiles</div><pre id="profilesOut"></pre></div>
+        <div><div class="muted">Nodes</div><pre id="nodesOut"></pre></div>
+      </div>
+      <div class="muted" style="margin-top:10px;">Last pulled node config</div>
+      <pre id="nodeConfigOut"></pre>
+    </div>
+  </div>
+
+  <script>
+    function setStatus(msg, ok = true) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = "status " + (ok ? "ok" : "bad");
+    }
+
+    function adminHeaders() {
+      const token = document.getElementById("adminToken").value.trim();
+      return {"X-Admin-Token": token, "Content-Type": "application/json"};
+    }
+
+    async function api(method, path, body = null, headers = null) {
+      const res = await fetch(path, {
+        method,
+        headers: headers || adminHeaders(),
+        body: body ? JSON.stringify(body) : null
+      });
+      const text = await res.text();
+      let payload = null;
+      try { payload = text ? JSON.parse(text) : null; } catch (_) { payload = text; }
+      if (!res.ok && res.status !== 304) {
+        throw new Error((payload && payload.detail) ? payload.detail : (typeof payload === "string" ? payload : res.status));
+      }
+      return {status: res.status, payload, headers: res.headers};
+    }
+
+    function parseJsonInput(id, fallback) {
+      const raw = document.getElementById(id).value.trim();
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    }
+
+    async function createProvider() {
+      try {
+        const body = {
+          name: document.getElementById("providerName").value.trim(),
+          provider_type: document.getElementById("providerType").value.trim(),
+          base_url: document.getElementById("providerBaseUrl").value.trim(),
+          auth_scheme: document.getElementById("providerAuth").value.trim(),
+          api_key: document.getElementById("providerApiKey").value.trim(),
+          secret_ref: document.getElementById("providerSecretRef").value.trim(),
+          extra_headers: parseJsonInput("providerHeaders", {})
+        };
+        await api("POST", "/control/v1/providers", body);
+        setStatus("Provider created.");
+        await refreshAll();
+      } catch (err) {
+        setStatus("Create provider failed: " + err.message, false);
+      }
+    }
+
+    async function createModel() {
+      try {
+        const body = {
+          provider_id: Number(document.getElementById("modelProviderId").value.trim()),
+          upstream_model: document.getElementById("modelUpstream").value.trim(),
+          alias: document.getElementById("modelAlias").value.trim(),
+          capabilities: parseJsonInput("modelCaps", [])
+        };
+        await api("POST", "/control/v1/models", body);
+        setStatus("Model created.");
+        await refreshAll();
+      } catch (err) {
+        setStatus("Create model failed: " + err.message, false);
+      }
+    }
+
+    async function createProfile() {
+      try {
+        const body = {
+          name: document.getElementById("profileName").value.trim(),
+          description: document.getElementById("profileDesc").value.trim()
+        };
+        await api("POST", "/control/v1/profiles", body);
+        setStatus("Profile created.");
+        await refreshAll();
+      } catch (err) {
+        setStatus("Create profile failed: " + err.message, false);
+      }
+    }
+
+    async function setBindings() {
+      try {
+        const profileId = Number(document.getElementById("bindProfileId").value.trim());
+        const modelIds = document.getElementById("bindModelIds").value
+          .split(",")
+          .map(v => Number(v.trim()))
+          .filter(v => Number.isFinite(v));
+        await api("POST", `/control/v1/profiles/${profileId}/bindings`, {model_ids: modelIds});
+        setStatus("Bindings updated.");
+        await refreshAll();
+      } catch (err) {
+        setStatus("Set bindings failed: " + err.message, false);
+      }
+    }
+
+    async function createNode() {
+      try {
+        const body = {
+          name: document.getElementById("nodeName").value.trim(),
+          profile_id: Number(document.getElementById("nodeProfileId").value.trim()),
+          sync_mode: "pull",
+          active: true
+        };
+        const result = await api("POST", "/control/v1/nodes", body);
+        setStatus("Node created. Pull token returned in response snapshot.");
+        document.getElementById("nodesOut").textContent = JSON.stringify(result.payload, null, 2);
+        await refreshAll();
+      } catch (err) {
+        setStatus("Create node failed: " + err.message, false);
+      }
+    }
+
+    async function pullNodeConfig() {
+      try {
+        const nodeId = Number(document.getElementById("pullNodeId").value.trim());
+        const pullToken = document.getElementById("pullToken").value.trim();
+        const headers = pullToken
+          ? {"Authorization": `Bearer ${pullToken}`}
+          : adminHeaders();
+        const result = await api("GET", `/control/v1/nodes/${nodeId}/openclaw-json`, null, headers);
+        document.getElementById("nodeConfigOut").textContent = JSON.stringify(result.payload, null, 2);
+        setStatus(`Node config pulled. ETag=${result.headers.get("etag") || ""}`);
+      } catch (err) {
+        setStatus("Pull config failed: " + err.message, false);
+      }
+    }
+
+    async function refreshAll() {
+      try {
+        const [providers, models, profiles, nodes] = await Promise.all([
+          api("GET", "/control/v1/providers"),
+          api("GET", "/control/v1/models"),
+          api("GET", "/control/v1/profiles"),
+          api("GET", "/control/v1/nodes")
+        ]);
+        document.getElementById("providersOut").textContent = JSON.stringify(providers.payload, null, 2);
+        document.getElementById("modelsOut").textContent = JSON.stringify(models.payload, null, 2);
+        document.getElementById("profilesOut").textContent = JSON.stringify(profiles.payload, null, 2);
+        document.getElementById("nodesOut").textContent = JSON.stringify(nodes.payload, null, 2);
+        setStatus("Refreshed.");
+      } catch (err) {
+        setStatus("Refresh failed: " + err.message, false);
+      }
+    }
+  </script>
+</body>
+</html>
+

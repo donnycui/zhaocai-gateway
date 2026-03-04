@@ -1,95 +1,102 @@
-# Zhaocai Gateway 配置示例
-# 复制此文件为 config.yaml 并填入你的 API keys
-
 gateway:
   host: "0.0.0.0"
   port: 8000
-  workers: 4
+  workers: 1
 
-# Provider 配置 - 支持多个 AI provider
 providers:
-  # OpenAI / Azure OpenAI
   openai:
+    provider_type: "openai"
     base_url: "https://api.openai.com/v1"
+    auth_scheme: "bearer"
     api_key: "${OPENAI_API_KEY}"
     models:
-      - "gpt-4"
-      - "gpt-4-turbo"
-      - "gpt-3.5-turbo"
+      - "gpt-4o"
+      - "gpt-4o-mini"
     weight: 1.0
+    priority: 10
     timeout: 60
     enabled: true
+    extra_headers: {}
 
-  # Anthropic Claude
   anthropic:
+    provider_type: "anthropic"
     base_url: "https://api.anthropic.com"
+    auth_scheme: "x-api-key"
     api_key: "${ANTHROPIC_API_KEY}"
     models:
-      - "claude-3-opus-20240229"
-      - "claude-3-sonnet-20240229"
-      - "claude-3-haiku-20240307"
+      - "claude-3-7-sonnet-latest"
+      - "claude-3-5-haiku-latest"
     weight: 1.0
+    priority: 20
     timeout: 60
     enabled: true
+    extra_headers:
+      anthropic-version: "2023-06-01"
 
-  # NVIDIA NIM (示例)
   nvidia:
+    provider_type: "openai"
     base_url: "https://integrate.api.nvidia.com/v1"
+    auth_scheme: "bearer"
     api_key: "${NVIDIA_API_KEY}"
     models:
       - "deepseek-ai/deepseek-r1"
       - "meta/llama-3.3-70b-instruct"
     weight: 1.0
+    priority: 30
     timeout: 60
     enabled: true
 
-  # 阿里云百炼
   bailian:
+    provider_type: "openai"
     base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    auth_scheme: "bearer"
     api_key: "${DASHSCOPE_API_KEY}"
     models:
       - "qwen-max"
       - "qwen-plus"
       - "qwen-turbo"
     weight: 1.0
+    priority: 40
     timeout: 60
     enabled: true
 
-  # SiliconFlow
   siliconflow:
+    provider_type: "openai"
     base_url: "https://api.siliconflow.cn/v1"
+    auth_scheme: "bearer"
     api_key: "${SILICONFLOW_API_KEY}"
     models:
       - "deepseek-ai/DeepSeek-V3"
       - "deepseek-ai/DeepSeek-R1"
     weight: 1.0
+    priority: 50
     timeout: 60
     enabled: true
 
-  # OpenRouter
   openrouter:
+    provider_type: "openai"
     base_url: "https://openrouter.ai/api/v1"
+    auth_scheme: "bearer"
     api_key: "${OPENROUTER_API_KEY}"
     models:
       - "anthropic/claude-3.5-sonnet"
-      - "google/gemini-pro"
+      - "google/gemini-2.0-flash-001"
     weight: 1.0
+    priority: 60
     timeout: 60
     enabled: true
 
-# 路由策略配置
 routing:
-  strategy: "round_robin"  # 可选: round_robin, weighted, priority
+  strategy: "round_robin"  # round_robin | weighted | priority
   fallback_enabled: true
   max_retries: 3
 
-# 限流配置
 rate_limit:
   enabled: false
-  requests_per_minute: 60
-  burst: 10
+  requests_per_minute: 120
+  burst: 20
 
-# 日志配置
 logging:
-  level: "info"  # debug, info, warning, error
-  format: "json"  # json, text
+  level: "info"
+  format: "text"
+
