@@ -1,0 +1,95 @@
+# Zhaocai Gateway 配置示例
+# 复制此文件为 config.yaml 并填入你的 API keys
+
+gateway:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+
+# Provider 配置 - 支持多个 AI provider
+providers:
+  # OpenAI / Azure OpenAI
+  openai:
+    base_url: "https://api.openai.com/v1"
+    api_key: "${OPENAI_API_KEY}"
+    models:
+      - "gpt-4"
+      - "gpt-4-turbo"
+      - "gpt-3.5-turbo"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+  # Anthropic Claude
+  anthropic:
+    base_url: "https://api.anthropic.com"
+    api_key: "${ANTHROPIC_API_KEY}"
+    models:
+      - "claude-3-opus-20240229"
+      - "claude-3-sonnet-20240229"
+      - "claude-3-haiku-20240307"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+  # NVIDIA NIM (示例)
+  nvidia:
+    base_url: "https://integrate.api.nvidia.com/v1"
+    api_key: "${NVIDIA_API_KEY}"
+    models:
+      - "deepseek-ai/deepseek-r1"
+      - "meta/llama-3.3-70b-instruct"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+  # 阿里云百炼
+  bailian:
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key: "${DASHSCOPE_API_KEY}"
+    models:
+      - "qwen-max"
+      - "qwen-plus"
+      - "qwen-turbo"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+  # SiliconFlow
+  siliconflow:
+    base_url: "https://api.siliconflow.cn/v1"
+    api_key: "${SILICONFLOW_API_KEY}"
+    models:
+      - "deepseek-ai/DeepSeek-V3"
+      - "deepseek-ai/DeepSeek-R1"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+  # OpenRouter
+  openrouter:
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "${OPENROUTER_API_KEY}"
+    models:
+      - "anthropic/claude-3.5-sonnet"
+      - "google/gemini-pro"
+    weight: 1.0
+    timeout: 60
+    enabled: true
+
+# 路由策略配置
+routing:
+  strategy: "round_robin"  # 可选: round_robin, weighted, priority
+  fallback_enabled: true
+  max_retries: 3
+
+# 限流配置
+rate_limit:
+  enabled: false
+  requests_per_minute: 60
+  burst: 10
+
+# 日志配置
+logging:
+  level: "info"  # debug, info, warning, error
+  format: "json"  # json, text

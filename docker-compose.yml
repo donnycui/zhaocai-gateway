@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  zhaocai:
+    build: .
+    container_name: zhaocai-gateway
+    ports:
+      - "${ZHAOCAI_PORT:-8000}:8000"
+    environment:
+      - ZHAOCAI_PORT=${ZHAOCAI_PORT:-8000}
+      - ZHAOCAI_HOST=${ZHAOCAI_HOST:-0.0.0.0}
+      - ZHAOCAI_LOG_LEVEL=${ZHAOCAI_LOG_LEVEL:-info}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
+    networks:
+      - zhaocai-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # Cloudflare Tunnel - 暴露服务到公网（可选）
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: zhaocai-tunnel
+    command: tunnel run --token ${CF_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - zhaocai
+    networks:
+      - zhaocai-network
+    # 或者使用配置文件方式
+    # volumes:
+    #   - ~/.cloudflared:/etc/cloudflared:ro
+    # command: tunnel run <tunnel-id>
+
+networks:
+  zhaocai-network:
+    driver: bridge
