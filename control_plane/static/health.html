@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>健康监控 | Zhaocai Health</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --line: #dbe5f0;
+      --text: #0b1220;
+      --muted: #516175;
+      --brand: #2563eb;
+      --ok: #166534;
+      --bad: #991b1b;
+      --warn: #92400e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 50%, #eef2ff 100%);
+      min-height: 100vh;
+    }
+    /* 导航栏 */
+    .navbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(11, 18, 32, 0.04);
+    }
+    .nav-brand {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-brand::before {
+      content: "◆";
+      color: var(--brand);
+    }
+    .nav-links {
+      display: flex;
+      gap: 4px;
+    }
+    .nav-links a {
+      padding: 8px 16px;
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 14px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .nav-links a:hover {
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .nav-links a.active {
+      background: #eff6ff;
+      color: var(--brand);
+      font-weight: 500;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 24px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .status-badge.online {
+      background: #dcfce7;
+      color: var(--ok);
+    }
+    .status-badge.offline {
+      background: #fee2e2;
+      color: var(--bad);
+    }
+    .status-badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(11, 18, 32, 0.04);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .metric-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .metric-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .provider-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .provider-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border-left: 3px solid transparent;
+    }
+    .provider-item.healthy {
+      border-left-color: var(--ok);
+    }
+    .provider-item.unhealthy {
+      border-left-color: var(--bad);
+    }
+    .provider-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .provider-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .provider-status.healthy {
+      background: var(--ok);
+      box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.2);
+    }
+    .provider-status.unhealthy {
+      background: var(--bad);
+      box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.2);
+    }
+    .provider-name {
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .provider-detail {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .provider-latency {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .update-time {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 24px;
+    }
+    .error-msg {
+      background: #fee2e2;
+      color: var(--bad);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .refresh-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--line);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="nav-brand">招财网关</div>
+    <div class="nav-links">
+      <a href="/health" class="active">健康监控</a>
+      <a href="/docs">API 文档</a>
+      <a href="/control">控制面板</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="header">
+      <h1>系统健康状态</h1>
+      <div class="refresh-indicator">
+        <div class="spinner" id="spinner"></div>
+        <span id="refreshText">正在更新...</span>
+      </div>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <!-- 概览卡片 -->
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">系统状态</span>
+        </div>
+        <div id="systemStatus">
+          <div class="metric-value">--</div>
+          <div class="metric-label">检查中...</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">在线 Provider</span>
+        </div>
+        <div id="onlineProviders">
+          <div class="metric-value">--</div>
+          <div class="metric-label">-- / --</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">平均延迟</span>
+        </div>
+        <div id="avgLatency">
+          <div class="metric-value">--</div>
+          <div class="metric-label">毫秒</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">最后更新</span>
+        </div>
+        <div id="lastUpdate">
+          <div class="metric-value" style="font-size: 18px; margin-top: 8px;">--</div>
+          <div class="metric-label">刚刚</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Provider 详情 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Provider 状态详情</span>
+        <span class="status-badge online" id="overallStatus">监控中</span>
+      </div>
+      <div class="provider-list" id="providerList">
+        <div class="provider-item">
+          <div class="provider-info">
+            <div class="provider-status"></div>
+            <div>
+              <div class="provider-name">加载中...</div>
+              <div class="provider-detail">请稍候</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="update-time" id="updateTime">等待数据...</div>
+  </div>
+
+  <script>
+    let refreshInterval;
+
+    async function fetchHealth() {
+      const spinner = document.getElementById('spinner');
+      const refreshText = document.getElementById('refreshText');
+      spinner.style.display = 'inline-block';
+      refreshText.textContent = '正在更新...';
+
+      try {
+        const resp = await fetch('/health');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        updateUI(data);
+        document.getElementById('errorContainer').innerHTML = '';
+      } catch (err) {
+        showError('获取健康状态失败: ' + err.message);
+        document.getElementById('overallStatus').className = 'status-badge offline';
+        document.getElementById('overallStatus').textContent = '离线';
+      } finally {
+        spinner.style.display = 'none';
+        refreshText.textContent = '下次更新: 10秒后';
+      }
+    }
+
+    function updateUI(data) {
+      const providers = data.providers || {};
+      const providerNames = Object.keys(providers);
+
+      // 计算统计
+      let healthyCount = 0;
+      let totalLatency = 0;
+      let latencyCount = 0;
+
+      providerNames.forEach(name => {
+        const p = providers[name];
+        if (p.healthy) healthyCount++;
+        if (p.latency_ms > 0) {
+          totalLatency += p.latency_ms;
+          latencyCount++;
+        }
+      });
+
+      const avgLatency = latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0;
+
+      // 更新系统状态
+      const isHealthy = healthyCount > 0;
+      document.getElementById('systemStatus').innerHTML = `
+        <div class="metric-value" style="color: ${isHealthy ? 'var(--ok)' : 'var(--bad)'}">
+          ${isHealthy ? '正常' : '异常'}
+        </div>
+        <div class="metric-label">${isHealthy ? '系统运行中' : '请检查 Provider'}
+        </div>
+      `;
+
+      // 更新在线 Provider
+      document.getElementById('onlineProviders').innerHTML = `
+        <div class="metric-value">${healthyCount}</div>
+        <div class="metric-label">${healthyCount} / ${providerNames.length} 在线</div>
+      `;
+
+      // 更新平均延迟
+      document.getElementById('avgLatency').innerHTML = `
+        <div class="metric-value">${avgLatency}</div>
+        <div class="metric-label">毫秒</div>
+      `;
+
+      // 更新时间
+      const date = new Date(data.timestamp * 1000);
+      document.getElementById('lastUpdate').innerHTML = `
+        <div class="metric-value" style="font-size: 18px; margin-top: 8px;">
+          ${date.toLocaleTimeString('zh-CN')}
+        </div>
+        <div class="metric-label">${date.toLocaleDateString('zh-CN')}</div>
+      `;
+
+      // 更新总体状态徽章
+      const overallBadge = document.getElementById('overallStatus');
+      if (isHealthy) {
+        overallBadge.className = 'status-badge online';
+        overallBadge.textContent = '运行正常';
+      } else {
+        overallBadge.className = 'status-badge offline';
+        overallBadge.textContent = '服务异常';
+      }
+
+      // 更新 Provider 列表
+      const listHtml = providerNames.map(name => {
+        const p = providers[name];
+        const isHealthy = p.healthy;
+        const latency = p.latency_ms ? Math.round(p.latency_ms) : '--';
+        const statusText = isHealthy ? '正常' : '异常';
+        const errorDetail = p.error ? ` - ${p.error}` : '';
+
+        return `
+          <div class="provider-item ${isHealthy ? 'healthy' : 'unhealthy'}">
+            <div class="provider-info">
+              <div class="provider-status ${isHealthy ? 'healthy' : 'unhealthy'}"></div>
+              <div>
+                <div class="provider-name">${name}</div>
+                <div class="provider-detail">${statusText}${errorDetail}</div>
+              </div>
+            </div>
+            <div class="provider-latency">${latency} ms</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('providerList').innerHTML = listHtml || '<div class="provider-item"><div class="provider-info"><div class="provider-name">暂无 Provider</div></div></div>';
+
+      // 更新时间文本
+      document.getElementById('updateTime').textContent =
+        `最后更新: ${new Date().toLocaleString('zh-CN')} | 每 10 秒自动刷新`;
+    }
+
+    function showError(msg) {
+      document.getElementById('errorContainer').innerHTML =
+        `<div class="error-msg">${msg}</div>`;
+    }
+
+    // 初始加载
+    fetchHealth();
+
+    // 每 10 秒刷新
+    refreshInterval = setInterval(fetchHealth, 10000);
+
+    // 页面可见性变化时调整刷新
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        clearInterval(refreshInterval);
+      } else {
+        fetchHealth();
+        refreshInterval = setInterval(fetchHealth, 10000);
+      }
+    });
+  </script>
+</body>
+</html>

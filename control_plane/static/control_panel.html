@@ -15,11 +15,60 @@
       --ok: #166534;
       --bad: #991b1b;
     }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
       background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 50%, #eef2ff 100%);
+      min-height: 100vh;
+    }
+    /* 导航栏 */
+    .navbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(11, 18, 32, 0.04);
+    }
+    .nav-brand {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-brand::before {
+      content: "◆";
+      color: var(--brand);
+    }
+    .nav-links {
+      display: flex;
+      gap: 4px;
+    }
+    .nav-links a {
+      padding: 8px 16px;
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 14px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .nav-links a:hover {
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .nav-links a.active {
+      background: #eff6ff;
+      color: var(--brand);
+      font-weight: 500;
     }
     .container {
       max-width: 1100px;
@@ -97,18 +146,36 @@
     .status.ok { color: var(--ok); }
     .status.bad { color: var(--bad); }
     .lang-switch {
-      position: absolute;
-      top: 20px;
-      right: 20px;
+      position: fixed;
+      top: 72px;
+      right: 24px;
+      z-index: 99;
     }
     .lang-switch button {
       width: auto;
       padding: 6px 12px;
       font-size: 12px;
+      background: var(--card);
+      color: var(--muted);
+      border: 1px solid var(--line);
+    }
+    .lang-switch button:hover {
+      background: #f1f5f9;
+      color: var(--text);
     }
   </style>
 </head>
 <body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="nav-brand">招财网关</div>
+    <div class="nav-links">
+      <a href="/health">健康监控</a>
+      <a href="/docs">API 文档</a>
+      <a href="/control" class="active">控制面板</a>
+    </div>
+  </nav>
+
   <div class="lang-switch">
     <button class="secondary" onclick="toggleLang()" id="langBtn">English</button>
   </div>
