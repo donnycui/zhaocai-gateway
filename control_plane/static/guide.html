@@ -290,10 +290,97 @@
     <!-- 主内容 -->
     <main class="main">
       <h1 id="intro">招财网关使用指南</h1>
+
+      <div class="tip">
+        <div class="tip-title">💡 一句话总结</div>
+        <p>
+          招财网关是一个 <strong>OpenAI 兼容的 AI 推理网关</strong> + <strong>多节点配置集中管理平台</strong>。
+          让你用一个统一入口管理多个 AI 提供商，并轻松管理数十个节点的模型配置。
+        </p>
+      </div>
+
+      <h2>开发背景</h2>
       <p>
-        招财网关是一个 <strong>OpenAI 兼容的 AI 推理网关</strong>，同时提供 <strong>多节点配置分发控制面板</strong>。
-        适用于拥有多个 LLM Provider 和多个 OpenClaw 节点的场景。
+        在实际使用 AI 模型时，我们常常遇到以下问题：
       </p>
+      <ul>
+        <li><strong>多平台管理混乱</strong> - 同时使用 OpenAI、Claude、DeepSeek、SiliconFlow 等多个提供商，每个都有独立的 API Key、端点和模型名称</li>
+        <li><strong>节点配置繁琐</strong> - 有多台服务器（VPS、树莓派等）运行 OpenClaw，每台都要单独配置 openclaw.json，修改时需要逐台登录</li>
+        <li><strong>配置不同步</strong> - 新增模型或更换 API Key 时，部分节点容易遗漏，导致服务异常</li>
+        <li><strong>故障无备份</strong> - 某个 Provider 故障时，无法自动切换到备用 Provider</li>
+      </ul>
+      <p>
+        招财网关就是为了解决这些问题而设计的。它提供一个<strong>统一的控制面板</strong>集中管理所有 Provider，
+        通过<strong>配置分发机制</strong>让节点自动拉取最新配置，并支持<strong>故障自动转移</strong>保证服务可用性。
+      </p>
+
+      <h2>核心功能</h2>
+
+      <h3>1. 统一 AI 推理网关</h3>
+      <ul>
+        <li><strong>OpenAI 兼容接口</strong> - 提供标准 <code>/v1/chat/completions</code> 接口，已有代码无需修改即可接入</li>
+        <li><strong>多 Provider 路由</strong> - 支持轮询、权重、优先级三种路由策略，自动分配请求到不同 Provider</li>
+        <li><strong>故障自动转移</strong> - 单个 Provider 故障时自动重试其他 Provider，保证服务连续性</li>
+        <li><strong>格式自动转换</strong> - 自动处理 OpenAI 和 Anthropic 的协议差异，对外暴露统一接口</li>
+        <li><strong>流式响应支持</strong> - 支持 SSE 流式输出，兼容 GPT、Claude 等主流模型</li>
+      </ul>
+
+      <h3>2. 配置集中管理</h3>
+      <ul>
+        <li><strong>Provider 管理</strong> - 集中管理所有 AI 提供商的 API Key、端点、模型映射</li>
+        <li><strong>Model 别名</strong> - 将复杂的上游模型名（如 deepseek-ai/DeepSeek-V3）映射为简洁别名（如 deepseek-v3）</li>
+        <li><strong>配置集 (Profile)</strong> - 按场景定义模型集合，如"通用配置"、"代码助手"、"中文优化"</li>
+        <li><strong>节点分组</strong> - 将多台服务器分组管理，不同组使用不同配置</li>
+      </ul>
+
+      <h3>3. 配置自动分发</h3>
+      <ul>
+        <li><strong>节点注册</strong> - 为每个节点生成唯一的拉取 Token</li>
+        <li><strong>增量同步</strong> - 节点通过 ETag 机制只拉取变更配置，节省带宽</li>
+        <li><strong>自动重载</strong> - 配置变更后节点自动重载 OpenClaw，无需人工干预</li>
+        <li><strong>版本追踪</strong> - 保存配置历史版本，支持回滚</li>
+      </ul>
+
+      <h3>4. 运维监控</h3>
+      <ul>
+        <li><strong>健康检查</strong> - 实时监控所有 Provider 可用性和响应延迟</li>
+        <li><strong>配置审计</strong> - 记录所有配置变更，追踪谁在何时修改了什么</li>
+        <li><strong>Token 轮换</strong> - 支持节点 Token 动态轮换，提升安全性</li>
+      </ul>
+
+      <h2>适用场景</h2>
+      <table>
+        <tr>
+          <th>场景</th>
+          <th>说明</th>
+        </tr>
+        <tr>
+          <td>个人多节点部署</td>
+          <td>家里树莓派 + VPS 组合，统一管理配置</td>
+        </tr>
+        <tr>
+          <td>团队共享网关</td>
+          <td>团队共用一个网关入口，统一配额管理</td>
+        </tr>
+        <tr>
+          <td>多模型 A/B 测试</td>
+          <td>快速切换不同模型对比效果</td>
+        </tr>
+        <tr>
+          <td>故障自动切换</td>
+          <td>主 Provider 故障时自动切换到备用</td>
+        </tr>
+      </table>
+
+      <h2>系统架构</h2>
+      <p>
+        招财网关采用 <strong>中心控制面 + 节点拉取</strong> 的架构模式：
+      </p>
+      <ul>
+        <li><strong>中心控制面</strong> - 统一维护 Provider/Model/Profile/Node，编译生成节点专属配置</li>
+        <li><strong>节点</strong> - 通过 Token 定时拉取配置，基于 ETag 判断是否有更新</li>
+        <li><strong>推理网关</strong> - 提供 OpenAI 兼容接口，支持多 Provider 路由和故障转移</li>
+      </ul>
 
       <div class="quick-links">
         <a href="/health" class="quick-card">
