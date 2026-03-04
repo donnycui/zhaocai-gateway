@@ -19,6 +19,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Request, status

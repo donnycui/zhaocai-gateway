@@ -4,7 +4,8 @@
       "Bash(python:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
