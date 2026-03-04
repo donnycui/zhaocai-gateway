@@ -231,6 +231,13 @@ def create_control_plane_routers(
             _handle_data_error(exc)
             raise
 
+    @panel_router.get("/guide", response_class=HTMLResponse)
+    def guide_panel() -> HTMLResponse:
+        guide_path = Path(__file__).parent / "static" / "guide.html"
+        if not guide_path.exists():
+            raise HTTPException(status_code=404, detail="Guide panel UI is missing")
+        return HTMLResponse(guide_path.read_text(encoding="utf-8"))
+
     @panel_router.get("/control", response_class=HTMLResponse)
     def control_panel() -> HTMLResponse:
         panel_path = Path(__file__).parent / "static" / "control_panel.html"

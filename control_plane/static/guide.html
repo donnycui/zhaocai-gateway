@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>使用指南 | Zhaocai Gateway Guide</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --line: #dbe5f0;
+      --text: #0b1220;
+      --muted: #516175;
+      --brand: #2563eb;
+      --ok: #166534;
+      --bad: #991b1b;
+      --code-bg: #f1f5f9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+    }
+    /* 导航栏 */
+    .navbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(11, 18, 32, 0.04);
+    }
+    .nav-brand {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .nav-brand::before {
+      content: "◆";
+      color: var(--brand);
+    }
+    .nav-links {
+      display: flex;
+      gap: 4px;
+    }
+    .nav-links a {
+      padding: 8px 16px;
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 14px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .nav-links a:hover {
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .nav-links a.active {
+      background: #eff6ff;
+      color: var(--brand);
+      font-weight: 500;
+    }
+    /* 布局 */
+    .layout {
+      display: flex;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    /* 侧边栏 */
+    .sidebar {
+      width: 260px;
+      padding: 24px;
+      position: sticky;
+      top: 56px;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+    }
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+    .sidebar-title:first-child {
+      margin-top: 0;
+    }
+    .sidebar-link {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
+    .sidebar-link:hover {
+      background: #f1f5f9;
+    }
+    /* 主内容 */
+    .main {
+      flex: 1;
+      padding: 40px;
+      max-width: 900px;
+    }
+    h1 {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+    }
+    h2 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 48px 0 20px 0;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0 16px 0;
+    }
+    p {
+      margin: 0 0 16px 0;
+    }
+    code {
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+    .quick-links {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .quick-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 20px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .quick-card:hover {
+      border-color: var(--brand);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    }
+    .quick-card-title {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: var(--brand);
+    }
+    .quick-card-desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .step {
+      display: flex;
+      gap: 16px;
+      margin: 24px 0;
+      padding: 20px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--brand);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .step-content {
+      flex: 1;
+    }
+    .step-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      background: var(--code-bg);
+      font-weight: 600;
+    }
+    .tip {
+      background: #eff6ff;
+      border-left: 4px solid var(--brand);
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .tip-title {
+      font-weight: 600;
+      color: var(--brand);
+      margin-bottom: 8px;
+    }
+    .warning {
+      background: #fef3c7;
+      border-left: 4px solid var(--warn);
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <a href="/" class="nav-brand">招财网关</a>
+    <div class="nav-links">
+      <a href="/guide" class="active">使用指南</a>
+      <a href="/health">健康监控</a>
+      <a href="/docs">API 文档</a>
+      <a href="/control">控制面板</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-title">快速开始</div>
+      <a href="#intro" class="sidebar-link">项目简介</a>
+      <a href="#quickstart" class="sidebar-link">快速开始</a>
+      <a href="#architecture" class="sidebar-link">系统架构</a>
+
+      <div class="sidebar-title">核心概念</div>
+      <a href="#provider" class="sidebar-link">什么是 Provider</a>
+      <a href="#model" class="sidebar-link">什么是 Model</a>
+      <a href="#profile" class="sidebar-link">什么是 Profile</a>
+      <a href="#node" class="sidebar-link">什么是 Node</a>
+
+      <div class="sidebar-title">操作指南</div>
+      <a href="#workflow" class="sidebar-link">完整工作流程</a>
+      <a href="#api-usage" class="sidebar-link">API 使用示例</a>
+      <a href="#sync-agent" class="sidebar-link">节点同步代理</a>
+
+      <div class="sidebar-title">参考</div>
+      <a href="#env-vars" class="sidebar-link">环境变量</a>
+      <a href="#troubleshooting" class="sidebar-link">常见问题</a>
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="main">
+      <h1 id="intro">招财网关使用指南</h1>
+      <p>
+        招财网关是一个 <strong>OpenAI 兼容的 AI 推理网关</strong>，同时提供 <strong>多节点配置分发控制面板</strong>。
+        适用于拥有多个 LLM Provider 和多个 OpenClaw 节点的场景。
+      </p>
+
+      <div class="quick-links">
+        <a href="/health" class="quick-card">
+          <div class="quick-card-title">📊 健康监控</div>
+          <div class="quick-card-desc">实时查看 Provider 状态和系统健康度</div>
+        </a>
+        <a href="/control" class="quick-card">
+          <div class="quick-card-title">🎛️ 控制面板</div>
+          <div class="quick-card-desc">可视化配置 Providers、Models、Nodes</div>
+        </a>
+        <a href="/docs" class="quick-card">
+          <div class="quick-card-title">📚 API 文档</div>
+          <div class="quick-card-desc">在线测试所有接口，查看请求响应格式</div>
+        </a>
+      </div>
+
+      <h2 id="quickstart">快速开始</h2>
+
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">安装依赖</div>
+          <pre><code>pip install -r requirements.txt</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">配置环境变量</div>
+          <pre><code>cp .env.example .env
+
+# 编辑 .env，设置以下必需项：
+ZHAOCAI_ENCRYPTION_KEY="生成加密密钥"
+ZHAOCAI_ADMIN_TOKEN="设置管理员Token"
+SILICONFLOW_API_KEY="你的API Key"</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">启动服务</div>
+          <pre><code>python gateway.py</code></pre>
+          <p>服务启动后访问：</p>
+          <ul>
+            <li>使用指南（本页）: <code>http://localhost:8000/guide</code></li>
+            <li>健康监控: <code>http://localhost:8000/health</code></li>
+            <li>控制面板: <code>http://localhost:8000/control</code></li>
+            <li>API 文档: <code>http://localhost:8000/docs</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 id="architecture">系统架构</h2>
+      <p>
+        招财网关采用 <strong>中心控制面 + 节点拉取</strong> 的架构模式：
+      </p>
+      <ul>
+        <li><strong>中心控制面</strong>：统一维护 Provider/Model/Profile/Node，编译生成节点专属配置</li>
+        <li><strong>节点</strong>：通过 Token 定时拉取配置，基于 ETag 判断是否有更新</li>
+        <li><strong>推理网关</strong>：提供 OpenAI 兼容接口，支持多 Provider 路由和故障转移</li>
+      </ul>
+
+      <h2 id="provider">什么是 Provider？</h2>
+      <p>
+        <strong>Provider</strong> 是上游 AI 服务提供商的配置，例如 OpenAI、SiliconFlow、Anthropic 等。
+      </p>
+      <p>每个 Provider 包含：</p>
+      <table>
+        <tr>
+          <th>字段</th>
+          <th>说明</th>
+          <th>示例</th>
+        </tr>
+        <tr>
+          <td>name</td>
+          <td>唯一标识名称</td>
+          <td>siliconflow-main</td>
+        </tr>
+        <tr>
+          <td>provider_type</td>
+          <td>类型（openai/anthropic）</td>
+          <td>openai</td>
+        </tr>
+        <tr>
+          <td>base_url</td>
+          <td>API 基础地址</td>
+          <td>https://api.siliconflow.cn/v1</td>
+        </tr>
+        <tr>
+          <td>api_key</td>
+          <td>认证密钥（加密存储）</td>
+          <td>sk-xxx</td>
+        </tr>
+        <tr>
+          <td>auth_scheme</td>
+          <td>认证方式</td>
+          <td>bearer / x-api-key</td>
+        </tr>
+      </table>
+
+      <h2 id="model">什么是 Model？</h2>
+      <p>
+        <strong>Model</strong> 是模型的别名配置，将上游模型名称映射为节点使用的友好名称。
+      </p>
+      <div class="tip">
+        <div class="tip-title">💡 为什么需要 Model？</div>
+        <p>不同 Provider 可能有相同的模型名称（如都有 gpt-4o），通过 Model 别名可以区分来源，同时隐藏真实的上游 Provider 细节。</p>
+      </div>
+
+      <h2 id="profile">什么是 Profile？</h2>
+      <p>
+        <strong>Profile（配置集）</strong> 是一组模型的集合，用于定义某个场景下可用的模型。
+      </p>
+      <p>例如：</p>
+      <ul>
+        <li><strong>默认配置</strong>：通用场景，包含 gpt-4o、claude-3-sonnet</li>
+        <li><strong>代码助手</strong>：编程场景，包含 deepseek-coder、claude-3-opus</li>
+        <li><strong>中文优化</strong>：中文场景，包含 qwen-max、ERNIE-4</li>
+      </ul>
+
+      <h2 id="node">什么是 Node？</h2>
+      <p>
+        <strong>Node（节点）</strong> 代表一个 OpenClaw 实例，需要关联到一个 Profile。
+      </p>
+      <p>每个 Node 拥有：</p>
+      <ul>
+        <li>唯一的拉取 Token（用于身份验证）</li>
+        <li>关联的 Profile（决定可用模型）</li>
+        <li>专属的 openclaw.json 配置</li>
+      </ul>
+
+      <h2 id="workflow">完整工作流程</h2>
+
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">创建 Provider</div>
+          <p>在控制面板或调用 API 创建上游 Provider 配置。</p>
+          <pre><code>POST /control/v1/providers
+{
+  "name": "siliconflow",
+  "provider_type": "openai",
+  "base_url": "https://api.siliconflow.cn/v1",
+  "api_key": "sk-xxx"
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">创建 Model</div>
+          <p>为 Provider 创建模型别名。</p>
+          <pre><code>POST /control/v1/models
+{
+  "provider_id": 1,
+  "upstream_model": "deepseek-ai/DeepSeek-V3",
+  "alias": "deepseek-v3"
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">创建 Profile 并绑定模型</div>
+          <pre><code>POST /control/v1/profiles
+{ "name": "默认配置", "description": "通用场景" }
+
+POST /control/v1/profiles/1/bindings
+{ "model_ids": [1, 2, 3] }</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">创建 Node</div>
+          <pre><code>POST /control/v1/nodes
+{
+  "name": "节点-1",
+  "profile_id": 1,
+  "sync_mode": "pull"
+}</code></pre>
+          <p>创建成功后会返回 <code>pull_token</code>，用于节点拉取配置。</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <div class="step-title">节点拉取配置</div>
+          <pre><code>GET /control/v1/nodes/1/openclaw-json
+Authorization: Bearer {pull_token}</code></pre>
+          <p>节点保存配置后重启 OpenClaw 即可生效。</p>
+        </div>
+      </div>
+
+      <h2 id="api-usage">API 使用示例</h2>
+
+      <h3>推理接口</h3>
+      <pre><code># 非流式请求
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek-v3",
+    "messages": [{"role":"user","content":"你好"}]
+  }'
+
+# 流式请求
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek-v3",
+    "messages": [{"role":"user","content":"你好"}],
+    "stream": true
+  }'</code></pre>
+
+      <h2 id="sync-agent">节点同步代理</h2>
+      <p>使用内置脚本自动同步配置：</p>
+      <pre><code>python scripts/node_sync_agent.py \
+  --base-url http://127.0.0.1:8000 \
+  --node-id 1 \
+  --pull-token zg_node_1_xxx \
+  --output /etc/openclaw/openclaw.json \
+  --interval 60 \
+  --reload-cmd "systemctl restart openclaw"</code></pre>
+
+      <h2 id="env-vars">环境变量参考</h2>
+      <table>
+        <tr>
+          <th>变量</th>
+          <th>必需</th>
+          <th>说明</th>
+        </tr>
+        <tr>
+          <td>ZHAOCAI_ENCRYPTION_KEY</td>
+          <td>✅</td>
+          <td>API Key 加密密钥（Fernet 格式）</td>
+        </tr>
+        <tr>
+          <td>ZHAOCAI_ADMIN_TOKEN</td>
+          <td>✅</td>
+          <td>管理接口认证 Token</td>
+        </tr>
+        <tr>
+          <td>ZHAOCAI_PORT</td>
+          <td>❌</td>
+          <td>服务端口（默认 8000）</td>
+        </tr>
+        <tr>
+          <td>ZHAOCAI_CORS_ORIGINS</td>
+          <td>❌</td>
+          <td>CORS 允许来源（JSON 数组）</td>
+        </tr>
+      </table>
+
+      <h2 id="troubleshooting">常见问题</h2>
+
+      <h3>Q: 启动报错 "ZHAOCAI_ENCRYPTION_KEY not set"</h3>
+      <p>生成密钥并添加到 .env：</p>
+      <pre><code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
+
+      <h3>Q: Provider 健康检查失败（401）</h3>
+      <p>这是正常的，表示 API Key 未配置或无效。在 .env 中配置正确的 API Key 后重启服务。</p>
+
+      <h3>Q: 如何快速初始化 Provider？</h3>
+      <p>使用 bootstrap 脚本：</p>
+      <pre><code>python scripts/bootstrap_provider.py \
+  --base-url http://127.0.0.1:8000 \
+  --admin-token "$ZHAOCAI_ADMIN_TOKEN" \
+  --name siliconflow \
+  --api-key "sk-xxx" \
+  --models "deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1"</code></pre>
+
+      <div class="tip">
+        <div class="tip-title">📖 更多帮助</div>
+        <p>
+          • 查看 <a href="/docs">API 文档</a> 了解所有接口<br>
+          • 访问 <a href="/control">控制面板</a> 进行可视化管理<br>
+          • 检查 <a href="/health">健康监控</a> 查看系统状态
+        </p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
