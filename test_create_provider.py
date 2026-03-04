@@ -20,7 +20,7 @@ load_env()
 
 # 从环境变量读取
 ADMIN_TOKEN = os.getenv("ZHAOCAI_ADMIN_TOKEN", "")
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://127.0.0.1:8000"
 
 print(f"使用 Admin Token: {ADMIN_TOKEN[:30]}...")
 print(f"请求地址: {BASE_URL}")
@@ -37,7 +37,8 @@ resp = httpx.post(
         "auth_scheme": "bearer",
         "api_key": "sk-oygjolpbktfphizinffhxutkmfpcjmesxtcqmktsezkeylzk",
         "enabled": True
-    }
+    },
+    timeout=10
 )
 
 print(f"状态码: {resp.status_code}")
