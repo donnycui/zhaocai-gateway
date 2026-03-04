@@ -164,9 +164,34 @@
       color: var(--muted);
       border: 1px solid var(--line);
     }
-    .lang-switch button:hover {
-      background: #f1f5f9;
-      color: var(--text);
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 10px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #94a3b8;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    pre:hover .copy-btn {
+      opacity: 1;
+    }
+    .copy-btn.copied {
+      background: var(--ok);
+      color: #fff;
+      opacity: 1;
+    }
+    .data-block {
+      position: relative;
     }
   </style>
 </head>
@@ -253,17 +278,67 @@
     <div class="card">
       <h2 data-i18n="dataSnapshot">数据快照</h2>
       <div class="grid">
-        <div><div class="muted" data-i18n="providers">Providers</div><pre id="providersOut"></pre></div>
-        <div><div class="muted" data-i18n="models">Models</div><pre id="modelsOut"></pre></div>
-        <div><div class="muted" data-i18n="profiles">配置集</div><pre id="profilesOut"></pre></div>
-        <div><div class="muted" data-i18n="nodes">节点</div><pre id="nodesOut"></pre></div>
+        <div class="data-block">
+          <div class="muted" data-i18n="providers">Providers</div>
+          <pre id="providersOut"><button class="copy-btn" onclick="copyToClipboard('providersOut')">复制</button></pre>
+        </div>
+        <div class="data-block">
+          <div class="muted" data-i18n="models">Models</div>
+          <pre id="modelsOut"><button class="copy-btn" onclick="copyToClipboard('modelsOut')">复制</button></pre>
+        </div>
+        <div class="data-block">
+          <div class="muted" data-i18n="profiles">配置集</div>
+          <pre id="profilesOut"><button class="copy-btn" onclick="copyToClipboard('profilesOut')">复制</button></pre>
+        </div>
+        <div class="data-block">
+          <div class="muted" data-i18n="nodes">节点</div>
+          <pre id="nodesOut"><button class="copy-btn" onclick="copyToClipboard('nodesOut')">复制</button></pre>
+        </div>
       </div>
       <div class="muted" style="margin-top:10px;" data-i18n="lastConfig">上次拉取的节点配置</div>
-      <pre id="nodeConfigOut"></pre>
+      <div class="data-block">
+        <pre id="nodeConfigOut"><button class="copy-btn" onclick="copyToClipboard('nodeConfigOut')">复制</button></pre>
+      </div>
     </div>
   </div>
 
   <script>
+    // 复制到剪贴板功能
+    async function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      const text = element.textContent.replace('复制', '').trim();
+
+      try {
+        await navigator.clipboard.writeText(text);
+        showCopyFeedback(elementId);
+      } catch (err) {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showCopyFeedback(elementId);
+      }
+    }
+
+    function showCopyFeedback(elementId) {
+      const element = document.getElementById(elementId);
+      const btn = element.querySelector('.copy-btn');
+      if (btn) {
+        const originalText = btn.textContent;
+        btn.textContent = '已复制!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
+      }
+    }
+
     // 国际化翻译
     const i18n = {
       zh: {
@@ -369,6 +444,32 @@
     };
 
     let currentLang = 'zh';
+
+    async function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      const text = element.textContent.replace('复制', '').trim();
+
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = element.querySelector('.copy-btn');
+        const originalText = btn.textContent;
+        btn.textContent = currentLang === 'zh' ? '已复制!' : 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        console.error('复制失败:', err);
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    }
 
     function toggleLang() {
       currentLang = currentLang === 'zh' ? 'en' : 'zh';
