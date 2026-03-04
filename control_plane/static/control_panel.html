@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zhaocai Control Plane</title>
+  <title>招财网关控制面板 | Zhaocai Control Plane</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -17,7 +17,7 @@
     }
     body {
       margin: 0;
-      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
       background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 50%, #eef2ff 100%);
     }
@@ -69,6 +69,10 @@
       color: #fff;
       font-weight: 600;
     }
+    button.secondary {
+      background: var(--card);
+      color: var(--brand);
+    }
     .inline {
       display: flex;
       gap: 8px;
@@ -92,87 +96,232 @@
     }
     .status.ok { color: var(--ok); }
     .status.bad { color: var(--bad); }
+    .lang-switch {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+    .lang-switch button {
+      width: auto;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
+  <div class="lang-switch">
+    <button class="secondary" onclick="toggleLang()" id="langBtn">English</button>
+  </div>
+
   <div class="container">
     <div class="card">
-      <h1>Zhaocai Control Plane</h1>
-      <div class="muted">Manage providers, models, profiles, and nodes. Header for admin APIs: <code>X-Admin-Token</code>.</div>
+      <h1 data-i18n="title">招财网关控制面板</h1>
+      <div class="muted" data-i18n="subtitle">管理 Provider、模型、配置集和节点。管理接口请求头: <code>X-Admin-Token</code></div>
       <div class="inline" style="margin-top:10px;">
-        <input id="adminToken" placeholder="Admin token">
-        <button onclick="refreshAll()">Refresh All</button>
+        <input id="adminToken" data-i18n-placeholder="adminTokenPlaceholder" placeholder="输入管理员 Token">
+        <button onclick="refreshAll()" data-i18n="refreshBtn">刷新全部</button>
       </div>
       <div id="status" class="status"></div>
     </div>
 
     <div class="card">
-      <h2>Create Provider</h2>
+      <h2 data-i18n="createProvider">创建 Provider</h2>
       <div class="grid">
-        <input id="providerName" placeholder="name (e.g. openai-main)">
-        <input id="providerType" placeholder="provider_type (openai/anthropic)" value="openai">
-        <input id="providerBaseUrl" placeholder="base_url">
-        <input id="providerAuth" placeholder="auth_scheme (bearer/x-api-key)" value="bearer">
-        <input id="providerApiKey" placeholder="api_key">
-        <input id="providerSecretRef" placeholder="secret_ref (optional)">
+        <input id="providerName" data-i18n-placeholder="providerName" placeholder="名称 (如: openai-main)">
+        <input id="providerType" data-i18n-placeholder="providerType" placeholder="类型 (openai/anthropic)" value="openai">
+        <input id="providerBaseUrl" data-i18n-placeholder="providerBaseUrl" placeholder="基础 URL">
+        <input id="providerAuth" data-i18n-placeholder="providerAuth" placeholder="认证方式 (bearer/x-api-key)" value="bearer">
+        <input id="providerApiKey" data-i18n-placeholder="providerApiKey" placeholder="API 密钥">
+        <input id="providerSecretRef" data-i18n-placeholder="providerSecretRef" placeholder="密钥引用 (可选)">
       </div>
-      <textarea id="providerHeaders" placeholder='extra_headers JSON, e.g. {"anthropic-version":"2023-06-01"}'></textarea>
-      <button onclick="createProvider()">Create Provider</button>
+      <textarea id="providerHeaders" data-i18n-placeholder="providerHeaders" placeholder='额外请求头 JSON, 如 {"anthropic-version":"2023-06-01"}'></textarea>
+      <button onclick="createProvider()" data-i18n="createProviderBtn">创建 Provider</button>
     </div>
 
     <div class="card">
-      <h2>Create Model</h2>
+      <h2 data-i18n="createModel">创建 Model</h2>
       <div class="grid">
-        <input id="modelProviderId" placeholder="provider_id">
-        <input id="modelUpstream" placeholder="upstream_model">
-        <input id="modelAlias" placeholder="alias (used by nodes)">
+        <input id="modelProviderId" data-i18n-placeholder="modelProviderId" placeholder="Provider ID">
+        <input id="modelUpstream" data-i18n-placeholder="modelUpstream" placeholder="上游模型名称">
+        <input id="modelAlias" data-i18n-placeholder="modelAlias" placeholder="别名 (节点使用)">
       </div>
-      <textarea id="modelCaps" placeholder='capabilities JSON array, e.g. ["chat","reasoning"]'></textarea>
-      <button onclick="createModel()">Create Model</button>
+      <textarea id="modelCaps" data-i18n-placeholder="modelCaps" placeholder='能力标签 JSON 数组, 如 ["chat","reasoning"]'></textarea>
+      <button onclick="createModel()" data-i18n="createModelBtn">创建 Model</button>
     </div>
 
     <div class="card">
-      <h2>Create Profile And Bindings</h2>
+      <h2 data-i18n="createProfile">创建配置集与绑定</h2>
       <div class="inline">
-        <input id="profileName" placeholder="profile name">
-        <input id="profileDesc" placeholder="description">
+        <input id="profileName" data-i18n-placeholder="profileName" placeholder="配置集名称">
+        <input id="profileDesc" data-i18n-placeholder="profileDesc" placeholder="描述">
       </div>
-      <button onclick="createProfile()">Create Profile</button>
+      <button onclick="createProfile()" data-i18n="createProfileBtn">创建配置集</button>
       <div class="inline" style="margin-top:8px;">
-        <input id="bindProfileId" placeholder="profile_id">
-        <input id="bindModelIds" placeholder="model_ids comma-separated">
+        <input id="bindProfileId" data-i18n-placeholder="bindProfileId" placeholder="配置集 ID">
+        <input id="bindModelIds" data-i18n-placeholder="bindModelIds" placeholder="模型 IDs (逗号分隔)">
       </div>
-      <button onclick="setBindings()">Set Bindings</button>
+      <button onclick="setBindings()" data-i18n="setBindingsBtn">设置绑定</button>
     </div>
 
     <div class="card">
-      <h2>Create Node And Pull Config</h2>
+      <h2 data-i18n="createNode">创建节点与拉取配置</h2>
       <div class="inline">
-        <input id="nodeName" placeholder="node name">
-        <input id="nodeProfileId" placeholder="profile_id">
+        <input id="nodeName" data-i18n-placeholder="nodeName" placeholder="节点名称">
+        <input id="nodeProfileId" data-i18n-placeholder="nodeProfileId" placeholder="配置集 ID">
       </div>
-      <button onclick="createNode()">Create Node</button>
+      <button onclick="createNode()" data-i18n="createNodeBtn">创建节点</button>
       <div class="inline" style="margin-top:8px;">
-        <input id="pullNodeId" placeholder="node_id">
-        <input id="pullToken" placeholder="pull token (or use admin token)">
+        <input id="pullNodeId" data-i18n-placeholder="pullNodeId" placeholder="节点 ID">
+        <input id="pullToken" data-i18n-placeholder="pullToken" placeholder="拉取 Token (或使用管理员 Token)">
       </div>
-      <button onclick="pullNodeConfig()">Get openclaw.json</button>
+      <button onclick="pullNodeConfig()" data-i18n="pullConfigBtn">获取 openclaw.json</button>
     </div>
 
     <div class="card">
-      <h2>Data Snapshot</h2>
+      <h2 data-i18n="dataSnapshot">数据快照</h2>
       <div class="grid">
-        <div><div class="muted">Providers</div><pre id="providersOut"></pre></div>
-        <div><div class="muted">Models</div><pre id="modelsOut"></pre></div>
-        <div><div class="muted">Profiles</div><pre id="profilesOut"></pre></div>
-        <div><div class="muted">Nodes</div><pre id="nodesOut"></pre></div>
+        <div><div class="muted" data-i18n="providers">Providers</div><pre id="providersOut"></pre></div>
+        <div><div class="muted" data-i18n="models">Models</div><pre id="modelsOut"></pre></div>
+        <div><div class="muted" data-i18n="profiles">配置集</div><pre id="profilesOut"></pre></div>
+        <div><div class="muted" data-i18n="nodes">节点</div><pre id="nodesOut"></pre></div>
       </div>
-      <div class="muted" style="margin-top:10px;">Last pulled node config</div>
+      <div class="muted" style="margin-top:10px;" data-i18n="lastConfig">上次拉取的节点配置</div>
       <pre id="nodeConfigOut"></pre>
     </div>
   </div>
 
   <script>
+    // 国际化翻译
+    const i18n = {
+      zh: {
+        title: "招财网关控制面板",
+        subtitle: "管理 Provider、模型、配置集和节点。管理接口请求头: <code>X-Admin-Token</code>",
+        adminTokenPlaceholder: "输入管理员 Token",
+        refreshBtn: "刷新全部",
+        createProvider: "创建 Provider",
+        providerName: "名称 (如: openai-main)",
+        providerType: "类型 (openai/anthropic)",
+        providerBaseUrl: "基础 URL",
+        providerAuth: "认证方式 (bearer/x-api-key)",
+        providerApiKey: "API 密钥",
+        providerSecretRef: "密钥引用 (可选)",
+        providerHeaders: "额外请求头 JSON, 如 {\"anthropic-version\":\"2023-06-01\"}",
+        createProviderBtn: "创建 Provider",
+        createModel: "创建 Model",
+        modelProviderId: "Provider ID",
+        modelUpstream: "上游模型名称",
+        modelAlias: "别名 (节点使用)",
+        modelCaps: "能力标签 JSON 数组, 如 [\"chat\",\"reasoning\"]",
+        createModelBtn: "创建 Model",
+        createProfile: "创建配置集与绑定",
+        profileName: "配置集名称",
+        profileDesc: "描述",
+        createProfileBtn: "创建配置集",
+        bindProfileId: "配置集 ID",
+        bindModelIds: "模型 IDs (逗号分隔)",
+        setBindingsBtn: "设置绑定",
+        createNode: "创建节点与拉取配置",
+        nodeName: "节点名称",
+        nodeProfileId: "配置集 ID",
+        createNodeBtn: "创建节点",
+        pullNodeId: "节点 ID",
+        pullToken: "拉取 Token (或使用管理员 Token)",
+        pullConfigBtn: "获取 openclaw.json",
+        dataSnapshot: "数据快照",
+        providers: "Providers",
+        models: "Models",
+        profiles: "配置集",
+        nodes: "节点",
+        lastConfig: "上次拉取的节点配置",
+        statusOk: "成功",
+        statusFailed: "失败",
+        providerCreated: "Provider 创建成功",
+        modelCreated: "Model 创建成功",
+        profileCreated: "配置集创建成功",
+        bindingsUpdated: "绑定已更新",
+        nodeCreated: "节点创建成功",
+        configPulled: "配置已拉取",
+        refreshed: "已刷新"
+      },
+      en: {
+        title: "Zhaocai Control Plane",
+        subtitle: "Manage providers, models, profiles, and nodes. Header for admin APIs: <code>X-Admin-Token</code>",
+        adminTokenPlaceholder: "Admin token",
+        refreshBtn: "Refresh All",
+        createProvider: "Create Provider",
+        providerName: "name (e.g. openai-main)",
+        providerType: "provider_type (openai/anthropic)",
+        providerBaseUrl: "base_url",
+        providerAuth: "auth_scheme (bearer/x-api-key)",
+        providerApiKey: "api_key",
+        providerSecretRef: "secret_ref (optional)",
+        providerHeaders: "extra_headers JSON, e.g. {\"anthropic-version\":\"2023-06-01\"}",
+        createProviderBtn: "Create Provider",
+        createModel: "Create Model",
+        modelProviderId: "provider_id",
+        modelUpstream: "upstream_model",
+        modelAlias: "alias (used by nodes)",
+        modelCaps: "capabilities JSON array, e.g. [\"chat\",\"reasoning\"]",
+        createModelBtn: "Create Model",
+        createProfile: "Create Profile And Bindings",
+        profileName: "profile name",
+        profileDesc: "description",
+        createProfileBtn: "Create Profile",
+        bindProfileId: "profile_id",
+        bindModelIds: "model_ids comma-separated",
+        setBindingsBtn: "Set Bindings",
+        createNode: "Create Node And Pull Config",
+        nodeName: "node name",
+        nodeProfileId: "profile_id",
+        createNodeBtn: "Create Node",
+        pullNodeId: "node_id",
+        pullToken: "pull token (or use admin token)",
+        pullConfigBtn: "Get openclaw.json",
+        dataSnapshot: "Data Snapshot",
+        providers: "Providers",
+        models: "Models",
+        profiles: "Profiles",
+        nodes: "Nodes",
+        lastConfig: "Last pulled node config",
+        statusOk: "Success",
+        statusFailed: "Failed",
+        providerCreated: "Provider created",
+        modelCreated: "Model created",
+        profileCreated: "Profile created",
+        bindingsUpdated: "Bindings updated",
+        nodeCreated: "Node created",
+        configPulled: "Config pulled",
+        refreshed: "Refreshed"
+      }
+    };
+
+    let currentLang = 'zh';
+
+    function toggleLang() {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      document.getElementById('langBtn').textContent = currentLang === 'zh' ? 'English' : '中文';
+      applyLanguage();
+    }
+
+    function applyLanguage() {
+      const t = i18n[currentLang];
+
+      // 应用所有 data-i18n 属性
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key]) el.innerHTML = t[key];
+      });
+
+      // 应用所有 data-i18n-placeholder 属性
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (t[key]) el.placeholder = t[key];
+      });
+
+      // 更新页面标题
+      document.title = t.title;
+    }
+
     function setStatus(msg, ok = true) {
       const el = document.getElementById("status");
       el.textContent = msg;
@@ -217,10 +366,10 @@
           extra_headers: parseJsonInput("providerHeaders", {})
         };
         await api("POST", "/control/v1/providers", body);
-        setStatus("Provider created.");
+        setStatus(i18n[currentLang].providerCreated);
         await refreshAll();
       } catch (err) {
-        setStatus("Create provider failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -233,10 +382,10 @@
           capabilities: parseJsonInput("modelCaps", [])
         };
         await api("POST", "/control/v1/models", body);
-        setStatus("Model created.");
+        setStatus(i18n[currentLang].modelCreated);
         await refreshAll();
       } catch (err) {
-        setStatus("Create model failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -247,10 +396,10 @@
           description: document.getElementById("profileDesc").value.trim()
         };
         await api("POST", "/control/v1/profiles", body);
-        setStatus("Profile created.");
+        setStatus(i18n[currentLang].profileCreated);
         await refreshAll();
       } catch (err) {
-        setStatus("Create profile failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -262,10 +411,10 @@
           .map(v => Number(v.trim()))
           .filter(v => Number.isFinite(v));
         await api("POST", `/control/v1/profiles/${profileId}/bindings`, {model_ids: modelIds});
-        setStatus("Bindings updated.");
+        setStatus(i18n[currentLang].bindingsUpdated);
         await refreshAll();
       } catch (err) {
-        setStatus("Set bindings failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -278,11 +427,11 @@
           active: true
         };
         const result = await api("POST", "/control/v1/nodes", body);
-        setStatus("Node created. Pull token returned in response snapshot.");
+        setStatus(i18n[currentLang].nodeCreated);
         document.getElementById("nodesOut").textContent = JSON.stringify(result.payload, null, 2);
         await refreshAll();
       } catch (err) {
-        setStatus("Create node failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -295,9 +444,9 @@
           : adminHeaders();
         const result = await api("GET", `/control/v1/nodes/${nodeId}/openclaw-json`, null, headers);
         document.getElementById("nodeConfigOut").textContent = JSON.stringify(result.payload, null, 2);
-        setStatus(`Node config pulled. ETag=${result.headers.get("etag") || ""}`);
+        setStatus(`${i18n[currentLang].configPulled}. ETag=${result.headers.get("etag") || ""}`);
       } catch (err) {
-        setStatus("Pull config failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
 
@@ -313,12 +462,14 @@
         document.getElementById("modelsOut").textContent = JSON.stringify(models.payload, null, 2);
         document.getElementById("profilesOut").textContent = JSON.stringify(profiles.payload, null, 2);
         document.getElementById("nodesOut").textContent = JSON.stringify(nodes.payload, null, 2);
-        setStatus("Refreshed.");
+        setStatus(i18n[currentLang].refreshed);
       } catch (err) {
-        setStatus("Refresh failed: " + err.message, false);
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
       }
     }
+
+    // 初始化语言
+    applyLanguage();
   </script>
 </body>
 </html>
-
