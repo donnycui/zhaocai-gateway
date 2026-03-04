@@ -66,10 +66,10 @@
       background: #f1f5f9;
       color: var(--text);
     }
-    .nav-links a.active {
-      background: #eff6ff;
-      color: var(--brand);
-      font-weight: 500;
+    .nav-links a.external::after {
+      content: " ↗";
+      font-size: 11px;
+      opacity: 0.6;
     }
     .container {
       max-width: 1200px;
@@ -245,7 +245,7 @@
     <div class="nav-links">
       <a href="/guide">使用指南</a>
       <a href="/health" class="active">健康监控</a>
-      <a href="/docs">API 文档</a>
+      <a href="/docs" class="external" target="_blank" rel="noopener">API 文档 ↗</a>
       <a href="/control">控制面板</a>
     </div>
   </nav>
