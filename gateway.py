@@ -507,6 +507,7 @@ async def root():
     }
 
 
+@app.get("/api/health")
 @app.get("/health")
 async def health():
     providers = await gateway.provider_manager.health_check()
