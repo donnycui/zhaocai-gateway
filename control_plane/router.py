@@ -245,7 +245,7 @@ def create_control_plane_routers(
             raise HTTPException(status_code=404, detail="Control panel UI is missing")
         return HTMLResponse(panel_path.read_text(encoding="utf-8"))
 
-    @panel_router.get("/health", response_class=HTMLResponse)
+    @panel_router.get("/health-ui", response_class=HTMLResponse)
     def health_panel() -> HTMLResponse:
         health_path = Path(__file__).parent / "static" / "health.html"
         if not health_path.exists():
@@ -253,4 +253,3 @@ def create_control_plane_routers(
         return HTMLResponse(health_path.read_text(encoding="utf-8"))
 
     return api_router, panel_router
-

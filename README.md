@@ -60,13 +60,14 @@ cp .env.example .env
 cp config.example.yaml config.yaml
 ```
 
-编辑 `.env` 文件，设置以下必需项：
+编辑 `.env` 文件，设置以下关键项：
 
 ```bash
-# 自动生成加密密钥
+# 可选：生成 Fernet 加密密钥（用于 API Key 静态加密存储）
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
 # 填入 .env
+# 推荐填写；留空则不启用静态加密
 ZHAOCAI_ENCRYPTION_KEY="你的加密密钥"
 ZHAOCAI_ADMIN_TOKEN="你的管理员Token"
 
@@ -83,7 +84,8 @@ python gateway.py
 服务启动后访问：
 - 📘 API 文档: http://localhost:8000/docs
 - 🎛️ 控制面板: http://localhost:8000/control
-- ❤️ 健康检查: http://localhost:8000/health
+- ❤️ 健康检查 API: http://localhost:8000/health
+- 📊 健康监控页面: http://localhost:8000/health-ui
 
 ---
 
@@ -283,7 +285,7 @@ docker-compose down
 
 | 变量 | 必需 | 说明 |
 |------|------|------|
-| `ZHAOCAI_ENCRYPTION_KEY` | ✅ | API Key 加密密钥 |
+| `ZHAOCAI_ENCRYPTION_KEY` | 推荐 | API Key 加密密钥（Fernet），留空则不启用静态加密 |
 | `ZHAOCAI_ADMIN_TOKEN` | ✅ | 管理接口认证 Token |
 | `ZHAOCAI_PORT` | ❌ | 服务端口（默认8000）|
 | `ZHAOCAI_CORS_ORIGINS` | ❌ | CORS 允许来源 |

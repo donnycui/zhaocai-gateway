@@ -21,7 +21,7 @@ resp = httpx.post(
         "provider_type": "openai",
         "base_url": "https://api.siliconflow.cn/v1",
         "auth_scheme": "bearer",
-        "api_key": "sk-oygjolpbktfphizinffhxutkmfpcjmesxtcqmktsezkeylzk",
+        "api_key": os.getenv("SILICONFLOW_API_KEY", "sk-test-placeholder"),
         "enabled": True
     },
     timeout=10

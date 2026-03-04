@@ -34,6 +34,8 @@ from control_plane.router import create_control_plane_routers
 from control_plane.store import create_store_from_env
 from providers.adapters import detect_provider_type, get_provider_adapter
 
+DEFAULT_ADMIN_TOKEN = "change-me-admin-token"
+
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("ZHAOCAI_LOG_LEVEL", "INFO").upper()),
@@ -450,16 +452,27 @@ class GatewayServer:
 
 gateway = GatewayServer()
 control_store = create_store_from_env()
-admin_token = os.getenv("ZHAOCAI_ADMIN_TOKEN", "change-me-admin-token")
+admin_token = os.getenv("ZHAOCAI_ADMIN_TOKEN", "").strip()
 control_api_router, control_panel_router = create_control_plane_routers(
     store=control_store,
     admin_token=admin_token,
 )
 
+def _validate_admin_token_or_raise() -> None:
+    allow_insecure_default = os.getenv("ZHAOCAI_ALLOW_INSECURE_ADMIN_TOKEN", "0") == "1"
+    if not admin_token:
+        raise RuntimeError("ZHAOCAI_ADMIN_TOKEN is required and cannot be empty.")
+    if admin_token == DEFAULT_ADMIN_TOKEN and not allow_insecure_default:
+        raise RuntimeError(
+            "ZHAOCAI_ADMIN_TOKEN is using the default insecure value. "
+            "Set a strong token or set ZHAOCAI_ALLOW_INSECURE_ADMIN_TOKEN=1 for local testing only."
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     del app
+    _validate_admin_token_or_raise()
     logger.info("Starting Zhaocai Gateway...")
     health = await gateway.provider_manager.health_check()
     logger.info("Initial provider health check completed: %s", health)

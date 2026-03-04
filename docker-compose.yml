@@ -11,8 +11,9 @@ services:
       - ZHAOCAI_HOST=${ZHAOCAI_HOST:-0.0.0.0}
       - ZHAOCAI_LOG_LEVEL=${ZHAOCAI_LOG_LEVEL:-info}
       - ZHAOCAI_CONFIG=/app/config.yaml
-      - ZHAOCAI_ADMIN_TOKEN=${ZHAOCAI_ADMIN_TOKEN:-change-me-admin-token}
+      - ZHAOCAI_ADMIN_TOKEN=${ZHAOCAI_ADMIN_TOKEN}
       - ZHAOCAI_CONTROL_DB=${ZHAOCAI_CONTROL_DB:-sqlite:///./data/control_plane.db}
+      - ZHAOCAI_ENCRYPTION_KEY=${ZHAOCAI_ENCRYPTION_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
@@ -26,7 +27,7 @@ services:
     networks:
       - zhaocai-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health').raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,4 +46,3 @@ services:
 networks:
   zhaocai-network:
     driver: bridge
-

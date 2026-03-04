@@ -36,6 +36,7 @@ config.yaml
 data/
 *.db
 openclaw.json
+openclaw_node_*.json
 
 # IDE and OS
 .idea/
@@ -55,4 +56,3 @@ htmlcov/
 # Cloudflare
 .cloudflared/
 *.pem
-

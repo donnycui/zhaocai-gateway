@@ -11,6 +11,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+ENCRYPTED_PREFIX = "enc:v1:"
+
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+except ImportError:  # pragma: no cover - optional import fallback
+    Fernet = None  # type: ignore[assignment]
+    InvalidToken = Exception  # type: ignore[assignment]
+
 
 def _to_bool(value: Any) -> bool:
     return bool(int(value)) if isinstance(value, (int, str)) else bool(value)
@@ -35,8 +43,6 @@ def mask_secret(secret: str) -> str:
 
 
 class SQLiteControlPlaneStore:
-    _VALID_TABLES = {"providers", "models", "profiles", "nodes", "profile_bindings", "node_config_versions"}
-
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
         db_parent = Path(db_path).parent
@@ -44,6 +50,7 @@ class SQLiteControlPlaneStore:
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
+        self._fernet = self._build_fernet_from_env()
         self._init_schema()
 
     @contextmanager
@@ -127,8 +134,46 @@ class SQLiteControlPlaneStore:
             )
             self.conn.commit()
 
-    # Valid table names to prevent SQL injection
     _VALID_TABLES = {"providers", "models", "profiles", "nodes"}
+
+    def _build_fernet_from_env(self) -> Any:
+        key = os.getenv("ZHAOCAI_ENCRYPTION_KEY", "").strip()
+        if not key:
+            return None
+        if Fernet is None:
+            raise RuntimeError(
+                "ZHAOCAI_ENCRYPTION_KEY is set but cryptography is unavailable. "
+                "Install dependencies from requirements.txt."
+            )
+        try:
+            return Fernet(key.encode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("Invalid ZHAOCAI_ENCRYPTION_KEY format (must be valid Fernet key)") from exc
+
+    def _encrypt_api_key(self, value: str) -> str:
+        if not value:
+            return ""
+        if value.startswith(ENCRYPTED_PREFIX):
+            return value
+        if not self._fernet:
+            return value
+        token = self._fernet.encrypt(value.encode("utf-8")).decode("utf-8")
+        return f"{ENCRYPTED_PREFIX}{token}"
+
+    def _decrypt_api_key(self, value: str) -> str:
+        if not value:
+            return ""
+        if not value.startswith(ENCRYPTED_PREFIX):
+            return value
+        if not self._fernet:
+            raise RuntimeError(
+                "Encrypted API key found but ZHAOCAI_ENCRYPTION_KEY is not configured."
+            )
+        token = value[len(ENCRYPTED_PREFIX) :]
+        try:
+            return self._fernet.decrypt(token.encode("utf-8")).decode("utf-8")
+        except InvalidToken as exc:
+            raise RuntimeError("Failed to decrypt API key: invalid ZHAOCAI_ENCRYPTION_KEY") from exc
 
     def _require_exists(self, table: str, id_value: int) -> None:
         if table not in self._VALID_TABLES:
@@ -150,7 +195,7 @@ class SQLiteControlPlaneStore:
                     data["provider_type"],
                     data["base_url"],
                     data["auth_scheme"],
-                    data.get("api_key", ""),
+                    self._encrypt_api_key(data.get("api_key", "")),
                     data.get("secret_ref", ""),
                     int(data.get("enabled", True)),
                     json.dumps(data.get("extra_headers", {}), ensure_ascii=False),
@@ -168,6 +213,8 @@ class SQLiteControlPlaneStore:
             normalized["extra_headers"] = json.dumps(normalized["extra_headers"], ensure_ascii=False)
         if "enabled" in normalized and normalized["enabled"] is not None:
             normalized["enabled"] = int(bool(normalized["enabled"]))
+        if "api_key" in normalized and normalized["api_key"] is not None:
+            normalized["api_key"] = self._encrypt_api_key(str(normalized["api_key"]))
 
         assignments = ", ".join(f"{key} = ?" for key in normalized.keys())
         values = list(normalized.values())
@@ -194,6 +241,7 @@ class SQLiteControlPlaneStore:
         data = dict(row)
         data["enabled"] = _to_bool(data["enabled"])
         data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
+        data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
         if include_secrets:
             return data
         data["api_key_masked"] = mask_secret(data.get("api_key", ""))
@@ -207,6 +255,7 @@ class SQLiteControlPlaneStore:
             data = dict(row)
             data["enabled"] = _to_bool(data["enabled"])
             data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
+            data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
             if include_secrets:
                 result.append(data)
             else:
@@ -447,6 +496,7 @@ class SQLiteControlPlaneStore:
             data["provider_enabled"] = _to_bool(data["provider_enabled"])
             data["capabilities"] = json.loads(data["capabilities"] or "[]")
             data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
+            data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
             result.append(data)
         return result
 
@@ -521,4 +571,3 @@ def create_store_from_env() -> SQLiteControlPlaneStore:
         )
 
     raise RuntimeError(f"Unsupported ZHAOCAI_CONTROL_DB value: {db_url}")
-

@@ -10,7 +10,7 @@ print("="*70)
 
 pages = [
     ("/guide", "使用指南", True),
-    ("/health", "健康监控", True),
+    ("/health-ui", "健康监控", True),
     ("/control", "控制面板", True),
     ("/docs", "API 文档", False),  # Swagger UI 没有自定义导航
 ]
@@ -50,6 +50,6 @@ print("="*70)
 
 print("\n访问地址:")
 print(f"  📖 使用指南 : {BASE_URL}/guide")
-print(f"  📊 健康监控 : {BASE_URL}/health")
+print(f"  📊 健康监控 : {BASE_URL}/health-ui")
 print(f"  🎛️ 控制面板 : {BASE_URL}/control")
 print(f"  📚 API 文档 : {BASE_URL}/docs")

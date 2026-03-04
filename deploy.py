@@ -1,88 +1,56 @@
 #!/usr/bin/env python3
 """
-Zhaocai Gateway 部署脚本 (Windows/Linux 通用)
+Cross-platform bootstrap script for Zhaocai Gateway.
+
+Usage:
+  python deploy.py
 """
 
+from __future__ import annotations
+
 import os
-import sys
-import subprocess
 import secrets
+import subprocess
+import sys
 from pathlib import Path
 
-def print_step(step_num, total, message):
+
+def print_step(step_num: int, total: int, message: str) -> None:
     print(f"\n[{step_num}/{total}] {message}")
     print("-" * 50)
 
-def print_success(message):
+
+def print_success(message: str) -> None:
     print(f"[OK] {message}")
 
-def print_error(message):
+
+def print_error(message: str) -> None:
     print(f"[ERROR] {message}")
     sys.exit(1)
 
-def run_command(cmd, capture=True):
-    """运行命令并返回结果"""
+
+def run_command(cmd: str, capture: bool = True) -> str | None:
     try:
         if capture:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
             return result.stdout.strip()
-        else:
-            subprocess.run(cmd, shell=True, check=True)
-            return None
-    except subprocess.CalledProcessError as e:
+        subprocess.run(cmd, shell=True, check=True)
         return None
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or exc.stdout or "").strip()
+        raise RuntimeError(f"Command failed: {cmd}\n{stderr}") from exc
 
-def generate_encryption_key():
-    """生成 Fernet 加密密钥"""
+
+def generate_encryption_key() -> str:
     try:
         from cryptography.fernet import Fernet
+
         return Fernet.generate_key().decode()
     except ImportError:
-        # 如果 cryptography 未安装，使用备选方案
-        return secrets.token_urlsafe(32)
+        return ""
 
-def main():
-    print("=" * 50)
-    print("Zhaocai Gateway 部署脚本")
-    print("=" * 50)
 
-    # 检查 Python 版本
-    print_step(1, 6, "检查 Python 版本")
-    if sys.version_info < (3, 9):
-        print_error("需要 Python 3.9 或更高版本")
-    print_success(f"Python 版本: {sys.version.split()[0]}")
-
-    # 创建虚拟环境
-    print_step(2, 6, "创建虚拟环境")
-    venv_path = Path("venv")
-    if not venv_path.exists():
-        run_command(f"{sys.executable} -m venv venv")
-        print_success("虚拟环境已创建")
-    else:
-        print_success("虚拟环境已存在")
-
-    # 获取虚拟环境的 pip 路径
-    if os.name == 'nt':  # Windows
-        pip_path = venv_path / "Scripts" / "pip.exe"
-        python_path = venv_path / "Scripts" / "python.exe"
-    else:  # Linux/Mac
-        pip_path = venv_path / "bin" / "pip"
-        python_path = venv_path / "bin" / "python"
-
-    # 安装依赖
-    print_step(3, 6, "安装依赖")
-    run_command(f"{pip_path} install --upgrade pip -q")
-    run_command(f"{pip_path} install -r requirements.txt -q")
-    print_success("依赖安装完成")
-
-    # 生成配置
-    print_step(4, 6, "生成配置文件")
-
-    encryption_key = generate_encryption_key()
-    admin_token = f"admin-{secrets.token_hex(16)}"
-
-    # 创建 .env 文件
-    env_path = Path(".env")
+def ensure_env_file(env_path: Path, admin_token: str, encryption_key: str) -> tuple[str, str]:
     if not env_path.exists():
         env_content = f"""# Gateway runtime
 ZHAOCAI_PORT=8000
@@ -95,7 +63,7 @@ ZHAOCAI_ADMIN_TOKEN={admin_token}
 ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db
 ZHAOCAI_ENCRYPTION_KEY={encryption_key}
 
-# AI Provider API keys (请填入你的实际 API Key)
+# AI Provider API keys
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 NVIDIA_API_KEY=
@@ -106,66 +74,101 @@ OPENROUTER_API_KEY=
 # Cloudflare tunnel token (optional)
 CF_TUNNEL_TOKEN=
 """
-        env_path.write_text(env_content, encoding='utf-8')
-        print_success(".env 文件已创建")
-    else:
-        print_success(".env 文件已存在，跳过创建")
-        # 读取现有的 token
-        env_lines = env_path.read_text(encoding='utf-8').split('\n')
-        for line in env_lines:
-            if line.startswith('ZHAOCAI_ADMIN_TOKEN='):
-                admin_token = line.split('=', 1)[1]
-            if line.startswith('ZHAOCAI_ENCRYPTION_KEY='):
-                encryption_key = line.split('=', 1)[1]
+        env_path.write_text(env_content, encoding="utf-8")
+        print_success(".env created")
+        return admin_token, encryption_key
 
-    # 创建 config.yaml
-    config_path = Path("config.yaml")
-    if not config_path.exists():
-        example_path = Path("config.example.yaml")
-        if example_path.exists():
-            config_path.write_text(example_path.read_text(encoding='utf-8'), encoding='utf-8')
-            print_success("config.yaml 已创建")
-    else:
-        print_success("config.yaml 已存在，跳过创建")
+    print_success(".env already exists, keeping existing values")
+    current_admin = admin_token
+    current_key = encryption_key
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("ZHAOCAI_ADMIN_TOKEN="):
+            current_admin = line.split("=", 1)[1].strip()
+        if line.startswith("ZHAOCAI_ENCRYPTION_KEY="):
+            current_key = line.split("=", 1)[1].strip()
+    return current_admin, current_key
 
-    # 创建数据目录
-    print_step(5, 6, "创建数据目录")
-    Path("data").mkdir(exist_ok=True)
-    print_success("数据目录已准备")
 
-    # 验证安装
-    print_step(6, 6, "验证安装")
-    try:
-        # 尝试导入关键模块
-        result = run_command(f"{python_path} -c \"from gateway import app; print('OK')\"")
-        if result == "OK":
-            print_success("安装验证通过")
-        else:
-            print_error("导入验证失败，请检查依赖")
-    except Exception as e:
-        print_error(f"验证失败: {e}")
-
-    # 显示完成信息
-    print("\n" + "=" * 50)
-    print("部署完成！")
+def main() -> None:
     print("=" * 50)
-    print(f"\n重要信息：")
-    print(f"  Admin Token: {admin_token}")
-    print(f"  加密密钥: {encryption_key}")
-    print(f"\n下一步：")
-    print("  1. 编辑 .env 文件，填入你的 API Key")
-    print("  2. 编辑 config.yaml，配置 Provider（可选）")
+    print("Zhaocai Gateway bootstrap")
+    print("=" * 50)
 
-    if os.name == 'nt':
-        print(f"  3. 运行: venv\\Scripts\\python.exe gateway.py")
+    print_step(1, 6, "Check Python version")
+    if sys.version_info < (3, 9):
+        print_error("Python 3.9+ is required.")
+    print_success(f"Python version: {sys.version.split()[0]}")
+
+    print_step(2, 6, "Create virtual environment")
+    venv_path = Path("venv")
+    if not venv_path.exists():
+        run_command(f"{sys.executable} -m venv venv", capture=False)
+        print_success("Virtual environment created")
     else:
-        print(f"  3. 运行: source venv/bin/activate && python gateway.py")
+        print_success("Virtual environment already exists")
 
-    print(f"\n访问地址：")
-    print("  - API 文档: http://localhost:8000/docs")
-    print("  - 控制面板: http://localhost:8000/control")
-    print("  - 健康检查: http://localhost:8000/health")
-    print("")
+    if os.name == "nt":
+        pip_path = venv_path / "Scripts" / "pip.exe"
+        python_path = venv_path / "Scripts" / "python.exe"
+    else:
+        pip_path = venv_path / "bin" / "pip"
+        python_path = venv_path / "bin" / "python"
+
+    print_step(3, 6, "Install dependencies")
+    run_command(f"{pip_path} install --upgrade pip -q", capture=False)
+    run_command(f"{pip_path} install -r requirements.txt -q", capture=False)
+    print_success("Dependencies installed")
+
+    print_step(4, 6, "Generate configuration")
+    generated_admin_token = f"admin-{secrets.token_hex(16)}"
+    generated_encryption_key = generate_encryption_key()
+    admin_token, encryption_key = ensure_env_file(
+        env_path=Path(".env"),
+        admin_token=generated_admin_token,
+        encryption_key=generated_encryption_key,
+    )
+
+    config_path = Path("config.yaml")
+    example_path = Path("config.example.yaml")
+    if not config_path.exists() and example_path.exists():
+        config_path.write_text(example_path.read_text(encoding="utf-8"), encoding="utf-8")
+        print_success("config.yaml created from config.example.yaml")
+    else:
+        print_success("config.yaml already exists")
+
+    print_step(5, 6, "Create data directory")
+    Path("data").mkdir(exist_ok=True)
+    print_success("data directory ready")
+
+    print_step(6, 6, "Verify installation")
+    verify_result = run_command(f"{python_path} -c \"from gateway import app; print('OK')\"")
+    if verify_result != "OK":
+        print_error("Import verification failed")
+    print_success("Install verification passed")
+
+    print("\n" + "=" * 50)
+    print("Bootstrap complete")
+    print("=" * 50)
+    print("\nImportant:")
+    print(f"  Admin Token: {admin_token}")
+    print(f"  Encryption Key: {encryption_key or '(not set)'}")
+    print("\nNext:")
+    print("  1. Fill API keys in .env")
+    print("  2. Optionally adjust config.yaml")
+    if os.name == "nt":
+        print("  3. Run: venv\\Scripts\\python.exe gateway.py")
+    else:
+        print("  3. Run: source venv/bin/activate && python gateway.py")
+    print("\nURLs:")
+    print("  - API docs: http://localhost:8000/docs")
+    print("  - Control panel: http://localhost:8000/control")
+    print("  - Health API: http://localhost:8000/api/health")
+    print("  - Health UI: http://localhost:8000/health-ui")
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:  # noqa: BLE001
+        print_error(str(exc))
+
