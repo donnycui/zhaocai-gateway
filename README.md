@@ -22,6 +22,8 @@
 
 适用于拥有多个 LLM Provider 和多个 OpenClaw 节点（树莓派、VPS 等）的场景，需要为不同节点分配不同的模型集合。
 
+推荐部署形态是 **中心网关模式**：上游 API Key 只保存在树莓派上的 `zhaocai-gateway`，各 VPS 节点只调用树莓派网关。
+
 ---
 
 ## 功能特性
@@ -104,6 +106,30 @@ python gateway.py
 5. **创建 Node** - 创建节点并关联配置集
 6. **获取 Token** - 创建后获取节点的拉取 Token
 7. **拉取配置** - 使用 Token 获取节点的专属配置
+
+---
+
+## 中心网关模式（推荐）
+
+目标：只在树莓派上的 `zhaocai-gateway` 保存和管理上游 API Key，VPS 节点不持有上游密钥。
+
+关键配置：
+
+```bash
+# 网关推理路由来源（优先使用控制面）
+ZHAOCAI_ROUTING_SOURCE=control_plane
+
+# 节点下发配置模式：gateway（节点 provider 指向 zhaocai-gateway）
+ZHAOCAI_NODE_PROVIDER_MODE=gateway
+ZHAOCAI_NODE_GATEWAY_PROVIDER_ID=zhaocai-gateway
+ZHAOCAI_NODE_GATEWAY_BASE_URL=http://你的树莓派地址:8000/v1
+```
+
+说明：
+
+- `ZHAOCAI_NODE_PROVIDER_MODE=gateway` 时，下发给节点的 `openclaw.json` 会生成单一 provider（`zhaocai-gateway`），模型按 Profile 输出。
+- 节点上的 OpenClaw 会把请求发送到树莓派网关，再由树莓派网关转发到上游 Provider。
+- 环境变量无法被远程 VPS 直接读取，因此“引用树莓派本地环境变量”只能通过“调用树莓派网关服务”间接实现。
 
 ---
 
@@ -287,6 +313,10 @@ docker-compose down
 |------|------|------|
 | `ZHAOCAI_ENCRYPTION_KEY` | 推荐 | API Key 加密密钥（Fernet），留空则不启用静态加密 |
 | `ZHAOCAI_ADMIN_TOKEN` | ✅ | 管理接口认证 Token |
+| `ZHAOCAI_ROUTING_SOURCE` | ❌ | 推理路由来源：`config` / `control_plane` / `hybrid` |
+| `ZHAOCAI_CONTROL_SYNC_INTERVAL_SECONDS` | ❌ | 控制面路由同步间隔（秒） |
+| `ZHAOCAI_NODE_PROVIDER_MODE` | ❌ | 节点配置下发模式：`direct` / `gateway` |
+| `ZHAOCAI_NODE_GATEWAY_BASE_URL` | `gateway`模式建议 | 节点调用的网关地址（通常是树莓派地址`/v1`） |
 | `ZHAOCAI_PORT` | ❌ | 服务端口（默认8000）|
 | `ZHAOCAI_CORS_ORIGINS` | ❌ | CORS 允许来源 |
 | `OPENAI_API_KEY` | ❌ | OpenAI API Key |
@@ -299,6 +329,8 @@ docker-compose down
 - 网关监听地址
 - Provider 列表和路由策略
 - 限流参数
+
+当 `ZHAOCAI_ROUTING_SOURCE=control_plane` 时，运行时模型与 provider 主要来自控制面数据库；`config.yaml` 可仅保留网关基础配置与路由策略。
 
 ---
 

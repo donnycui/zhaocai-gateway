@@ -62,6 +62,15 @@ ZHAOCAI_CONFIG=./config.yaml
 ZHAOCAI_ADMIN_TOKEN={admin_token}
 ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db
 ZHAOCAI_ENCRYPTION_KEY={encryption_key}
+ZHAOCAI_ROUTING_SOURCE=hybrid
+ZHAOCAI_CONTROL_SYNC_INTERVAL_SECONDS=5
+ZHAOCAI_NODE_PROVIDER_MODE=gateway
+ZHAOCAI_NODE_GATEWAY_PROVIDER_ID=zhaocai-gateway
+ZHAOCAI_NODE_GATEWAY_BASE_URL=http://127.0.0.1:8000/v1
+ZHAOCAI_NODE_GATEWAY_PROVIDER_TYPE=openai
+ZHAOCAI_NODE_GATEWAY_AUTH_SCHEME=bearer
+ZHAOCAI_NODE_GATEWAY_API_KEY=
+ZHAOCAI_NODE_GATEWAY_EXTRA_HEADERS={}
 
 # AI Provider API keys
 OPENAI_API_KEY=
@@ -171,4 +180,3 @@ if __name__ == "__main__":
         main()
     except Exception as exc:  # noqa: BLE001
         print_error(str(exc))
-

@@ -500,6 +500,28 @@ class SQLiteControlPlaneStore:
             result.append(data)
         return result
 
+    def list_active_model_routes(self) -> List[Dict[str, Any]]:
+        rows = self.conn.execute(
+            """
+            SELECT m.id AS model_id, m.alias, m.upstream_model, m.enabled,
+                   p.id AS provider_id, p.name AS provider_name, p.provider_type, p.base_url,
+                   p.auth_scheme, p.api_key, p.secret_ref, p.enabled AS provider_enabled,
+                   p.extra_headers
+            FROM models m
+            JOIN providers p ON p.id = m.provider_id
+            ORDER BY p.id ASC, m.id ASC
+            """
+        ).fetchall()
+        result: List[Dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            data["enabled"] = _to_bool(data["enabled"])
+            data["provider_enabled"] = _to_bool(data["provider_enabled"])
+            data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
+            data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
+            result.append(data)
+        return result
+
     def get_latest_node_version(self, node_id: int) -> Optional[Dict[str, Any]]:
         row = self.conn.execute(
             """
