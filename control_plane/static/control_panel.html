@@ -229,6 +229,172 @@
     .data-block {
       position: relative;
     }
+    .card {
+      overflow: hidden;
+    }
+    .validate-panel {
+      margin-top: 10px;
+      min-height: 0;
+      max-width: 100%;
+    }
+    .validate-result {
+      display: block;
+      min-height: 0;
+      max-width: 100%;
+      white-space: normal;
+      overflow: hidden;
+      color: #cbd5e1;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .validate-result-summary {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .validate-result-title {
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .validate-result-meta {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .validate-result-detail {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      overflow: hidden;
+      max-width: 100%;
+      line-height: 1.5;
+    }
+    .validate-result-toggle {
+      width: auto;
+      margin-top: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #e2e8f0;
+    }
+    .model-picker-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .model-picker-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .model-filter-input {
+      max-width: 280px;
+      background: #fff;
+    }
+    .model-picker-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .model-row {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .model-row-head {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      min-width: 0;
+    }
+    .model-row-title {
+      font-weight: 600;
+      color: var(--text);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .model-row-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .model-row-fields {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .model-input-group {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .model-inline-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .model-inline-pair--top {
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .model-picker-list {
+        grid-template-columns: 1fr;
+      }
+    }
+    .model-input-group label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .input-select-shell {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 6px 8px;
+      display: grid;
+      gap: 6px;
+    }
+    .input-select-summary {
+      font-size: 12px;
+      color: var(--text);
+    }
+    .input-select-dropdown {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, max-content));
+      gap: 8px 12px;
+      align-items: center;
+    }
+    .input-select-dropdown label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .input-select-dropdown input {
+      width: auto;
+      margin: 0;
+      flex: 0 0 auto;
+    }
   </style>
 </head>
 <body>
@@ -277,11 +443,12 @@
         <button onclick="validateAndFetchModels()" data-i18n="validateFetchModelsBtn">检测并获取模型</button>
         <button onclick="createProviderWithSelectedModels()" data-i18n="createProviderWithModelsBtn">创建 Provider 与所选模型</button>
       </div>
-      <pre id="providerValidateOut"></pre>
+      <div id="providerValidateOut" class="validate-panel"></div>
       <div id="providerModelPicker" style="display:none; margin-top:12px;">
-        <div class="inline" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div class="model-picker-toolbar">
           <div class="muted" data-i18n="providerModelPickerTitle">检测成功后可勾选要导入的模型</div>
-          <div class="inline" style="gap:8px;">
+          <input id="providerModelFilter" class="model-filter-input" placeholder="按模型关键词筛选，如 deepseek" oninput="filterProviderModels()">
+          <div class="model-picker-actions">
             <button class="secondary" type="button" onclick="toggleAllProviderModels(true)" data-i18n="selectAllModelsBtn">全选</button>
             <button class="secondary" type="button" onclick="toggleAllProviderModels(false)" data-i18n="clearAllModelsBtn">清空</button>
           </div>
@@ -583,11 +750,36 @@
       let payload = null;
       try { payload = text ? JSON.parse(text) : null; } catch (_) { payload = text; }
       if (!res.ok && res.status !== 304) {
-        throw new Error((payload && payload.detail) ? payload.detail : (typeof payload === "string" ? payload : res.status));
+        const err = new Error((payload && payload.detail) ? payload.detail : (typeof payload === "string" ? payload : res.status));
+        err.status = res.status;
+        err.payload = payload;
+        throw err;
       }
       return {status: res.status, payload, headers: res.headers};
     }
 
+    function formatAdminError(err) {
+      if (err?.status === 401 || err?.status === 403) {
+        return currentLang === 'zh' ? '管理员认证失败，请检查管理员 Token' : 'Admin authentication failed. Check the admin token.';
+      }
+      return `${i18n[currentLang].statusFailed}: ${err.message}`;
+    }
+
+    function formatUpstreamValidateStatus(payload) {
+      if (payload?.ok) {
+        return currentLang === 'zh'
+          ? `检测成功，已获取 ${providerCandidateModels.length} 个可选模型`
+          : `Validation succeeded, fetched ${providerCandidateModels.length} selectable models`;
+      }
+      if (payload?.status_code === 401 || payload?.status_code === 403) {
+        return currentLang === 'zh'
+          ? `上游 provider 认证失败: ${payload.message || '请检查 URL 或 API Key'}`
+          : `Upstream provider authentication failed: ${payload.message || 'Check URL or API key'}`;
+      }
+      return currentLang === 'zh'
+        ? `上游 provider 检测失败: ${payload?.message || '请检查配置'}`
+        : `Upstream provider validation failed: ${payload?.message || 'Check configuration'}`;
+    }
     function parseJsonInput(id, fallback) {
       const raw = document.getElementById(id).value.trim();
       if (!raw) return fallback;
@@ -611,7 +803,7 @@
     function setProviderValidateOutput(payload) {
       const el = document.getElementById("providerValidateOut");
       const detail = typeof payload?.detail === 'string' ? payload.detail : '';
-      const detailLimit = 400;
+      const detailLimit = 280;
       const isLongDetail = detail.length > detailLimit;
       const shortDetail = isLongDetail ? `${detail.slice(0, detailLimit)}...` : detail;
       const safe = (value) => String(value ?? '')
@@ -620,19 +812,22 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+      const title = payload?.ok ? (currentLang === 'zh' ? '检测成功' : 'Validation succeeded') : (currentLang === 'zh' ? '检测失败' : 'Validation failed');
       const message = payload?.message || '';
       const endpoint = payload?.endpoint || '';
       const code = payload?.status_code ?? '';
       const latency = payload?.latency_ms ?? '';
-      el.classList.add('validate-result');
+      el.className = 'validate-panel';
       el.innerHTML = `
-        <div class="validate-result-summary">
-          <div>${safe(payload?.ok ? '检测成功' : '检测失败')}</div>
-          <div class="validate-result-meta">status: ${safe(code)} | latency: ${safe(latency)} ms</div>
-          <div class="validate-result-meta">endpoint: ${safe(endpoint)}</div>
-          <div class="validate-result-meta">message: ${safe(message)}</div>
-          ${detail ? `<div id="providerValidateDetail" class="validate-result-detail">${safe(shortDetail)}</div>` : ''}
-          ${isLongDetail ? `<button type="button" class="secondary validate-result-toggle" id="providerValidateToggle">展开详情</button>` : ''}
+        <div class="validate-result">
+          <div class="validate-result-summary">
+            <div class="validate-result-title">${safe(title)}</div>
+            <div class="validate-result-meta">status: ${safe(code)} | latency: ${safe(latency)} ms</div>
+            <div class="validate-result-meta">endpoint: ${safe(endpoint)}</div>
+            <div class="validate-result-meta">message: ${safe(message)}</div>
+            ${detail ? `<div id="providerValidateDetail" class="validate-result-detail">${safe(shortDetail)}</div>` : ''}
+            ${isLongDetail ? `<button type="button" class="secondary validate-result-toggle" id="providerValidateToggle">${currentLang === 'zh' ? '展开详情' : 'Expand detail'}</button>` : ''}
+          </div>
         </div>
       `;
       if (isLongDetail) {
@@ -642,15 +837,39 @@
         toggleEl.addEventListener('click', () => {
           expanded = !expanded;
           detailEl.textContent = expanded ? detail : shortDetail;
-          toggleEl.textContent = expanded ? '收起详情' : '展开详情';
+          toggleEl.textContent = expanded
+            ? (currentLang === 'zh' ? '收起详情' : 'Collapse detail')
+            : (currentLang === 'zh' ? '展开详情' : 'Expand detail');
         });
       }
+    }
+
+    function applyProviderModelFilter(list) {
+      const keyword = document.getElementById('providerModelFilter')?.value?.trim().toLowerCase() || '';
+      if (!keyword) return list;
+      return list.filter(model => `${model.id} ${model.name || ''}`.toLowerCase().includes(keyword));
+    }
+
+    function selectedInputsForModel(index, fallback) {
+      const summary = [];
+      const textChecked = document.querySelector(`.provider-model-input-text[data-index="${index}"]`)?.checked;
+      const imageChecked = document.querySelector(`.provider-model-input-image[data-index="${index}"]`)?.checked;
+      if (textChecked) summary.push('text');
+      if (imageChecked) summary.push('image');
+      return summary.length ? summary : fallback;
+    }
+
+    function refreshInputSummary(index, fallback = ['text']) {
+      const summaryEl = document.querySelector(`.provider-model-input-summary[data-index="${index}"]`);
+      if (!summaryEl) return;
+      summaryEl.textContent = selectedInputsForModel(index, fallback).join(', ');
     }
 
     function renderProviderModelCandidates(models) {
       const picker = document.getElementById("providerModelPicker");
       const list = document.getElementById("providerModelList");
       providerCandidateModels = models.filter(model => model.selectable);
+      const visibleModels = applyProviderModelFilter(providerCandidateModels);
       if (!providerCandidateModels.length) {
         picker.style.display = "none";
         list.innerHTML = "";
@@ -658,7 +877,12 @@
       }
       picker.style.display = "block";
       list.className = "model-picker-list";
-      list.innerHTML = providerCandidateModels.map((model, index) => {
+      if (!visibleModels.length) {
+        list.innerHTML = `<div class="muted">${currentLang === 'zh' ? '没有匹配的模型' : 'No matching models'}</div>`;
+        return;
+      }
+      list.innerHTML = visibleModels.map((model) => {
+        const index = providerCandidateModels.findIndex(item => item.id === model.id);
         const checked = 'checked';
         const contextWindow = model.contextWindow ?? '';
         const maxTokens = model.maxTokens ?? '';
@@ -676,31 +900,45 @@
               </div>
             </div>
             <div class="model-row-fields">
-              <div class="model-input-group">
-                <label>alias</label>
-                <input class="provider-model-alias" data-index="${index}" value="${model.id}">
+              <div class="model-inline-pair model-inline-pair--top">
+                <div class="model-input-group">
+                  <label>alias</label>
+                  <input class="provider-model-alias" data-index="${index}" value="${model.id}">
+                </div>
+                <div class="model-input-group">
+                  <label>input</label>
+                  <details class="input-select-shell">
+                    <summary class="input-select-summary provider-model-input-summary" data-index="${index}">${input.join(', ')}</summary>
+                    <div class="input-select-dropdown" role="listbox" aria-label="input modalities">
+                      <label><input type="checkbox" class="provider-model-input-text" data-index="${index}" ${hasText} onchange="refreshInputSummary(${index}, ['text'])"> text</label>
+                      <label><input type="checkbox" class="provider-model-input-image" data-index="${index}" ${hasImage} onchange="refreshInputSummary(${index}, ['text'])"> image</label>
+                    </div>
+                  </details>
+                </div>
               </div>
-              <div class="model-input-group">
-                <label>contextWindow</label>
-                <input class="provider-model-context" data-index="${index}" type="number" value="${contextWindow}">
-              </div>
-              <div class="model-input-group">
-                <label>maxTokens</label>
-                <input class="provider-model-max" data-index="${index}" type="number" value="${maxTokens}">
-              </div>
-              <div class="model-input-group">
-                <label>input</label>
-                <div class="model-inline-checks">
-                  <label><input type="checkbox" class="provider-model-input-text" data-index="${index}" ${hasText}> text</label>
-                  <label><input type="checkbox" class="provider-model-input-image" data-index="${index}" ${hasImage}> image</label>
+              <div class="model-inline-pair">
+                <div class="model-input-group">
+                  <label>contextWindow</label>
+                  <input class="provider-model-context" data-index="${index}" type="number" value="${contextWindow}">
+                </div>
+                <div class="model-input-group">
+                  <label>maxTokens</label>
+                  <input class="provider-model-max" data-index="${index}" type="number" value="${maxTokens}">
                 </div>
               </div>
             </div>
           </div>
         `;
       }).join('');
+      visibleModels.forEach(model => {
+        const index = providerCandidateModels.findIndex(item => item.id === model.id);
+        refreshInputSummary(index, Array.isArray(model.input) && model.input.length ? model.input : ['text']);
+      });
     }
 
+    function filterProviderModels() {
+      renderProviderModelCandidates(providerCandidateModels);
+    }
     function toggleAllProviderModels(checked) {
       document.querySelectorAll('.provider-model-check').forEach(el => { el.checked = checked; });
     }
@@ -722,22 +960,18 @@
     async function validateProviderOnly() {
       try {
         const payload = await validateProvider();
-        setStatus(payload.ok ? `检测成功: ${payload.status_code} / ${payload.latency_ms}ms` : `检测失败: ${payload.message}`, payload.ok);
+        setStatus(formatUpstreamValidateStatus(payload), payload.ok);
       } catch (err) {
-        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+        setStatus(formatAdminError(err), false);
       }
     }
 
     async function validateAndFetchModels() {
       try {
         const payload = await validateProvider();
-        if (!payload.ok) {
-          setStatus(`检测失败: ${payload.message}`, false);
-          return;
-        }
-        setStatus(`检测成功，已获取 ${providerCandidateModels.length} 个可选模型`, true);
+        setStatus(formatUpstreamValidateStatus(payload), payload.ok);
       } catch (err) {
-        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+        setStatus(formatAdminError(err), false);
       }
     }
 
@@ -748,9 +982,7 @@
           const alias = document.querySelector(`.provider-model-alias[data-index="${index}"]`)?.value?.trim() || model.id;
           const contextWindowRaw = document.querySelector(`.provider-model-context[data-index="${index}"]`)?.value?.trim() || '';
           const maxTokensRaw = document.querySelector(`.provider-model-max[data-index="${index}"]`)?.value?.trim() || '';
-          const input = [];
-          if (document.querySelector(`.provider-model-input-text[data-index="${index}"]`)?.checked) input.push('text');
-          if (document.querySelector(`.provider-model-input-image[data-index="${index}"]`)?.checked) input.push('image');
+          const input = selectedInputsForModel(index, ['text']);
           return {
             upstream_model: model.id,
             alias,
@@ -776,7 +1008,7 @@
         setStatus(`Provider 已创建，并导入 ${result.payload.models.length} 个模型`, true);
         await refreshAll();
       } catch (err) {
-        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+        setStatus(formatAdminError(err), false);
       }
     }
 
