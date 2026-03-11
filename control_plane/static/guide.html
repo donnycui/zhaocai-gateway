@@ -383,17 +383,25 @@
       </ul>
 
       <div class="quick-links">
+        <a href="/" class="quick-card">
+          <div class="quick-card-title">🏠 根接口</div>
+          <div class="quick-card-desc">返回 JSON 根信息，只说明服务、文档和控制面入口，不是首页</div>
+        </a>
+        <a href="/health" class="quick-card">
+          <div class="quick-card-title">❤️ 健康 API</div>
+          <div class="quick-card-desc">返回 JSON 健康状态，主要给程序、脚本和监控系统使用</div>
+        </a>
         <a href="/health-ui" class="quick-card">
           <div class="quick-card-title">📊 健康监控</div>
-          <div class="quick-card-desc">实时查看 Provider 状态和系统健康度</div>
+          <div class="quick-card-desc">人类可读的健康状态页面，适合查看 Provider 运行情况</div>
         </a>
         <a href="/control" class="quick-card">
           <div class="quick-card-title">🎛️ 控制面板</div>
-          <div class="quick-card-desc">可视化配置 Providers、Models、Nodes</div>
+          <div class="quick-card-desc">可视化配置 Providers、Models、Profiles、Nodes</div>
         </a>
         <a href="/docs" class="quick-card">
           <div class="quick-card-title">📚 API 文档</div>
-          <div class="quick-card-desc">在线测试所有接口，查看请求响应格式</div>
+          <div class="quick-card-desc">Swagger 调试台，可直接测试接口并查看参数格式</div>
         </a>
       </div>
 
@@ -427,11 +435,18 @@ SILICONFLOW_API_KEY="你的API Key"</code></pre>
           <pre><code>python gateway.py</code></pre>
           <p>服务启动后访问：</p>
           <ul>
+            <li>根接口（JSON，不是首页）: <code>http://localhost:8000/</code></li>
             <li>使用指南（本页）: <code>http://localhost:8000/guide</code></li>
-            <li>健康监控: <code>http://localhost:8000/health-ui</code></li>
+            <li>健康 API（JSON）: <code>http://localhost:8000/health</code></li>
+            <li>健康监控页（可视化）: <code>http://localhost:8000/health-ui</code></li>
             <li>控制面板: <code>http://localhost:8000/control</code></li>
-            <li>API 文档: <code>http://localhost:8000/docs</code></li>
+            <li>API 文档 / Swagger 调试台: <code>http://localhost:8000/docs</code></li>
           </ul>
+          <div class="tip">
+            <div class="tip-title">入口说明</div>
+            <p><code>/</code> 和 <code>/health</code> 返回的是 JSON，所以浏览器里通常只会显示一行代码；这是正常现象。</p>
+            <p>如果你想看可视化页面，请优先访问 <code>/guide</code>、<code>/health-ui</code> 和 <code>/control</code>。</p>
+          </div>
         </div>
       </div>
 

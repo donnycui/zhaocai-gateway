@@ -62,6 +62,9 @@ def _compile_direct_mode(
                 "provider": row["provider_name"],
                 "upstream_model": row["upstream_model"],
                 "capabilities": row["capabilities"],
+                "contextWindow": row.get("context_window"),
+                "maxTokens": row.get("max_tokens"),
+                "input": row.get("input", ["text"]),
                 "enabled": True,
             }
         )
@@ -112,6 +115,9 @@ def _compile_gateway_mode(
                 "provider": provider_id,
                 "upstream_model": model_alias,
                 "capabilities": row["capabilities"],
+                "contextWindow": row.get("context_window"),
+                "maxTokens": row.get("max_tokens"),
+                "input": row.get("input", ["text"]),
                 "enabled": True,
             }
         )

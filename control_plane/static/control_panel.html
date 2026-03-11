@@ -144,6 +144,42 @@
       font-size: 12px;
       min-height: 100px;
     }
+    .validate-result {
+      min-height: 0;
+      white-space: normal;
+      overflow: visible;
+      color: #cbd5e1;
+      background: #0f172a;
+    }
+    .validate-result-summary {
+      display: grid;
+      gap: 6px;
+    }
+    .validate-result-meta {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .validate-result-detail {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+    .validate-result-toggle {
+      width: auto;
+      margin-top: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #e2e8f0;
+    }
     .status {
       font-size: 13px;
       margin-top: 6px;
@@ -226,14 +262,32 @@
       <h2 data-i18n="createProvider">创建 Provider</h2>
       <div class="grid">
         <input id="providerName" data-i18n-placeholder="providerName" placeholder="名称 (如: openai-main)">
-        <input id="providerType" data-i18n-placeholder="providerType" placeholder="类型 (openai/anthropic)" value="openai">
+        <select id="providerType">
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+        </select>
         <input id="providerBaseUrl" data-i18n-placeholder="providerBaseUrl" placeholder="基础 URL">
         <input id="providerAuth" data-i18n-placeholder="providerAuth" placeholder="认证方式 (bearer/x-api-key)" value="bearer">
         <input id="providerApiKey" data-i18n-placeholder="providerApiKey" placeholder="API 密钥">
         <input id="providerSecretRef" data-i18n-placeholder="providerSecretRef" placeholder="密钥引用 (可选)">
       </div>
       <textarea id="providerHeaders" data-i18n-placeholder="providerHeaders" placeholder='额外请求头 JSON, 如 {"anthropic-version":"2023-06-01"}'></textarea>
-      <button onclick="createProvider()" data-i18n="createProviderBtn">创建 Provider</button>
+      <div class="inline" style="margin-top:8px; gap:8px; flex-wrap: wrap;">
+        <button class="secondary" onclick="validateProviderOnly()" data-i18n="validateProviderBtn">仅检测</button>
+        <button onclick="validateAndFetchModels()" data-i18n="validateFetchModelsBtn">检测并获取模型</button>
+        <button onclick="createProviderWithSelectedModels()" data-i18n="createProviderWithModelsBtn">创建 Provider 与所选模型</button>
+      </div>
+      <pre id="providerValidateOut"></pre>
+      <div id="providerModelPicker" style="display:none; margin-top:12px;">
+        <div class="inline" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div class="muted" data-i18n="providerModelPickerTitle">检测成功后可勾选要导入的模型</div>
+          <div class="inline" style="gap:8px;">
+            <button class="secondary" type="button" onclick="toggleAllProviderModels(true)" data-i18n="selectAllModelsBtn">全选</button>
+            <button class="secondary" type="button" onclick="toggleAllProviderModels(false)" data-i18n="clearAllModelsBtn">清空</button>
+          </div>
+        </div>
+        <div id="providerModelList"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -355,6 +409,12 @@
         providerSecretRef: "密钥引用 (可选)",
         providerHeaders: "额外请求头 JSON, 如 {\"anthropic-version\":\"2023-06-01\"}",
         createProviderBtn: "创建 Provider",
+        validateProviderBtn: "仅检测",
+        validateFetchModelsBtn: "检测并获取模型",
+        createProviderWithModelsBtn: "创建 Provider 与所选模型",
+        providerModelPickerTitle: "检测成功后可勾选要导入的模型",
+        selectAllModelsBtn: "全选",
+        clearAllModelsBtn: "清空",
         createModel: "创建 Model",
         modelProviderId: "Provider ID",
         modelUpstream: "上游模型名称",
@@ -405,6 +465,12 @@
         providerSecretRef: "secret_ref (optional)",
         providerHeaders: "extra_headers JSON, e.g. {\"anthropic-version\":\"2023-06-01\"}",
         createProviderBtn: "Create Provider",
+        validateProviderBtn: "Validate Only",
+        validateFetchModelsBtn: "Validate And Fetch Models",
+        createProviderWithModelsBtn: "Create Provider And Selected Models",
+        providerModelPickerTitle: "Select the models to import after validation",
+        selectAllModelsBtn: "Select All",
+        clearAllModelsBtn: "Clear",
         createModel: "Create Model",
         modelProviderId: "provider_id",
         modelUpstream: "upstream_model",
@@ -528,17 +594,195 @@
       return JSON.parse(raw);
     }
 
+    let providerCandidateModels = [];
+
+    function providerFormBody() {
+      return {
+        name: document.getElementById("providerName").value.trim(),
+        provider_type: document.getElementById("providerType").value.trim(),
+        base_url: document.getElementById("providerBaseUrl").value.trim(),
+        auth_scheme: document.getElementById("providerAuth").value.trim(),
+        api_key: document.getElementById("providerApiKey").value.trim(),
+        secret_ref: document.getElementById("providerSecretRef").value.trim(),
+        extra_headers: parseJsonInput("providerHeaders", {})
+      };
+    }
+
+    function setProviderValidateOutput(payload) {
+      const el = document.getElementById("providerValidateOut");
+      const detail = typeof payload?.detail === 'string' ? payload.detail : '';
+      const detailLimit = 400;
+      const isLongDetail = detail.length > detailLimit;
+      const shortDetail = isLongDetail ? `${detail.slice(0, detailLimit)}...` : detail;
+      const safe = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      const message = payload?.message || '';
+      const endpoint = payload?.endpoint || '';
+      const code = payload?.status_code ?? '';
+      const latency = payload?.latency_ms ?? '';
+      el.classList.add('validate-result');
+      el.innerHTML = `
+        <div class="validate-result-summary">
+          <div>${safe(payload?.ok ? '检测成功' : '检测失败')}</div>
+          <div class="validate-result-meta">status: ${safe(code)} | latency: ${safe(latency)} ms</div>
+          <div class="validate-result-meta">endpoint: ${safe(endpoint)}</div>
+          <div class="validate-result-meta">message: ${safe(message)}</div>
+          ${detail ? `<div id="providerValidateDetail" class="validate-result-detail">${safe(shortDetail)}</div>` : ''}
+          ${isLongDetail ? `<button type="button" class="secondary validate-result-toggle" id="providerValidateToggle">展开详情</button>` : ''}
+        </div>
+      `;
+      if (isLongDetail) {
+        const detailEl = document.getElementById('providerValidateDetail');
+        const toggleEl = document.getElementById('providerValidateToggle');
+        let expanded = false;
+        toggleEl.addEventListener('click', () => {
+          expanded = !expanded;
+          detailEl.textContent = expanded ? detail : shortDetail;
+          toggleEl.textContent = expanded ? '收起详情' : '展开详情';
+        });
+      }
+    }
+
+    function renderProviderModelCandidates(models) {
+      const picker = document.getElementById("providerModelPicker");
+      const list = document.getElementById("providerModelList");
+      providerCandidateModels = models.filter(model => model.selectable);
+      if (!providerCandidateModels.length) {
+        picker.style.display = "none";
+        list.innerHTML = "";
+        return;
+      }
+      picker.style.display = "block";
+      list.className = "model-picker-list";
+      list.innerHTML = providerCandidateModels.map((model, index) => {
+        const checked = 'checked';
+        const contextWindow = model.contextWindow ?? '';
+        const maxTokens = model.maxTokens ?? '';
+        const input = Array.isArray(model.input) && model.input.length ? model.input : ['text'];
+        const hasText = input.includes('text') ? 'checked' : '';
+        const hasImage = input.includes('image') ? 'checked' : '';
+        const caps = Array.isArray(model.capabilities) ? model.capabilities.join(', ') : '';
+        return `
+          <div class="model-row">
+            <div class="model-row-head">
+              <input type="checkbox" class="provider-model-check" data-index="${index}" ${checked}>
+              <div>
+                <div class="model-row-title">${model.id}</div>
+                <div class="model-row-meta">${model.name || model.id}${caps ? ` | ${caps}` : ''}</div>
+              </div>
+            </div>
+            <div class="model-row-fields">
+              <div class="model-input-group">
+                <label>alias</label>
+                <input class="provider-model-alias" data-index="${index}" value="${model.id}">
+              </div>
+              <div class="model-input-group">
+                <label>contextWindow</label>
+                <input class="provider-model-context" data-index="${index}" type="number" value="${contextWindow}">
+              </div>
+              <div class="model-input-group">
+                <label>maxTokens</label>
+                <input class="provider-model-max" data-index="${index}" type="number" value="${maxTokens}">
+              </div>
+              <div class="model-input-group">
+                <label>input</label>
+                <div class="model-inline-checks">
+                  <label><input type="checkbox" class="provider-model-input-text" data-index="${index}" ${hasText}> text</label>
+                  <label><input type="checkbox" class="provider-model-input-image" data-index="${index}" ${hasImage}> image</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleAllProviderModels(checked) {
+      document.querySelectorAll('.provider-model-check').forEach(el => { el.checked = checked; });
+    }
+
+    async function validateProvider() {
+      const body = providerFormBody();
+      const result = await api("POST", "/control/v1/providers/validate", {
+        provider_type: body.provider_type,
+        base_url: body.base_url,
+        auth_scheme: body.auth_scheme,
+        api_key: body.api_key,
+        extra_headers: body.extra_headers
+      });
+      setProviderValidateOutput(result.payload);
+      renderProviderModelCandidates(result.payload.models || []);
+      return result.payload;
+    }
+
+    async function validateProviderOnly() {
+      try {
+        const payload = await validateProvider();
+        setStatus(payload.ok ? `检测成功: ${payload.status_code} / ${payload.latency_ms}ms` : `检测失败: ${payload.message}`, payload.ok);
+      } catch (err) {
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+      }
+    }
+
+    async function validateAndFetchModels() {
+      try {
+        const payload = await validateProvider();
+        if (!payload.ok) {
+          setStatus(`检测失败: ${payload.message}`, false);
+          return;
+        }
+        setStatus(`检测成功，已获取 ${providerCandidateModels.length} 个可选模型`, true);
+      } catch (err) {
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+      }
+    }
+
+    function selectedProviderModelsPayload() {
+      return providerCandidateModels
+        .filter((_, index) => document.querySelector(`.provider-model-check[data-index="${index}"]`)?.checked)
+        .map((model, index) => {
+          const alias = document.querySelector(`.provider-model-alias[data-index="${index}"]`)?.value?.trim() || model.id;
+          const contextWindowRaw = document.querySelector(`.provider-model-context[data-index="${index}"]`)?.value?.trim() || '';
+          const maxTokensRaw = document.querySelector(`.provider-model-max[data-index="${index}"]`)?.value?.trim() || '';
+          const input = [];
+          if (document.querySelector(`.provider-model-input-text[data-index="${index}"]`)?.checked) input.push('text');
+          if (document.querySelector(`.provider-model-input-image[data-index="${index}"]`)?.checked) input.push('image');
+          return {
+            upstream_model: model.id,
+            alias,
+            capabilities: Array.isArray(model.capabilities) && model.capabilities.length ? model.capabilities : ['chat'],
+            context_window: contextWindowRaw ? Number(contextWindowRaw) : null,
+            max_tokens: maxTokensRaw ? Number(maxTokensRaw) : null,
+            input: input.length ? input : ['text'],
+            enabled: true
+          };
+        });
+    }
+
+    async function createProviderWithSelectedModels() {
+      try {
+        const models = selectedProviderModelsPayload();
+        if (!models.length) {
+          setStatus('请先检测并至少勾选一个模型', false);
+          return;
+        }
+        const body = { provider: providerFormBody(), models };
+        const result = await api("POST", "/control/v1/providers/create-with-models", body);
+        document.getElementById("providersOut").textContent = JSON.stringify(result.payload.provider, null, 2);
+        setStatus(`Provider 已创建，并导入 ${result.payload.models.length} 个模型`, true);
+        await refreshAll();
+      } catch (err) {
+        setStatus(i18n[currentLang].statusFailed + ": " + err.message, false);
+      }
+    }
+
     async function createProvider() {
       try {
-        const body = {
-          name: document.getElementById("providerName").value.trim(),
-          provider_type: document.getElementById("providerType").value.trim(),
-          base_url: document.getElementById("providerBaseUrl").value.trim(),
-          auth_scheme: document.getElementById("providerAuth").value.trim(),
-          api_key: document.getElementById("providerApiKey").value.trim(),
-          secret_ref: document.getElementById("providerSecretRef").value.trim(),
-          extra_headers: parseJsonInput("providerHeaders", {})
-        };
+        const body = providerFormBody();
         await api("POST", "/control/v1/providers", body);
         setStatus(i18n[currentLang].providerCreated);
         await refreshAll();

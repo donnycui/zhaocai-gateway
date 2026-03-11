@@ -85,6 +85,9 @@ class SQLiteControlPlaneStore:
                     alias TEXT NOT NULL UNIQUE,
                     enabled INTEGER NOT NULL DEFAULT 1,
                     capabilities TEXT NOT NULL DEFAULT '[]',
+                    context_window INTEGER,
+                    max_tokens INTEGER,
+                    input_modalities TEXT NOT NULL DEFAULT '["text"]',
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(provider_id) REFERENCES providers(id) ON DELETE CASCADE
@@ -132,6 +135,15 @@ class SQLiteControlPlaneStore:
                 );
                 """
             )
+            self.conn.commit()
+            self._ensure_column("models", "context_window", "ALTER TABLE models ADD COLUMN context_window INTEGER")
+            self._ensure_column("models", "max_tokens", "ALTER TABLE models ADD COLUMN max_tokens INTEGER")
+            self._ensure_column("models", "input_modalities", "ALTER TABLE models ADD COLUMN input_modalities TEXT NOT NULL DEFAULT '[\"text\"]'")
+
+    def _ensure_column(self, table: str, column: str, ddl: str) -> None:
+        columns = [row[1] for row in self.conn.execute(f"PRAGMA table_info({table})").fetchall()]
+        if column not in columns:
+            self.conn.execute(ddl)
             self.conn.commit()
 
     _VALID_TABLES = {"providers", "models", "profiles", "nodes"}
@@ -270,8 +282,8 @@ class SQLiteControlPlaneStore:
             cursor = self.conn.execute(
                 """
                 INSERT INTO models
-                (provider_id, upstream_model, alias, enabled, capabilities)
-                VALUES (?, ?, ?, ?, ?)
+                (provider_id, upstream_model, alias, enabled, capabilities, context_window, max_tokens, input_modalities)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     data["provider_id"],
@@ -279,6 +291,9 @@ class SQLiteControlPlaneStore:
                     data["alias"],
                     int(data.get("enabled", True)),
                     json.dumps(data.get("capabilities", []), ensure_ascii=False),
+                    data.get("context_window"),
+                    data.get("max_tokens"),
+                    json.dumps(data.get("input", ["text"]), ensure_ascii=False),
                 ),
             )
             self.conn.commit()
@@ -291,6 +306,8 @@ class SQLiteControlPlaneStore:
         normalized = dict(fields)
         if "capabilities" in normalized and normalized["capabilities"] is not None:
             normalized["capabilities"] = json.dumps(normalized["capabilities"], ensure_ascii=False)
+        if "input" in normalized and normalized["input"] is not None:
+            normalized["input_modalities"] = json.dumps(normalized.pop("input"), ensure_ascii=False)
         if "enabled" in normalized and normalized["enabled"] is not None:
             normalized["enabled"] = int(bool(normalized["enabled"]))
 
@@ -319,6 +336,7 @@ class SQLiteControlPlaneStore:
         data = dict(row)
         data["enabled"] = _to_bool(data["enabled"])
         data["capabilities"] = json.loads(data["capabilities"] or "[]")
+        data["input"] = json.loads(data.get("input_modalities") or '["text"]')
         return data
 
     def list_models(self) -> List[Dict[str, Any]]:
@@ -328,6 +346,7 @@ class SQLiteControlPlaneStore:
             data = dict(row)
             data["enabled"] = _to_bool(data["enabled"])
             data["capabilities"] = json.loads(data["capabilities"] or "[]")
+            data["input"] = json.loads(data.get("input_modalities") or '["text"]')
             result.append(data)
         return result
 
@@ -495,6 +514,7 @@ class SQLiteControlPlaneStore:
             data["enabled"] = _to_bool(data["enabled"])
             data["provider_enabled"] = _to_bool(data["provider_enabled"])
             data["capabilities"] = json.loads(data["capabilities"] or "[]")
+            data["input"] = json.loads(data.get("input_modalities") or '["text"]')
             data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
             data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
             result.append(data)
@@ -503,7 +523,7 @@ class SQLiteControlPlaneStore:
     def list_active_model_routes(self) -> List[Dict[str, Any]]:
         rows = self.conn.execute(
             """
-            SELECT m.id AS model_id, m.alias, m.upstream_model, m.enabled,
+            SELECT m.id AS model_id, m.alias, m.upstream_model, m.enabled, m.capabilities, m.context_window, m.max_tokens, m.input_modalities,
                    p.id AS provider_id, p.name AS provider_name, p.provider_type, p.base_url,
                    p.auth_scheme, p.api_key, p.secret_ref, p.enabled AS provider_enabled,
                    p.extra_headers
@@ -517,6 +537,8 @@ class SQLiteControlPlaneStore:
             data = dict(row)
             data["enabled"] = _to_bool(data["enabled"])
             data["provider_enabled"] = _to_bool(data["provider_enabled"])
+            data["capabilities"] = json.loads(data.get("capabilities") or "[]")
+            data["input"] = json.loads(data.get("input_modalities") or '["text"]')
             data["extra_headers"] = json.loads(data["extra_headers"] or "{}")
             data["api_key"] = self._decrypt_api_key(data.get("api_key", ""))
             result.append(data)

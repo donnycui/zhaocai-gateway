@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -16,9 +18,41 @@ from control_plane.models import (
     ProfileBindingUpdate,
     ProfileCreate,
     ProviderCreate,
+    ProviderCreateWithModels,
     ProviderUpdate,
+    ProviderValidate,
 )
 from control_plane.store import SQLiteControlPlaneStore
+from providers.adapters import get_provider_adapter
+
+
+CHAT_INCLUDE_KEYWORDS = (
+    "gpt",
+    "claude",
+    "qwen",
+    "deepseek",
+    "glm",
+    "kimi",
+    "coder",
+    "instruct",
+    "chat",
+    "sonnet",
+    "opus",
+    "haiku",
+    "r1",
+    "v3",
+)
+
+CHAT_EXCLUDE_KEYWORDS = (
+    "embedding",
+    "rerank",
+    "moderation",
+    "whisper",
+    "tts",
+    "asr",
+    "speech",
+    "transcription",
+)
 
 
 def _extract_bearer_token(authorization: str | None) -> str:
@@ -30,12 +64,132 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return ""
 
 
+def _provider_validation_message(status_code: int) -> str:
+    if 200 <= status_code < 300:
+        return "Connection succeeded"
+    if status_code in {401, 403}:
+        return "Authentication failed"
+    if status_code == 404:
+        return "Endpoint not found; base_url may be incorrect for this provider"
+    if 400 <= status_code < 500:
+        return "Provider rejected the request"
+    if status_code >= 500:
+        return "Upstream provider returned a server error"
+    return "Connection test failed"
+
+
 def _handle_data_error(exc: Exception) -> None:
     if isinstance(exc, ValueError):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if isinstance(exc, sqlite3.IntegrityError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     raise exc
+
+
+def _extract_model_items(payload: Any) -> List[Any]:
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            return data
+        models = payload.get("models")
+        if isinstance(models, list):
+            return models
+        items = payload.get("items")
+        if isinstance(items, list):
+            return items
+        return []
+    if isinstance(payload, list):
+        return payload
+    return []
+
+
+def _extract_int(item: Dict[str, Any], keys: List[str]) -> int | None:
+    for key in keys:
+        value = item.get(key)
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except Exception:
+            continue
+    return None
+
+
+def _normalize_input_modalities(item: Dict[str, Any], model_id: str) -> List[str]:
+    raw = item.get("input")
+    if isinstance(raw, list):
+        vals = [str(v).lower() for v in raw if str(v).lower() in {"text", "image"}]
+        return vals or ["text"]
+    if isinstance(raw, str):
+        vals = [v.strip().lower() for v in raw.split(",") if v.strip().lower() in {"text", "image"}]
+        return vals or ["text"]
+    lowered = model_id.lower()
+    if "image" in lowered and "qwen-image" not in lowered:
+        return ["image"]
+    return ["text"]
+
+
+def _infer_capabilities(model_id: str, item: Dict[str, Any]) -> List[str]:
+    caps: List[str] = []
+    raw = item.get("capabilities")
+    if isinstance(raw, list):
+        caps.extend(str(v) for v in raw)
+    lowered = model_id.lower()
+    if "reason" in lowered or lowered.endswith("r1"):
+        caps.append("reasoning")
+    if "coder" in lowered or "code" in lowered:
+        caps.append("coding")
+    if not caps:
+        caps.append("chat")
+    if "chat" not in caps:
+        caps.insert(0, "chat")
+    seen: List[str] = []
+    for cap in caps:
+        if cap not in seen:
+            seen.append(cap)
+    return seen
+
+
+def _is_chat_selectable(model_id: str, provider_type: str) -> tuple[bool, str]:
+    lowered = model_id.lower()
+    if provider_type == "anthropic":
+        return True, ""
+    for keyword in CHAT_EXCLUDE_KEYWORDS:
+        if keyword in lowered:
+            return False, f"filtered: {keyword} model"
+    if any(keyword in lowered for keyword in CHAT_INCLUDE_KEYWORDS):
+        return True, ""
+    return False, "filtered: not a chat-oriented model"
+
+
+def _build_model_candidates(provider_type: str, payload: Any) -> List[Dict[str, Any]]:
+    items = _extract_model_items(payload)
+    result: List[Dict[str, Any]] = []
+    for item in items:
+        if isinstance(item, str):
+            model_id = item
+            item_dict: Dict[str, Any] = {}
+        elif isinstance(item, dict):
+            model_id = str(item.get("id") or item.get("name") or "").strip()
+            item_dict = item
+        else:
+            continue
+        if not model_id:
+            continue
+        selectable, reason = _is_chat_selectable(model_id, provider_type)
+        result.append(
+            {
+                "id": model_id,
+                "name": str(item_dict.get("name") or model_id),
+                "selectable": selectable,
+                "reason": reason,
+                "capabilities": _infer_capabilities(model_id, item_dict),
+                "contextWindow": _extract_int(item_dict, ["contextWindow", "context_window", "contextLength", "context_length"]),
+                "maxTokens": _extract_int(item_dict, ["maxTokens", "max_tokens", "maxOutputTokens", "max_output_tokens"]),
+                "input": _normalize_input_modalities(item_dict, model_id),
+            }
+        )
+    return result
 
 
 def create_control_plane_routers(
@@ -76,6 +230,75 @@ def create_control_plane_routers(
         try:
             provider = store.create_provider(payload.model_dump())
             return {"provider": provider}
+        except Exception as exc:  # noqa: BLE001
+            _handle_data_error(exc)
+            raise
+
+    @api_router.post("/providers/validate")
+    def validate_provider(
+        payload: ProviderValidate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> Dict[str, Any]:
+        require_admin(x_admin_token)
+        adapter = get_provider_adapter(payload.provider_type)
+        endpoint = adapter.health_endpoint(payload.base_url)
+        headers = adapter.build_headers(payload.api_key, payload.auth_scheme, payload.extra_headers)
+        started = time.perf_counter()
+        try:
+            with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+                response = client.get(endpoint, headers=headers)
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            response_payload = None
+            try:
+                response_payload = response.json()
+            except Exception:
+                response_payload = None
+            return {
+                "ok": 200 <= response.status_code < 300,
+                "status_code": response.status_code,
+                "latency_ms": latency_ms,
+                "endpoint": endpoint,
+                "message": _provider_validation_message(response.status_code),
+                "detail": response.text[:500] if response.status_code >= 400 else "",
+                "models": _build_model_candidates(payload.provider_type, response_payload) if 200 <= response.status_code < 300 else [],
+            }
+        except httpx.TimeoutException:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            return {
+                "ok": False,
+                "status_code": 504,
+                "latency_ms": latency_ms,
+                "endpoint": endpoint,
+                "message": "Connection timed out",
+                "detail": "The provider endpoint did not respond within 30 seconds.",
+                "models": [],
+            }
+        except httpx.RequestError as exc:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            return {
+                "ok": False,
+                "status_code": 502,
+                "latency_ms": latency_ms,
+                "endpoint": endpoint,
+                "message": "Provider endpoint is unreachable",
+                "detail": str(exc),
+                "models": [],
+            }
+
+    @api_router.post("/providers/create-with-models")
+    def create_provider_with_models(
+        payload: ProviderCreateWithModels,
+        x_admin_token: str | None = Header(default=None),
+    ) -> Dict[str, Any]:
+        require_admin(x_admin_token)
+        try:
+            provider = store.create_provider(payload.provider.model_dump())
+            created_models: List[Dict[str, Any]] = []
+            for model in payload.models:
+                model_payload = model.model_dump()
+                model_payload["provider_id"] = provider["id"]
+                created_models.append(store.create_model(model_payload))
+            return {"provider": provider, "models": created_models}
         except Exception as exc:  # noqa: BLE001
             _handle_data_error(exc)
             raise
