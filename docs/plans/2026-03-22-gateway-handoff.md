@@ -13,6 +13,24 @@ It should hold:
 
 It should not depend on the website repo for its own future implementation notes.
 
+
+## Verification Note (2026-03-22)
+
+A worker summary claimed that Phase 2 had already been implemented, including:
+
+- `responses/__init__.py`
+- `responses/handler.py`
+- `scripts/sync_openrouter_free.py`
+- `docs/plans/2026-03-22-phase2-impl.md`
+
+However, repository verification showed that these files were not present in the checked-out repo at verification time.
+
+Current conclusion:
+
+- the roadmap is valid
+- the implementation summary is **not yet enough for acceptance**
+- Phase 2 must be treated as **unlanded until the files are actually created and committed in this repo**
+
 ## Confirmed Current Capabilities
 
 The repo already includes:

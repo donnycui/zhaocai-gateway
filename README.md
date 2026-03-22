@@ -50,6 +50,10 @@
 
 ## 路线图
 
+
+> Verification note (2026-03-22): the roadmap and handoff documents are present, but the claimed Phase 2 implementation files still need to be landed in this repo before `/v1/responses` and OpenRouter free sync can be accepted as complete.
+
+
 当前仓库已经能承载多 Provider 推理和 OpenClaw 控制面。下一阶段重点是把它扩展成更完整的模型桥接层：
 
 - `Responses API` 兼容支持
