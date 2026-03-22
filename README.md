@@ -8,7 +8,8 @@
   <a href="#快速开始">快速开始</a> •
   <a href="#功能特性">功能特性</a> •
   <a href="#控制面板">控制面板</a> •
-  <a href="#api-文档">API 文档</a>
+  <a href="#api-文档">API 文档</a> •
+  <a href="#路线图">路线图</a>
 </p>
 
 ---
@@ -44,6 +45,21 @@
   - `ETag` + `If-None-Match` 缓存
   - `304` 响应表示无变更
 - **🎛️ 管理面板** - 最小化 Web 界面，支持中英双语
+
+---
+
+## 路线图
+
+当前仓库已经能承载多 Provider 推理和 OpenClaw 控制面。下一阶段重点是把它扩展成更完整的模型桥接层：
+
+- `Responses API` 兼容支持
+- `GPT-5.4` 路由基础
+- OpenRouter 免费模型同步与稳定别名
+
+详细记录见：
+
+- `docs/plans/2026-03-22-gateway-roadmap.md`
+- `docs/plans/2026-03-22-gateway-handoff.md`
 
 ---
 
