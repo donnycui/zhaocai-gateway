@@ -52,20 +52,23 @@
 
 ## 路线图
 
+Phase 2 已落盘并合入 `main`，当前仓库已包含：
 
-> Verification note (2026-03-22): the roadmap and handoff documents are present, but the claimed Phase 2 implementation files still need to be landed in this repo before `/v1/responses` and OpenRouter free sync can be accepted as complete.
+- `Responses API` (`POST /v1/responses`) — 文本输入、流式/非流式
+- `GPT-5.4` 路由基础 — 通过控制面 alias 配置，无硬编码
+- OpenRouter 免费模型同步 — `POST /control/v1/sync/openrouter-free` + CLI 脚本
 
+下一步扩展方向：
 
-当前仓库已经能承载多 Provider 推理和 OpenClaw 控制面。下一阶段重点是把它扩展成更完整的模型桥接层：
-
-- `Responses API` 兼容支持
-- `GPT-5.4` 路由基础
-- OpenRouter 免费模型同步与稳定别名
+- Responses API 多模态 / tool use 支持
+- OpenRouter 同步自动化（定时 cron）
+- GPT-5.4 实际 provider 接入和参数级差异化
 
 详细记录见：
 
 - `docs/plans/2026-03-22-gateway-roadmap.md`
 - `docs/plans/2026-03-22-gateway-handoff.md`
+- `docs/plans/2026-03-22-phase2-impl.md`
 
 ---
 

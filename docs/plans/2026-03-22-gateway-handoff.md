@@ -13,24 +13,6 @@ It should hold:
 
 It should not depend on the website repo for its own future implementation notes.
 
-
-## Verification Note (2026-03-22)
-
-A worker summary claimed that Phase 2 had already been implemented, including:
-
-- `responses/__init__.py`
-- `responses/handler.py`
-- `scripts/sync_openrouter_free.py`
-- `docs/plans/2026-03-22-phase2-impl.md`
-
-However, repository verification showed that these files were not present in the checked-out repo at verification time.
-
-Current conclusion:
-
-- the roadmap is valid
-- the implementation summary is **not yet enough for acceptance**
-- Phase 2 must be treated as **unlanded until the files are actually created and committed in this repo**
-
 ## Confirmed Current Capabilities
 
 The repo already includes:
@@ -40,15 +22,31 @@ The repo already includes:
 - control plane router and storage in `control_plane/`
 - model / profile / node management through the control plane
 - OpenClaw config compilation
+- **Responses API** — `POST /v1/responses` (text-first, streaming via synthetic SSE) in `responses/handler.py`
+- **OpenRouter free-model sync** — `POST /control/v1/sync/openrouter-free` endpoint + `scripts/sync_openrouter_free.py` CLI
+- **Stable free-model aliases** — `openrouter/free/best`, `openrouter/free/general`, `openrouter/free/code`, `openrouter/free/fast`
+- **GPT-5.4 routing foundation** — `gpt-5` added to `CHAT_INCLUDE_KEYWORDS`; aliases configured through existing control-plane model registry
 
-## Confirmed Missing Or Incomplete Areas
+## Phase 2 Boundaries (v1)
 
-The repo does **not** currently expose:
+The following are intentionally **not covered** in the first release:
 
-- a first-class `POST /v1/responses`
-- an OpenRouter free-model sync workflow
-- curated free-model aliases such as `openrouter/free/best`
-- explicit `GPT-5.4` routing foundation documentation inside this repo
+- Multimodal input (image, file) for Responses API
+- Tool use (function calling, code_interpreter, file_search)
+- Automatic/cron-based OpenRouter sync (currently manual trigger only)
+- Parameter-level differentiation for GPT-5.4 variants (e.g. different temperature for xhigh vs general)
+
+## Completed Phase 2 Work
+
+All items from the Phase 2 plan have been implemented and merged to `main`:
+
+- `responses/__init__.py` + `responses/handler.py` — Responses API handler
+- `scripts/sync_openrouter_free.py` — CLI sync script
+- `docs/plans/2026-03-22-phase2-impl.md` — implementation record
+- `gateway.py` — `/v1/responses` endpoint registered
+- `control_plane/router.py` — sync endpoint + `gpt-5` keyword + scoring/classification logic
+- `control_plane/store.py` — `upsert_model_by_alias()` method
+- `README.md` — updated with Responses API, OpenRouter sync, and GPT-5.4 alias documentation
 
 ## Why This Matters
 
@@ -62,34 +60,23 @@ That means future gateway work should happen here, not only inside the website r
 
 ## Immediate Next Work
 
-### 1. Responses API
+### 1. Responses API — extend coverage
 
-Add:
+- Add multimodal input support (images)
+- Add tool use / function calling passthrough
+- Move from synthetic SSE to true token-level streaming if upstream supports it
 
-- `POST /v1/responses`
+### 2. GPT-5.4 provider route — operationalize
 
-Minimum first release:
+- Register real GPT-5.4 providers via control plane once access is available
+- Test failover across multiple providers for the same alias
+- Consider parameter-level differentiation (xhigh vs general)
 
-- text requests
-- non-stream or streaming if low-risk
-- response envelope compatible enough for internal callers
+### 3. OpenRouter free sync — automate
 
-### 2. GPT-5.4 provider route
-
-Add clear documentation and implementation path for:
-
-- registering `GPT-5.4` providers
-- exposing stable aliases
-- using the existing control-plane model registry instead of hardcoded logic
-
-### 3. OpenRouter free sync
-
-Add a periodic or on-demand sync that:
-
-- fetches OpenRouter model metadata
-- filters free models
-- stores curated candidates
-- exposes stable aliases for downstream callers
+- Add optional cron/interval-based auto-sync
+- Add model offline detection (remove aliases for models that disappear)
+- Expose admin visibility into sync candidates and scoring
 
 ## Recommended Design Constraint
 
