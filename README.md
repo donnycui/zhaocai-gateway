@@ -19,7 +19,9 @@
 招财网关是统一的 AI 推理网关，提供：
 
 1. **OpenAI 兼容的推理接口** (`/v1/chat/completions`)
-2. **多节点配置分发控制面板** (`/control/v1/...`)
+2. **Responses API** (`/v1/responses`) — OpenAI Responses API 兼容
+3. **多节点配置分发控制面板** (`/control/v1/...`)
+4. **OpenRouter 免费模型自动同步**
 
 适用于拥有多个 LLM Provider 和多个 OpenClaw 节点（树莓派、VPS 等）的场景，需要为不同节点分配不同的模型集合。
 
@@ -180,6 +182,25 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
+#### Responses API
+
+```bash
+# 非流式
+curl -X POST http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o","input":"Hello, what is 2+2?"}'
+
+# 带 system 指令
+curl -X POST http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o","input":"Translate to Chinese","instructions":"You are a translator."}'
+
+# 流式
+curl -X POST http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o","input":"Hello","stream":true}'
+```
+
 #### 监控接口
 
 - `GET /health` - 健康状态
@@ -306,6 +327,76 @@ python scripts/bootstrap_provider.py \
   --auth-scheme bearer \
   --api-key "sk-xxx" \
   --models "deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1"
+```
+
+---
+
+## OpenRouter 免费模型同步
+
+自动从 OpenRouter 拉取免费模型并创建稳定别名，综合评分考虑模型能力、厂商稳定性和模型规模。
+
+### 通过 API 触发同步
+
+```bash
+curl -X POST http://localhost:8000/control/v1/sync/openrouter-free \
+  -H "X-Admin-Token: $TOKEN"
+```
+
+### 通过 CLI 脚本
+
+```bash
+python scripts/sync_openrouter_free.py \
+  --base-url http://127.0.0.1:8000 \
+  --admin-token "$ZHAOCAI_ADMIN_TOKEN"
+```
+
+同步后自动创建以下稳定别名：
+
+| 别名 | 说明 |
+|------|------|
+| `openrouter/free/best` | 综合评分最高的免费模型 |
+| `openrouter/free/general` | 通用对话最佳 |
+| `openrouter/free/code` | 编程能力最强 |
+| `openrouter/free/fast` | 响应最快（小模型） |
+
+使用同步后的免费模型：
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"openrouter/free/best","messages":[{"role":"user","content":"hi"}]}'
+```
+
+---
+
+## GPT-5.4 模型别名配置
+
+GPT-5.4 系列通过控制面板的模型别名系统配置，路由完全走现有 `get_model_candidates()` 逻辑，无需硬编码 if/else：
+
+```bash
+# 创建 OpenAI provider
+curl -X POST http://localhost:8000/control/v1/providers \
+  -H "X-Admin-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"openai","provider_type":"openai","base_url":"https://api.openai.com/v1","auth_scheme":"bearer","api_key":"sk-..."}'
+
+# 创建 GPT-5.4 别名（假设 provider_id=1）
+curl -X POST http://localhost:8000/control/v1/models \
+  -H "X-Admin-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"provider_id":1,"upstream_model":"gpt-5.4","alias":"gpt-5.4","capabilities":["chat","reasoning"]}'
+
+# 高规格场景变体
+curl -X POST http://localhost:8000/control/v1/models \
+  -H "X-Admin-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"provider_id":1,"upstream_model":"gpt-5.4","alias":"gpt-5.4-xhigh"}'
+
+# 通过不同 provider 的通用别名（如 SiliconFlow/OpenRouter）
+curl -X POST http://localhost:8000/control/v1/models \
+  -H "X-Admin-Token: $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"provider_id":2,"upstream_model":"gpt-5.4","alias":"gpt-5.4-general"}'
 ```
 
 ---

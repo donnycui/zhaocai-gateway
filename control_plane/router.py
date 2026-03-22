@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ from providers.adapters import get_provider_adapter
 
 CHAT_INCLUDE_KEYWORDS = (
     "gpt",
+    "gpt-5",
     "claude",
     "qwen",
     "deepseek",
@@ -190,6 +192,233 @@ def _build_model_candidates(provider_type: str, payload: Any) -> List[Dict[str, 
             }
         )
     return result
+
+
+_logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# OpenRouter free-model sync helpers
+# ---------------------------------------------------------------------------
+
+_KNOWN_VENDORS = {"google", "meta", "deepseek", "qwen", "microsoft", "mistral", "nvidia"}
+
+
+def _score_free_model(model_id: str, item: Dict[str, Any]) -> float:
+    """Compute a quality score for a free OpenRouter model.
+
+    Considers context window size, vendor reputation, reasoning
+    capability, and parameter count.
+    """
+    score = 0.0
+
+    # --- context window ---
+    ctx = 0
+    try:
+        ctx = int(item.get("context_length") or 0)
+    except (ValueError, TypeError):
+        pass
+    if ctx >= 128_000:
+        score += 30
+    elif ctx >= 32_000:
+        score += 20
+    elif ctx >= 8_000:
+        score += 10
+
+    # --- vendor reputation (stability proxy) ---
+    lowered = model_id.lower()
+    for vendor in _KNOWN_VENDORS:
+        if vendor in lowered:
+            score += 20
+            break
+
+    # --- reasoning capability ---
+    # OpenRouter IDs often end with ":free", so check for r1 as a segment
+    base_id = lowered.split(":")[0]  # strip :free suffix
+    if "reason" in lowered or base_id.endswith("r1") or "-r1-" in lowered:
+        score += 15
+
+    # --- model size (popularity/quality proxy) ---
+    arch = item.get("architecture", {})
+    if isinstance(arch, dict):
+        params = arch.get("num_parameters")
+        if params:
+            try:
+                p = float(params)
+                if p >= 100e9:
+                    score += 10
+                elif p >= 30e9:
+                    score += 5
+            except (ValueError, TypeError):
+                pass
+
+    return score
+
+
+def _classify_free_model(model_id: str, item: Dict[str, Any]) -> List[str]:
+    """Return category tags for a free model (general, code, fast, ...)."""
+    tags: List[str] = ["general"]
+    lowered = model_id.lower()
+
+    if "code" in lowered or "coder" in lowered:
+        tags.append("code")
+    base_id = lowered.split(":")[0]
+    if "reason" in lowered or base_id.endswith("r1") or "-r1-" in lowered:
+        tags.append("reasoning")
+
+    ctx = 0
+    try:
+        ctx = int(item.get("context_length") or 0)
+    except (ValueError, TypeError):
+        pass
+
+    params = None
+    arch = item.get("architecture", {})
+    if isinstance(arch, dict):
+        try:
+            params = float(arch.get("num_parameters") or 0)
+        except (ValueError, TypeError):
+            pass
+
+    if (params and params < 15e9) or (ctx > 0 and ctx <= 32_000 and params is None):
+        tags.append("fast")
+
+    return tags
+
+
+def _run_openrouter_free_sync(store: "SQLiteControlPlaneStore") -> Dict[str, Any]:
+    """Fetch free models from OpenRouter and upsert stable aliases."""
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.get("https://openrouter.ai/api/v1/models")
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch OpenRouter models: {exc}",
+        ) from exc
+
+    items = payload.get("data", [])
+    if not isinstance(items, list):
+        items = []
+
+    # ---- filter free models ----
+    free_models: List[Dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        pricing = item.get("pricing", {})
+        if not isinstance(pricing, dict):
+            continue
+        try:
+            if float(pricing.get("prompt", "1")) == 0 and float(pricing.get("completion", "1")) == 0:
+                free_models.append(item)
+        except (ValueError, TypeError):
+            continue
+
+    if not free_models:
+        return {"synced": 0, "message": "No free models found on OpenRouter"}
+
+    # ---- ensure openrouter provider exists ----
+    providers = store.list_providers(include_secrets=False)
+    or_provider = next((p for p in providers if p["name"] == "openrouter"), None)
+    if or_provider is None:
+        or_provider = store.create_provider({
+            "name": "openrouter",
+            "provider_type": "openai",
+            "base_url": "https://openrouter.ai/api/v1",
+            "auth_scheme": "bearer",
+            "api_key": "",
+            "enabled": True,
+        })
+    provider_id = or_provider["id"]
+
+    # ---- score & sort ----
+    scored: List[tuple] = []
+    for item in free_models:
+        mid = str(item.get("id", "")).strip()
+        if not mid:
+            continue
+        s = _score_free_model(mid, item)
+        tags = _classify_free_model(mid, item)
+        scored.append((s, mid, item, tags))
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # ---- pick best model for each alias slot ----
+    alias_map: Dict[str, str] = {}
+    best_set = False
+    code_set = False
+    fast_set = False
+    general_set = False
+
+    for _s, mid, _item, tags in scored:
+        if not best_set:
+            alias_map["openrouter/free/best"] = mid
+            best_set = True
+        if "code" in tags and not code_set:
+            alias_map["openrouter/free/code"] = mid
+            code_set = True
+        if "fast" in tags and not fast_set:
+            alias_map["openrouter/free/fast"] = mid
+            fast_set = True
+        if "general" in tags and not general_set and mid != alias_map.get("openrouter/free/best"):
+            alias_map["openrouter/free/general"] = mid
+            general_set = True
+        if len(alias_map) >= 4:
+            break
+
+    # fallbacks when a category wasn't found
+    if "openrouter/free/general" not in alias_map and len(scored) > 1:
+        alias_map["openrouter/free/general"] = scored[1][1]
+    if "openrouter/free/code" not in alias_map and len(scored) > 2:
+        alias_map["openrouter/free/code"] = scored[2][1]
+    if "openrouter/free/fast" not in alias_map and len(scored) > 0:
+        alias_map["openrouter/free/fast"] = scored[-1][1]
+
+    # ---- upsert models ----
+    item_by_id: Dict[str, Dict[str, Any]] = {
+        str(it.get("id", "")).strip(): it for it in free_models if isinstance(it, dict)
+    }
+
+    created = 0
+    updated = 0
+    for alias, upstream_model in alias_map.items():
+        item = item_by_id.get(upstream_model, {})
+        ctx_window = None
+        try:
+            ctx_window = int(item.get("context_length") or 0) or None
+        except (ValueError, TypeError):
+            pass
+        caps = _infer_capabilities(upstream_model, item)
+        model_data: Dict[str, Any] = {
+            "provider_id": provider_id,
+            "upstream_model": upstream_model,
+            "enabled": True,
+            "capabilities": caps,
+            "context_window": ctx_window,
+            "input": ["text"],
+        }
+        existing = store.conn.execute(
+            "SELECT id FROM models WHERE alias = ?", (alias,)
+        ).fetchone()
+        store.upsert_model_by_alias(alias, model_data)
+        if existing:
+            updated += 1
+        else:
+            created += 1
+
+    _logger.info(
+        "OpenRouter free sync: %d free models found, %d aliases created, %d updated",
+        len(free_models), created, updated,
+    )
+
+    return {
+        "synced": created + updated,
+        "created": created,
+        "updated": updated,
+        "free_models_found": len(free_models),
+        "aliases": alias_map,
+    }
 
 
 def create_control_plane_routers(
@@ -453,6 +682,14 @@ def create_control_plane_routers(
         except Exception as exc:  # noqa: BLE001
             _handle_data_error(exc)
             raise
+
+    @api_router.post("/sync/openrouter-free")
+    def sync_openrouter_free(
+        x_admin_token: str | None = Header(default=None),
+    ) -> Dict[str, Any]:
+        """Pull free models from OpenRouter, score them, and upsert stable aliases."""
+        require_admin(x_admin_token)
+        return _run_openrouter_free_sync(store)
 
     @panel_router.get("/guide", response_class=HTMLResponse)
     def guide_panel() -> HTMLResponse:

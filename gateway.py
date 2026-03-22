@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from control_plane.router import create_control_plane_routers
 from control_plane.store import SQLiteControlPlaneStore, create_store_from_env
 from providers.adapters import detect_provider_type, get_provider_adapter
+from responses.handler import ResponsesRequest, handle_responses, handle_responses_stream
 
 DEFAULT_ADMIN_TOKEN = "change-me-admin-token"
 
@@ -701,6 +702,14 @@ async def chat_completions(http_request: Request, payload: ChatCompletionRequest
     if payload.stream:
         return await gateway.stream_chat_completion(payload, client_key=client_ip)
     return await gateway.chat_completion(payload, client_key=client_ip)
+
+
+@app.post("/v1/responses")
+async def responses_endpoint(http_request: Request, payload: ResponsesRequest):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    if payload.stream:
+        return await handle_responses_stream(payload, gateway, client_key=client_ip)
+    return await handle_responses(payload, gateway, client_key=client_ip)
 
 
 @app.get("/metrics")

@@ -544,6 +544,64 @@ class SQLiteControlPlaneStore:
             result.append(data)
         return result
 
+    def upsert_model_by_alias(self, alias: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert or update a model record keyed by ``alias``.
+
+        Used by the OpenRouter free-model sync to create or refresh a
+        stable alias without duplicating rows.
+        """
+        with self._locked():
+            row = self.conn.execute(
+                "SELECT id FROM models WHERE alias = ?", (alias,)
+            ).fetchone()
+
+            if row is not None:
+                # --- update existing ---
+                model_id = row["id"]
+                fields: Dict[str, Any] = {}
+                for key in ("upstream_model", "provider_id", "context_window", "max_tokens"):
+                    if key in data:
+                        fields[key] = data[key]
+                if "enabled" in data:
+                    fields["enabled"] = int(bool(data["enabled"]))
+                if "capabilities" in data:
+                    fields["capabilities"] = json.dumps(data["capabilities"], ensure_ascii=False)
+                if "input" in data:
+                    fields["input_modalities"] = json.dumps(data["input"], ensure_ascii=False)
+                if fields:
+                    assignments = ", ".join(f"{key} = ?" for key in fields)
+                    values = list(fields.values())
+                    values.append(model_id)
+                    self.conn.execute(
+                        f"UPDATE models SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        values,
+                    )
+                    self.conn.commit()
+                return self.get_model(model_id)
+
+            # --- insert new ---
+            self._require_exists("providers", data["provider_id"])
+            cursor = self.conn.execute(
+                """
+                INSERT INTO models
+                (provider_id, upstream_model, alias, enabled, capabilities,
+                 context_window, max_tokens, input_modalities)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data["provider_id"],
+                    data["upstream_model"],
+                    alias,
+                    int(data.get("enabled", True)),
+                    json.dumps(data.get("capabilities", []), ensure_ascii=False),
+                    data.get("context_window"),
+                    data.get("max_tokens"),
+                    json.dumps(data.get("input", ["text"]), ensure_ascii=False),
+                ),
+            )
+            self.conn.commit()
+            return self.get_model(cursor.lastrowid)
+
     def get_latest_node_version(self, node_id: int) -> Optional[Dict[str, Any]]:
         row = self.conn.execute(
             """
