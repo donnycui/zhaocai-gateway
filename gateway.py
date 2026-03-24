@@ -34,6 +34,7 @@ from control_plane.router import create_control_plane_routers
 from control_plane.store import SQLiteControlPlaneStore, create_store_from_env
 from providers.adapters import detect_provider_type, get_provider_adapter
 from responses.handler import ResponsesRequest, handle_responses, handle_responses_stream
+from zhaocai_gateway.app import create_app
 
 DEFAULT_ADMIN_TOKEN = "change-me-admin-token"
 
@@ -611,11 +612,12 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Zhaocai Gateway...")
 
 
-app = FastAPI(
+app = create_app(
     title="Zhaocai Gateway",
     description="AI Provider Gateway + OpenClaw Control Plane",
     version="2.0.0",
     lifespan=lifespan,
+    register_defaults=False,
 )
 
 def _load_cors_origins() -> list[str]:
