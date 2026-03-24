@@ -12,7 +12,7 @@ from zhaocai_gateway.domain.models import ConfigSnapshot, Device, Model, Provide
 class SQLiteStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
 
     def init_schema(self) -> None:
@@ -70,6 +70,24 @@ class SQLiteStore:
             enabled=bool(row["enabled"]),
         )
 
+    def list_providers(self) -> list[Provider]:
+        rows = self.conn.execute(
+            "SELECT * FROM providers ORDER BY id ASC",
+        ).fetchall()
+        return [
+            Provider(
+                id=int(row["id"]),
+                name=str(row["name"]),
+                provider_type=str(row["provider_type"]),
+                base_url=str(row["base_url"]),
+                auth_scheme=str(row["auth_scheme"]),
+                api_key_encrypted=str(row["api_key_encrypted"]),
+                extra_headers=json.loads(row["extra_headers"] or "{}"),
+                enabled=bool(row["enabled"]),
+            )
+            for row in rows
+        ]
+
     def create_model(
         self,
         *,
@@ -120,6 +138,24 @@ class SQLiteStore:
             max_tokens=row["max_tokens"],
             enabled=bool(row["enabled"]),
         )
+
+    def list_models(self) -> list[Model]:
+        rows = self.conn.execute(
+            "SELECT * FROM models ORDER BY id ASC",
+        ).fetchall()
+        return [
+            Model(
+                id=int(row["id"]),
+                provider_id=int(row["provider_id"]),
+                upstream_model=str(row["upstream_model"]),
+                display_name=str(row["display_name"]),
+                capabilities=json.loads(row["capabilities"] or "[]"),
+                context_window=row["context_window"],
+                max_tokens=row["max_tokens"],
+                enabled=bool(row["enabled"]),
+            )
+            for row in rows
+        ]
 
     def create_device(
         self,
