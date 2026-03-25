@@ -2,10 +2,16 @@ from fastapi.testclient import TestClient
 
 from zhaocai_gateway.app import create_app
 
+ADMIN_TOKEN = "test-admin-token"
+
 
 def create_test_client() -> TestClient:
-    app = create_app(db_path=":memory:")
+    app = create_app(db_path=":memory:", admin_token=ADMIN_TOKEN)
     return TestClient(app)
+
+
+def admin_headers() -> dict[str, str]:
+    return {"X-Admin-Token": ADMIN_TOKEN}
 
 
 def test_create_device():
@@ -13,6 +19,7 @@ def test_create_device():
 
     response = client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={
             "name": "macbook-pro",
             "device_type": "mac",
@@ -30,13 +37,18 @@ def test_issue_pairing_token():
     client = create_test_client()
     device = client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={
             "name": "vps-1",
             "device_type": "vps",
         },
     ).json()["device"]
 
-    response = client.post(f"/admin/devices/{device['id']}/pairing-token", json={})
+    response = client.post(
+        f"/admin/devices/{device['id']}/pairing-token",
+        headers=admin_headers(),
+        json={},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -49,6 +61,7 @@ def test_assign_models_to_device():
     client = create_test_client()
     provider = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "openai",
             "base_url": "https://api.openai.com/v1",
@@ -60,6 +73,7 @@ def test_assign_models_to_device():
     ).json()["provider"]
     model = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider["id"],
             "upstream_model": "gpt-4.1",
@@ -72,6 +86,7 @@ def test_assign_models_to_device():
     ).json()["model"]
     device = client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={
             "name": "mac-mini",
             "device_type": "mac",
@@ -80,6 +95,7 @@ def test_assign_models_to_device():
 
     response = client.put(
         f"/admin/devices/{device['id']}/models",
+        headers=admin_headers(),
         json={"model_ids": [model["id"]]},
     )
 
@@ -92,13 +108,14 @@ def test_list_devices():
     client = create_test_client()
     client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={
             "name": "raspberrypi",
             "device_type": "raspberrypi",
         },
     )
 
-    response = client.get("/admin/devices")
+    response = client.get("/admin/devices", headers=admin_headers())
 
     assert response.status_code == 200
     payload = response.json()
@@ -110,6 +127,7 @@ def test_get_device_config_preview():
     client = create_test_client()
     provider = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "openrouter",
             "base_url": "https://openrouter.ai/api/v1",
@@ -121,6 +139,7 @@ def test_get_device_config_preview():
     ).json()["provider"]
     model = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider["id"],
             "upstream_model": "gpt-4.1-mini",
@@ -133,6 +152,7 @@ def test_get_device_config_preview():
     ).json()["model"]
     device = client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={
             "name": "worker-preview",
             "device_type": "vps",
@@ -140,10 +160,14 @@ def test_get_device_config_preview():
     ).json()["device"]
     client.put(
         f"/admin/devices/{device['id']}/models",
+        headers=admin_headers(),
         json={"model_ids": [model["id"]]},
     )
 
-    response = client.get(f"/admin/devices/{device['id']}/config-preview")
+    response = client.get(
+        f"/admin/devices/{device['id']}/config-preview",
+        headers=admin_headers(),
+    )
 
     assert response.status_code == 200
     payload = response.json()

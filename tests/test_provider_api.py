@@ -2,10 +2,16 @@ from fastapi.testclient import TestClient
 
 from zhaocai_gateway.app import create_app
 
+ADMIN_TOKEN = "test-admin-token"
+
 
 def create_test_client() -> TestClient:
-    app = create_app(db_path=":memory:")
+    app = create_app(db_path=":memory:", admin_token=ADMIN_TOKEN)
     return TestClient(app)
+
+
+def admin_headers() -> dict[str, str]:
+    return {"X-Admin-Token": ADMIN_TOKEN}
 
 
 def test_create_provider():
@@ -13,6 +19,7 @@ def test_create_provider():
 
     response = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "openrouter",
             "base_url": "https://openrouter.ai/api/v1",
@@ -34,6 +41,7 @@ def test_validate_provider_input():
 
     response = client.post(
         "/admin/providers/validate",
+        headers=admin_headers(),
         json={
             "name": "openrouter",
             "base_url": "https://openrouter.ai/api/v1",
@@ -52,6 +60,7 @@ def test_create_model_under_provider():
     client = create_test_client()
     provider_response = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "openai",
             "base_url": "https://api.openai.com/v1",
@@ -65,6 +74,7 @@ def test_create_model_under_provider():
 
     response = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider_id,
             "upstream_model": "gpt-4.1",
@@ -86,6 +96,7 @@ def test_list_providers_and_models():
     client = create_test_client()
     provider_response = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "anthropic",
             "base_url": "https://api.anthropic.com",
@@ -98,6 +109,7 @@ def test_list_providers_and_models():
     provider_id = provider_response.json()["provider"]["id"]
     client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider_id,
             "upstream_model": "claude-sonnet-4.5",
@@ -109,10 +121,18 @@ def test_list_providers_and_models():
         },
     )
 
-    providers_response = client.get("/admin/providers")
-    models_response = client.get("/admin/models")
+    providers_response = client.get("/admin/providers", headers=admin_headers())
+    models_response = client.get("/admin/models", headers=admin_headers())
 
     assert providers_response.status_code == 200
     assert models_response.status_code == 200
     assert len(providers_response.json()["providers"]) == 1
     assert len(models_response.json()["models"]) == 1
+
+
+def test_admin_requires_token():
+    client = create_test_client()
+
+    response = client.get("/admin/providers")
+
+    assert response.status_code == 401

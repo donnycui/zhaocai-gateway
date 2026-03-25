@@ -10,18 +10,11 @@ services:
       - ZHAOCAI_PORT=${ZHAOCAI_PORT:-8000}
       - ZHAOCAI_HOST=${ZHAOCAI_HOST:-0.0.0.0}
       - ZHAOCAI_LOG_LEVEL=${ZHAOCAI_LOG_LEVEL:-info}
-      - ZHAOCAI_CONFIG=/app/config.yaml
       - ZHAOCAI_ADMIN_TOKEN=${ZHAOCAI_ADMIN_TOKEN}
       - ZHAOCAI_CONTROL_DB=${ZHAOCAI_CONTROL_DB:-sqlite:///./data/control_plane.db}
       - ZHAOCAI_ENCRYPTION_KEY=${ZHAOCAI_ENCRYPTION_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
-      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - ZHAOCAI_WEB_DIST=/app/web-dist
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
       - ./data:/app/data
     restart: unless-stopped
     networks:

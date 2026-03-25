@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "=========================================="
-echo "Zhaocai Gateway bootstrap"
+echo "Zhaocai Gateway v2 bootstrap"
 echo "=========================================="
 
 RED='\033[0;31m'
@@ -20,39 +20,35 @@ else
   exit 1
 fi
 
-PY_VERSION="$($PYTHON_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 $PYTHON_BIN - <<'PY'
 import sys
 if sys.version_info < (3, 9):
     raise SystemExit(1)
 PY
-if [ $? -ne 0 ]; then
-  echo -e "${RED}Error: Python 3.9+ is required${NC}"
-  exit 1
-fi
-echo -e "${GREEN}OK Python version: $PY_VERSION${NC}"
+echo -e "${GREEN}OK Python version: $($PYTHON_BIN -c 'import sys; print(sys.version.split()[0])')${NC}"
 
 echo -e "${YELLOW}[2/6] Create virtual environment...${NC}"
-if [ ! -d "venv" ]; then
-  $PYTHON_BIN -m venv venv
-  echo -e "${GREEN}OK virtual environment created${NC}"
+if [ ! -d ".venv" ]; then
+  $PYTHON_BIN -m venv .venv
+  echo -e "${GREEN}OK .venv created${NC}"
 else
-  echo -e "${GREEN}OK virtual environment already exists${NC}"
+  echo -e "${GREEN}OK .venv already exists${NC}"
 fi
 
-echo -e "${YELLOW}[3/6] Activate virtual environment and install dependencies...${NC}"
-if [ -f "venv/bin/activate" ]; then
+if [ -f ".venv/bin/activate" ]; then
   # shellcheck disable=SC1091
-  source venv/bin/activate
+  source .venv/bin/activate
 else
   # shellcheck disable=SC1091
-  source venv/Scripts/activate
+  source .venv/Scripts/activate
 fi
+
+echo -e "${YELLOW}[3/6] Install Python dependencies...${NC}"
 pip install --upgrade pip -q
 pip install -r requirements.txt -q
-echo -e "${GREEN}OK dependencies installed${NC}"
+echo -e "${GREEN}OK Python dependencies installed${NC}"
 
-echo -e "${YELLOW}[4/6] Generate configuration files...${NC}"
+echo -e "${YELLOW}[4/6] Create .env...${NC}"
 ENCRYPTION_KEY="$(python - <<'PY'
 try:
     from cryptography.fernet import Fernet
@@ -69,55 +65,43 @@ PY
 
 if [ ! -f ".env" ]; then
   cat > .env <<EOF
-# Gateway runtime
+# Runtime
 ZHAOCAI_PORT=8000
 ZHAOCAI_HOST=0.0.0.0
 ZHAOCAI_LOG_LEVEL=info
-ZHAOCAI_CONFIG=./config.yaml
+ZHAOCAI_APP_TITLE=Zhaocai Gateway
+ZHAOCAI_APP_DESCRIPTION=AI Provider Gateway + OpenClaw Control Plane
+ZHAOCAI_APP_VERSION=2.0.0
+ZHAOCAI_WEB_DIST=./web/dist
 
-# Control plane
+# Control plane storage
 ZHAOCAI_ADMIN_TOKEN=$ADMIN_TOKEN
 ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db
 ZHAOCAI_ENCRYPTION_KEY=$ENCRYPTION_KEY
-ZHAOCAI_ROUTING_SOURCE=hybrid
-ZHAOCAI_CONTROL_SYNC_INTERVAL_SECONDS=5
-ZHAOCAI_NODE_PROVIDER_MODE=gateway
-ZHAOCAI_NODE_GATEWAY_PROVIDER_ID=zhaocai-gateway
-ZHAOCAI_NODE_GATEWAY_BASE_URL=http://127.0.0.1:8000/v1
-ZHAOCAI_NODE_GATEWAY_PROVIDER_TYPE=openai
-ZHAOCAI_NODE_GATEWAY_AUTH_SCHEME=bearer
-ZHAOCAI_NODE_GATEWAY_API_KEY=
-ZHAOCAI_NODE_GATEWAY_EXTRA_HEADERS={}
 
-# AI Provider API keys
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-NVIDIA_API_KEY=
-DASHSCOPE_API_KEY=
-SILICONFLOW_API_KEY=
-OPENROUTER_API_KEY=
-
-# Cloudflare tunnel token (optional)
+# Optional tunnel
 CF_TUNNEL_TOKEN=
 EOF
   echo -e "${GREEN}OK .env created${NC}"
 else
-  echo -e "${YELLOW}Skip .env creation because it already exists${NC}"
+  echo -e "${GREEN}OK .env already exists${NC}"
 fi
 
-if [ ! -f "config.yaml" ]; then
-  cp config.example.yaml config.yaml
-  echo -e "${GREEN}OK config.yaml created${NC}"
-else
-  echo -e "${YELLOW}Skip config.yaml creation because it already exists${NC}"
+echo -e "${YELLOW}[5/6] Build web UI...${NC}"
+if ! command -v npm >/dev/null 2>&1; then
+  echo -e "${RED}Error: npm is required to build web/dist${NC}"
+  exit 1
 fi
-
-echo -e "${YELLOW}[5/6] Create data directory...${NC}"
-mkdir -p data
-echo -e "${GREEN}OK data directory ready${NC}"
+(
+  cd web
+  npm install
+  npm run build
+)
+echo -e "${GREEN}OK web/dist built${NC}"
 
 echo -e "${YELLOW}[6/6] Verify installation...${NC}"
-python -c "from gateway import app; print('OK')" >/dev/null
+mkdir -p data
+python -c "from zhaocai_gateway.main import app; print('OK')" >/dev/null
 echo -e "${GREEN}OK install verification passed${NC}"
 
 echo ""
@@ -134,12 +118,6 @@ else
 fi
 echo ""
 echo -e "${YELLOW}Next:${NC}"
-echo "  1. Fill API keys in .env"
-echo "  2. Optionally adjust config.yaml"
-echo "  3. Run: python gateway.py"
-echo ""
-echo -e "${YELLOW}URLs:${NC}"
-echo "  - API docs: http://localhost:8000/docs"
-echo "  - Control panel: http://localhost:8000/control"
-echo "  - Health API: http://localhost:8000/api/health"
-echo "  - Health UI: http://localhost:8000/health-ui"
+echo "  1. Start backend: .venv/bin/python -m zhaocai_gateway.main"
+echo "  2. Open http://localhost:8000"
+echo "  3. Paste the admin token into the top bar of the web UI"

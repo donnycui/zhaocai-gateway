@@ -4,7 +4,14 @@ import DashboardPage from "./pages/DashboardPage";
 import DevicesPage from "./pages/DevicesPage";
 import NodesPage from "./pages/NodesPage";
 import ProvidersPage from "./pages/ProvidersPage";
-import { api, type Device, type Model, type Provider } from "./lib/api";
+import {
+  api,
+  getStoredAdminToken,
+  storeAdminToken,
+  type Device,
+  type Model,
+  type Provider,
+} from "./lib/api";
 
 type Page = "dashboard" | "providers" | "devices" | "nodes";
 
@@ -15,6 +22,7 @@ export default function App() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
+  const [adminToken, setAdminToken] = useState<string>(() => getStoredAdminToken());
 
   async function refreshAll() {
     setLoading(true);
@@ -38,6 +46,11 @@ export default function App() {
   useEffect(() => {
     void refreshAll();
   }, []);
+
+  function handleSaveAdminToken() {
+    storeAdminToken(adminToken.trim());
+    void refreshAll();
+  }
 
   return (
     <div className="app-shell">
@@ -67,13 +80,27 @@ export default function App() {
 
       <main className="main-content">
         <header className="topbar">
-          <div>
+          <div className="topbar-left">
             <span className="status-chip">{loading ? "Loading" : "Ready"}</span>
             {error ? <span className="error-chip">{error}</span> : null}
           </div>
-          <button className="secondary-button" onClick={() => void refreshAll()}>
-            Refresh All
-          </button>
+          <div className="topbar-actions">
+            <label className="token-input">
+              <span>Admin Token</span>
+              <input
+                type="password"
+                value={adminToken}
+                onChange={(event) => setAdminToken(event.target.value)}
+                placeholder="Paste X-Admin-Token"
+              />
+            </label>
+            <button className="secondary-button" onClick={handleSaveAdminToken}>
+              Save Token
+            </button>
+            <button className="secondary-button" onClick={() => void refreshAll()}>
+              Refresh All
+            </button>
+          </div>
         </header>
 
         {page === "dashboard" ? (

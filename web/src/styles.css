@@ -120,6 +120,14 @@ button,
   gap: 18px;
 }
 
+.topbar-left,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .two-column {
   grid-template-columns: 1.25fr 1fr;
 }
@@ -247,6 +255,21 @@ button {
   padding: 11px 16px;
   background: rgba(19, 34, 56, 0.06);
   color: #132238;
+}
+
+.token-input {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.token-input span {
+  font-size: 0.8rem;
+  color: #526178;
+}
+
+.token-input input {
+  padding: 10px 12px;
 }
 
 .action-row {

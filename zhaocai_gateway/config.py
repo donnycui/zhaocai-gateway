@@ -18,6 +18,7 @@ class AppServerConfig:
     port: int
     db_path: str
     web_dist_path: str
+    admin_token: str
 
 
 def load_runtime_config() -> AppRuntimeConfig:
@@ -47,4 +48,5 @@ def load_server_config() -> AppServerConfig:
             os.getenv("ZHAOCAI_CONTROL_DB", "sqlite:///./data/control_plane.db")
         ),
         web_dist_path=os.getenv("ZHAOCAI_WEB_DIST", str(default_dist)),
+        admin_token=os.getenv("ZHAOCAI_ADMIN_TOKEN", "").strip(),
     )

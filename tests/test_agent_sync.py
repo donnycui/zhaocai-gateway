@@ -2,19 +2,27 @@ from fastapi.testclient import TestClient
 
 from zhaocai_gateway.app import create_app
 
+ADMIN_TOKEN = "test-admin-token"
+
 
 def create_test_client() -> TestClient:
-    app = create_app(db_path=":memory:")
+    app = create_app(db_path=":memory:", admin_token=ADMIN_TOKEN)
     return TestClient(app)
+
+
+def admin_headers() -> dict[str, str]:
+    return {"X-Admin-Token": ADMIN_TOKEN}
 
 
 def register_device(client: TestClient, device_name: str = "worker-1") -> dict:
     device = client.post(
         "/admin/devices",
+        headers=admin_headers(),
         json={"name": device_name, "device_type": "vps"},
     ).json()["device"]
     pairing_token = client.post(
         f"/admin/devices/{device['id']}/pairing-token",
+        headers=admin_headers(),
         json={},
     ).json()["pairing_token"]
     return client.post(
@@ -31,6 +39,7 @@ def test_get_config_meta():
     client = create_test_client()
     provider = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "openai",
             "base_url": "https://api.openai.com/v1",
@@ -42,6 +51,7 @@ def test_get_config_meta():
     ).json()["provider"]
     model = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider["id"],
             "upstream_model": "gpt-4.1",
@@ -55,6 +65,7 @@ def test_get_config_meta():
     registration = register_device(client)
     client.put(
         f"/admin/devices/{registration['device']['id']}/models",
+        headers=admin_headers(),
         json={"model_ids": [model["id"]]},
     )
 
@@ -73,6 +84,7 @@ def test_get_config_meta_reuses_version_when_payload_unchanged():
     client = create_test_client()
     provider = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "reuse-provider",
             "base_url": "https://api.openai.com/v1",
@@ -84,6 +96,7 @@ def test_get_config_meta_reuses_version_when_payload_unchanged():
     ).json()["provider"]
     model = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider["id"],
             "upstream_model": "gpt-4.1",
@@ -97,6 +110,7 @@ def test_get_config_meta_reuses_version_when_payload_unchanged():
     registration = register_device(client, device_name="reuse-worker")
     client.put(
         f"/admin/devices/{registration['device']['id']}/models",
+        headers=admin_headers(),
         json={"model_ids": [model["id"]]},
     )
 
@@ -118,6 +132,7 @@ def test_get_full_config():
     client = create_test_client()
     provider = client.post(
         "/admin/providers",
+        headers=admin_headers(),
         json={
             "name": "anthropic",
             "base_url": "https://api.anthropic.com",
@@ -129,6 +144,7 @@ def test_get_full_config():
     ).json()["provider"]
     model = client.post(
         "/admin/models",
+        headers=admin_headers(),
         json={
             "provider_id": provider["id"],
             "upstream_model": "claude-sonnet-4.5",
@@ -142,6 +158,7 @@ def test_get_full_config():
     registration = register_device(client, device_name="worker-2")
     client.put(
         f"/admin/devices/{registration['device']['id']}/models",
+        headers=admin_headers(),
         json={"model_ids": [model["id"]]},
     )
 
