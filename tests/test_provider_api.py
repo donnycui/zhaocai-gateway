@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import httpx
 
 from zhaocai_gateway.app import create_app
 
@@ -136,3 +137,50 @@ def test_admin_requires_token():
     response = client.get("/admin/providers")
 
     assert response.status_code == 401
+
+
+def test_sync_openrouter_free_models(monkeypatch):
+    client = create_test_client()
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": "google/gemini-2.0-flash-exp:free",
+                        "name": "Gemini 2.0 Flash Exp",
+                        "pricing": {"prompt": "0", "completion": "0"},
+                        "context_length": 1048576,
+                    },
+                    {
+                        "id": "openai/gpt-4o-mini",
+                        "name": "GPT-4o mini",
+                        "pricing": {"prompt": "1", "completion": "1"},
+                    },
+                ]
+            }
+
+    def fake_get(url: str, timeout: float) -> DummyResponse:
+        assert url == "https://openrouter.ai/api/v1/models"
+        assert timeout == 30.0
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    response = client.post(
+        "/admin/sync/openrouter-free",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["free_models_found"] == 1
+    assert payload["created"] == 1
+
+    models_response = client.get("/admin/models", headers=admin_headers())
+    models = models_response.json()["models"]
+    assert len(models) == 1
+    assert models[0]["upstream_model"] == "google/gemini-2.0-flash-exp:free"

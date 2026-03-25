@@ -80,6 +80,24 @@ class SQLiteStore:
             enabled=bool(row["enabled"]),
         )
 
+    def get_provider_by_name(self, name: str) -> Provider | None:
+        row = self.conn.execute(
+            "SELECT * FROM providers WHERE name = ?",
+            (name,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Provider(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            provider_type=str(row["provider_type"]),
+            base_url=str(row["base_url"]),
+            auth_scheme=str(row["auth_scheme"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            extra_headers=json.loads(row["extra_headers"] or "{}"),
+            enabled=bool(row["enabled"]),
+        )
+
     def list_providers(self) -> list[Provider]:
         rows = self.conn.execute(
             "SELECT * FROM providers ORDER BY id ASC",
@@ -149,6 +167,33 @@ class SQLiteStore:
             enabled=bool(row["enabled"]),
         )
 
+    def get_model_by_provider_and_upstream(
+        self,
+        provider_id: int,
+        upstream_model: str,
+    ) -> Model | None:
+        row = self.conn.execute(
+            """
+            SELECT *
+            FROM models
+            WHERE provider_id = ? AND upstream_model = ?
+            LIMIT 1
+            """,
+            (provider_id, upstream_model),
+        ).fetchone()
+        if row is None:
+            return None
+        return Model(
+            id=int(row["id"]),
+            provider_id=int(row["provider_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            capabilities=json.loads(row["capabilities"] or "[]"),
+            context_window=row["context_window"],
+            max_tokens=row["max_tokens"],
+            enabled=bool(row["enabled"]),
+        )
+
     def list_models(self) -> list[Model]:
         rows = self.conn.execute(
             "SELECT * FROM models ORDER BY id ASC",
@@ -166,6 +211,54 @@ class SQLiteStore:
             )
             for row in rows
         ]
+
+    def upsert_model(
+        self,
+        *,
+        provider_id: int,
+        upstream_model: str,
+        display_name: str,
+        capabilities: list[str],
+        context_window: int | None,
+        max_tokens: int | None,
+        enabled: bool,
+    ) -> Model:
+        existing = self.get_model_by_provider_and_upstream(provider_id, upstream_model)
+        if existing is None:
+            return self.create_model(
+                provider_id=provider_id,
+                upstream_model=upstream_model,
+                display_name=display_name,
+                capabilities=capabilities,
+                context_window=context_window,
+                max_tokens=max_tokens,
+                enabled=enabled,
+            )
+
+        self.conn.execute(
+            """
+            UPDATE models
+            SET display_name = ?,
+                capabilities = ?,
+                context_window = ?,
+                max_tokens = ?,
+                enabled = ?
+            WHERE id = ?
+            """,
+            (
+                display_name,
+                json.dumps(capabilities, ensure_ascii=False),
+                context_window,
+                max_tokens,
+                int(enabled),
+                existing.id,
+            ),
+        )
+        self.conn.commit()
+        model = self.get_model(existing.id)
+        if model is None:
+            raise RuntimeError("Failed to update model")
+        return model
 
     def list_models_for_device(self, device_id: int) -> list[Model]:
         rows = self.conn.execute(

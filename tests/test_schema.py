@@ -25,6 +25,23 @@ def test_create_app_serves_index_when_static_dir_present(tmp_path):
     assert "v2 ui" in response.text
 
 
+def test_create_app_serves_control_route_when_static_dir_present(tmp_path):
+    from zhaocai_gateway.app import create_app
+
+    static_dir = tmp_path / "dist"
+    static_dir.mkdir()
+    (static_dir / "index.html").write_text("<html><body>control ui</body></html>", encoding="utf-8")
+
+    app = create_app(static_dir=static_dir)
+    client = TestClient(app)
+
+    response = client.get("/control")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "control ui" in response.text
+
+
 def test_load_server_config_parses_sqlite_url(monkeypatch, tmp_path):
     from zhaocai_gateway.config import load_server_config
 

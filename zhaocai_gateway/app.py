@@ -75,8 +75,7 @@ def create_app(
 
     if register_defaults:
 
-        @app.get("/")
-        async def root():
+        async def render_index_or_status():
             if has_static_index and resolved_static_dir is not None:
                 return FileResponse(resolved_static_dir / "index.html")
             return {
@@ -84,6 +83,15 @@ def create_app(
                 "version": app.version,
                 "status": "running",
             }
+
+        @app.get("/")
+        async def root():
+            return await render_index_or_status()
+
+        @app.get("/control")
+        @app.get("/control/")
+        async def control_root():
+            return await render_index_or_status()
 
         @app.get("/api/health")
         @app.get("/health")

@@ -133,6 +133,11 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             )
         }
 
+    @router.post("/sync/openrouter-free")
+    def sync_openrouter_free(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return model_service.sync_openrouter_free()
+
     @router.get("/devices")
     def list_devices(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
