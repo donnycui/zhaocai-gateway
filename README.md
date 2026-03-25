@@ -15,7 +15,7 @@
 - 最小 Web 管理台：`web/`
 - 最小 node agent：`agent/`
 
-同时，仓库里仍保留了旧版 `gateway.py` / `control_plane/` 运行时，方便兼容现有能力与逐步迁移。
+同时，仓库里仍保留了旧版 `gateway.py` / `control_plane/` 运行时，作为 legacy 兼容层存在。
 
 ## 当前已完成能力
 
@@ -71,7 +71,7 @@
 
 这些逻辑仍主要在：
 
-- `gateway.py`
+- `gateway.py`（legacy fallback）
 - `control_plane/`
 - `providers/`
 - `responses/`
@@ -121,25 +121,32 @@ ZHAOCAI_ADMIN_TOKEN=replace-me
 ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db
 ```
 
-如果你要继续跑旧版 `gateway.py` 兼容路径，也可以保留：
+如果你想保留旧版配置驱动方式，也可以继续准备：
 
 ```bash
 cp config.example.yaml config.yaml
 ```
 
-### 3. 启动后端
+### 3. 启动 v2 后端
 
-当前分支仍沿用：
+当前推荐主入口：
 
 ```bash
-.venv/bin/python gateway.py
+.venv/bin/python -m zhaocai_gateway.main
 ```
+
+默认会读取：
+
+- `ZHAOCAI_HOST`
+- `ZHAOCAI_PORT`
+- `ZHAOCAI_CONTROL_DB`
+- `ZHAOCAI_WEB_DIST`
 
 说明：
 
-- 旧版 `gateway.py` 仍然是当前统一入口
-- `zhaocai_gateway/` 已经接入了新的 `create_app()` 骨架与 v2 API
-- 后续可以再把入口彻底切换到纯 v2 结构
+- `zhaocai_gateway.main` 是当前分支的推荐启动方式
+- 如果 `web/dist` 存在，后端可以直接托管前端静态文件
+- `gateway.py` 仍然保留，但现在应视为 legacy fallback
 
 ### 4. 启动 Web 管理台
 
@@ -160,6 +167,15 @@ npm run dev
 ```bash
 cd web
 npm run build
+```
+
+如果你想让后端直接托管前端静态文件，先构建：
+
+```bash
+cd web
+npm run build
+cd ..
+.venv/bin/python -m zhaocai_gateway.main
 ```
 
 ### 5. 使用 node-agent
@@ -200,6 +216,7 @@ npm run build
 ### legacy runtime
 
 - [gateway.py](gateway.py)
+  - legacy fallback runtime
 - [control_plane/](control_plane/)
 - [providers/](providers/)
 - [responses/](responses/)
