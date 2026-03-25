@@ -1,485 +1,280 @@
-# 招财网关 (Zhaocai Gateway)
+# Zhaocai Gateway
 
-<p align="center">
-  <strong>OpenAI 兼容的 AI 推理网关 + OpenClaw 多节点控制面板</strong>
-</p>
+招财网关当前正在向 `v2.0 phase 1` 演进。
 
-<p align="center">
-  <a href="#快速开始">快速开始</a> •
-  <a href="#功能特性">功能特性</a> •
-  <a href="#控制面板">控制面板</a> •
-  <a href="#api-文档">API 文档</a> •
-  <a href="#路线图">路线图</a>
-</p>
+这一阶段的目标不是做本地 provider 切换器，而是做一个部署在树莓派上的**中心控制面**：
 
----
+- 统一保存上游 provider、URL、API key、models
+- 统一管理设备注册与配对
+- 按设备分配模型
+- 由本地 `node-agent` 拉取专属配置并写入 OpenClaw 本地配置
 
-## 简介
+当前分支已经包含 `phase 1` 的最小可用骨架：
 
-招财网关是统一的 AI 推理网关，提供：
+- 新的后端包：`zhaocai_gateway/`
+- 最小 Web 管理台：`web/`
+- 最小 node agent：`agent/`
 
-1. **OpenAI 兼容的推理接口** (`/v1/chat/completions`)
-2. **Responses API** (`/v1/responses`) — OpenAI Responses API 兼容
-3. **多节点配置分发控制面板** (`/control/v1/...`)
-4. **OpenRouter 免费模型自动同步**
+同时，仓库里仍保留了旧版 `gateway.py` / `control_plane/` 运行时，方便兼容现有能力与逐步迁移。
 
-适用于拥有多个 LLM Provider 和多个 OpenClaw 节点（树莓派、VPS 等）的场景，需要为不同节点分配不同的模型集合。
+## 当前已完成能力
 
-推荐部署形态是 **中心网关模式**：上游 API Key 只保存在树莓派上的 `zhaocai-gateway`，各 VPS 节点只调用树莓派网关。
+### v2.0 phase 1 scaffold
 
----
+- Provider 管理
+  - `GET /admin/providers`
+  - `POST /admin/providers`
+  - `POST /admin/providers/validate`
 
-## 功能特性
+- Model 管理
+  - `GET /admin/models`
+  - `POST /admin/models`
 
-- **🚀 多 Provider 路由** - 支持轮询、权重、优先级三种策略
-- **🔄 故障自动转移** - 单点失败时自动切换到备用 Provider
-- **⚡ 基础限流保护** - 基于令牌桶的速率限制
-- **🔌 Provider 适配层** - 支持 OpenAI 兼容和 Anthropic 格式转换
-- **📦 控制面板数据模型**
-  - Providers（Provider 管理）
-  - Models（模型别名管理）
-  - Profiles（配置集/场景）
-  - Profile 模型绑定
-  - Nodes（节点管理）
-  - 节点配置版本追踪
-- **📥 节点配置拉取协议**
-  - 节点 Bearer Token 认证
-  - `ETag` + `If-None-Match` 缓存
-  - `304` 响应表示无变更
-- **🎛️ 管理面板** - 最小化 Web 界面，支持中英双语
+- Device 管理
+  - `GET /admin/devices`
+  - `POST /admin/devices`
+  - `PUT /admin/devices/{id}/models`
+  - `GET /admin/devices/{id}/config-preview`
 
----
+- Pairing / Agent
+  - `POST /admin/devices/{id}/pairing-token`
+  - `POST /agent/v1/register`
+  - `POST /agent/v1/heartbeat`
+  - `GET /agent/v1/config/meta`
+  - `GET /agent/v1/config`
+  - `POST /agent/v1/config/applied`
 
-## 路线图
+- Config compiler
+  - 按设备编译 provider + model payload
+  - snapshot version / etag
+  - 内容不变时版本不递增
 
-Phase 2 已落盘并合入 `main`，当前仓库已包含：
+- Web UI
+  - Dashboard
+  - Providers
+  - Devices
+  - Nodes
 
-- `Responses API` (`POST /v1/responses`) — 文本输入、流式/非流式
-- `GPT-5.4` 路由基础 — 通过控制面 alias 配置，无硬编码
-- OpenRouter 免费模型同步 — `POST /control/v1/sync/openrouter-free` + CLI 脚本
+- Node agent
+  - `register`
+  - `sync-once`
+  - `run`
 
-下一步扩展方向：
+### 旧版 runtime 仍可用
 
-- Responses API 多模态 / tool use 支持
-- OpenRouter 同步自动化（定时 cron）
-- GPT-5.4 实际 provider 接入和参数级差异化
+仓库中仍保留旧能力，包括：
 
-详细记录见：
+- `/v1/chat/completions`
+- `/v1/responses`
+- 旧控制面 CRUD
+- OpenRouter free model sync
 
-- `docs/plans/2026-03-22-gateway-roadmap.md`
-- `docs/plans/2026-03-22-gateway-handoff.md`
-- `docs/plans/2026-03-22-phase2-impl.md`
+这些逻辑仍主要在：
 
----
+- `gateway.py`
+- `control_plane/`
+- `providers/`
+- `responses/`
+
+## 推荐部署形态
+
+### phase 1
+
+推荐使用：
+
+- 树莓派运行 `zhaocai-gateway`
+- Mac / VPS / 其他机器运行 `node-agent`
+- 所有设备通过 Tailscale 或其他私网方式访问树莓派
+
+phase 1 的重点是**控制面 + 配置同步**，不是“所有推理都必须经过树莓派”。
+
+也就是说：
+
+- 树莓派负责 provider / model / device 的统一管理
+- 节点从树莓派拉取自己的配置
+- 节点本地 OpenClaw 继续读取本地配置文件
+
+后续如果需要，再扩展到混合模式：
+
+- 某些模型由节点本地直连上游
+- 某些模型通过树莓派中心网关转发
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. Python 环境
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-### 2. 准备配置文件
+### 2. 准备环境变量
 
 ```bash
 cp .env.example .env
+```
+
+至少设置：
+
+```bash
+ZHAOCAI_ADMIN_TOKEN=replace-me
+ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db
+```
+
+如果你要继续跑旧版 `gateway.py` 兼容路径，也可以保留：
+
+```bash
 cp config.example.yaml config.yaml
 ```
 
-编辑 `.env` 文件，设置以下关键项：
+### 3. 启动后端
+
+当前分支仍沿用：
 
 ```bash
-# 可选：生成 Fernet 加密密钥（用于 API Key 静态加密存储）
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-
-# 填入 .env
-# 推荐填写；留空则不启用静态加密
-ZHAOCAI_ENCRYPTION_KEY="你的加密密钥"
-ZHAOCAI_ADMIN_TOKEN="你的管理员Token"
-
-# 填入至少一个 Provider API Key
-SILICONFLOW_API_KEY="sk-..."
-```
-
-### 3. 启动服务
-
-```bash
-python gateway.py
-```
-
-服务启动后访问：
-- 📘 API 文档: http://localhost:8000/docs
-- 🎛️ 控制面板: http://localhost:8000/control
-- ❤️ 健康检查 API: http://localhost:8000/health
-- 📊 健康监控页面: http://localhost:8000/health-ui
-
----
-
-## 控制面板
-
-访问 http://localhost:8000/control 打开管理面板。
-
-面板支持 **中文/English** 双语切换。
-
-### 快速操作流程
-
-1. **创建 Provider** - 配置上游 AI 服务（如 SiliconFlow）
-2. **创建 Model** - 设置模型别名和 Provider 绑定
-3. **创建 Profile** - 创建配置集（如 "默认配置"）
-4. **绑定模型** - 将模型关联到配置集
-5. **创建 Node** - 创建节点并关联配置集
-6. **获取 Token** - 创建后获取节点的拉取 Token
-7. **拉取配置** - 使用 Token 获取节点的专属配置
-
----
-
-## 中心网关模式（推荐）
-
-目标：只在树莓派上的 `zhaocai-gateway` 保存和管理上游 API Key，VPS 节点不持有上游密钥。
-
-关键配置：
-
-```bash
-# 网关推理路由来源（优先使用控制面）
-ZHAOCAI_ROUTING_SOURCE=control_plane
-
-# 节点下发配置模式：gateway（节点 provider 指向 zhaocai-gateway）
-ZHAOCAI_NODE_PROVIDER_MODE=gateway
-ZHAOCAI_NODE_GATEWAY_PROVIDER_ID=zhaocai-gateway
-ZHAOCAI_NODE_GATEWAY_BASE_URL=http://你的树莓派地址:8000/v1
+.venv/bin/python gateway.py
 ```
 
 说明：
 
-- `ZHAOCAI_NODE_PROVIDER_MODE=gateway` 时，下发给节点的 `openclaw.json` 会生成单一 provider（`zhaocai-gateway`），模型按 Profile 输出。
-- 节点上的 OpenClaw 会把请求发送到树莓派网关，再由树莓派网关转发到上游 Provider。
-- 环境变量无法被远程 VPS 直接读取，因此“引用树莓派本地环境变量”只能通过“调用树莓派网关服务”间接实现。
+- 旧版 `gateway.py` 仍然是当前统一入口
+- `zhaocai_gateway/` 已经接入了新的 `create_app()` 骨架与 v2 API
+- 后续可以再把入口彻底切换到纯 v2 结构
 
----
-
-## API 文档
-
-### 推理接口
-
-#### 聊天补全
+### 4. 启动 Web 管理台
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role":"user","content":"你好"}]
-  }'
+cd web
+npm install
+npm run dev
 ```
 
-#### 流式响应
+默认开发地址通常是：
+
+- `http://127.0.0.1:4173`
+
+前端会访问同机后端的 `/admin` 与 `/agent` 路径。
+
+生产构建：
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role":"user","content":"你好"}],
-    "stream": true
-  }'
+cd web
+npm run build
 ```
 
-#### Responses API
+### 5. 使用 node-agent
+
+注册节点：
 
 ```bash
-# 非流式
-curl -X POST http://localhost:8000/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","input":"Hello, what is 2+2?"}'
-
-# 带 system 指令
-curl -X POST http://localhost:8000/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","input":"Translate to Chinese","instructions":"You are a translator."}'
-
-# 流式
-curl -X POST http://localhost:8000/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4o","input":"Hello","stream":true}'
+.venv/bin/python -m agent.cli register \
+  --server http://127.0.0.1:8000 \
+  --token YOUR_PAIRING_TOKEN
 ```
 
-#### 监控接口
-
-- `GET /health` - 健康状态
-- `GET /v1/models` - 可用模型列表
-- `GET /v1/providers` - Provider 状态
-- `GET /metrics` - 指标统计
-
-### 控制面板接口
-
-#### 认证方式
-
-管理接口需要在请求头中携带：
-
-```
-X-Admin-Token: 你的管理员Token
-```
-
-#### Provider 管理
+单次同步：
 
 ```bash
-# 创建 Provider
-curl -X POST http://localhost:8000/control/v1/providers \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "siliconflow",
-    "provider_type": "openai",
-    "base_url": "https://api.siliconflow.cn/v1",
-    "auth_scheme": "bearer",
-    "api_key": "sk-xxx",
-    "enabled": true
-  }'
-
-# 列出 Providers
-curl http://localhost:8000/control/v1/providers \
-  -H "X-Admin-Token: $TOKEN"
+.venv/bin/python -m agent.cli sync-once
 ```
 
-#### Model 管理
+持续轮询：
 
 ```bash
-# 创建 Model（假设 provider_id=1）
-curl -X POST http://localhost:8000/control/v1/models \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider_id": 1,
-    "upstream_model": "deepseek-ai/DeepSeek-V3",
-    "alias": "deepseek-v3",
-    "enabled": true,
-    "capabilities": ["chat"]
-  }'
+.venv/bin/python -m agent.cli run --interval 60
 ```
 
-#### Profile 管理
+## Repo Layout
+
+### v2.0 phase 1
+
+- [zhaocai_gateway/](zhaocai_gateway/)
+  - 新的后端包结构
+- [web/](web/)
+  - 最小 React/Vite 管理台
+- [agent/](agent/)
+  - 节点注册与同步客户端
+- [tests/](tests/)
+  - 当前 v2 后端测试
+
+### legacy runtime
+
+- [gateway.py](gateway.py)
+- [control_plane/](control_plane/)
+- [providers/](providers/)
+- [responses/](responses/)
+
+## API 摘要
+
+### Admin
 
 ```bash
-# 创建 Profile
-curl -X POST http://localhost:8000/control/v1/profiles \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "默认配置", "description": "通用场景"}'
+GET    /admin/providers
+POST   /admin/providers
+POST   /admin/providers/validate
 
-# 绑定模型到 Profile（假设 profile_id=1, model_ids=[1,2]）
-curl -X POST http://localhost:8000/control/v1/profiles/1/bindings \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"model_ids": [1, 2]}'
+GET    /admin/models
+POST   /admin/models
+
+GET    /admin/devices
+POST   /admin/devices
+PUT    /admin/devices/{id}/models
+GET    /admin/devices/{id}/config-preview
+POST   /admin/devices/{id}/pairing-token
 ```
 
-#### Node 管理
+### Agent
 
 ```bash
-# 创建 Node
-curl -X POST http://localhost:8000/control/v1/nodes \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "节点-1",
-    "profile_id": 1,
-    "sync_mode": "pull",
-    "active": true
-  }'
-# 返回包含 pull_token
-
-# 拉取节点配置
-curl http://localhost:8000/control/v1/nodes/1/openclaw-json \
-  -H "Authorization: Bearer 节点PullToken"
-
-# 轮换 Token
-curl -X POST http://localhost:8000/control/v1/nodes/1/sync-token/rotate \
-  -H "X-Admin-Token: $TOKEN"
+POST   /agent/v1/register
+POST   /agent/v1/heartbeat
+GET    /agent/v1/config/meta
+GET    /agent/v1/config
+POST   /agent/v1/config/applied
 ```
 
----
+## 配置同步流程
 
-## 节点同步代理
+1. 在 Web UI 新建设备
+2. 生成一次性 pairing token
+3. 在目标机器执行 `node-agent register`
+4. agent 获得长期 `sync_token`
+5. 通过 `config/meta -> config` 检查并拉取最新配置
+6. 本地原子写入 OpenClaw 配置
+7. 成功后回报 `config/applied`
 
-使用 `scripts/node_sync_agent.py` 保持节点配置自动同步：
+## 网络建议
+
+推荐默认使用 Tailscale：
+
+- 不要求树莓派有公网 IP
+- Mac / VPS / 树莓派都在同一 tailnet
+- 更适合 phase 1 的控制面与配置同步场景
+
+如果后面开启混合模式，再单独评估哪些模型需要走中心转发。
+
+## 当前验证状态
+
+当前分支已经通过：
 
 ```bash
-python scripts/node_sync_agent.py \
-  --base-url http://127.0.0.1:8000 \
-  --node-id 1 \
-  --pull-token zg_node_1_xxx \
-  --output /etc/openclaw/openclaw.json \
-  --interval 60 \
-  --reload-cmd "systemctl restart openclaw"
+.venv/bin/python -m pytest tests/test_schema.py \
+  tests/test_provider_api.py \
+  tests/test_device_api.py \
+  tests/test_pairing_api.py \
+  tests/test_config_compiler.py \
+  tests/test_agent_sync.py \
+  tests/test_agent_runtime.py -v
 ```
 
----
-
-## Provider 初始化助手
-
-使用 `scripts/bootstrap_provider.py` 快速注册 Provider 和模型：
+以及：
 
 ```bash
-python scripts/bootstrap_provider.py \
-  --base-url http://127.0.0.1:8000 \
-  --admin-token "$ZHAOCAI_ADMIN_TOKEN" \
-  --name siliconflow \
-  --provider-type openai \
-  --provider-base-url https://api.siliconflow.cn/v1 \
-  --auth-scheme bearer \
-  --api-key "sk-xxx" \
-  --models "deepseek-ai/DeepSeek-V3,deepseek-ai/DeepSeek-R1"
+cd web
+npm run build
 ```
 
----
+## 设计与计划文档
 
-## OpenRouter 免费模型同步
-
-自动从 OpenRouter 拉取免费模型并创建稳定别名，综合评分考虑模型能力、厂商稳定性和模型规模。
-
-### 通过 API 触发同步
-
-```bash
-curl -X POST http://localhost:8000/control/v1/sync/openrouter-free \
-  -H "X-Admin-Token: $TOKEN"
-```
-
-### 通过 CLI 脚本
-
-```bash
-python scripts/sync_openrouter_free.py \
-  --base-url http://127.0.0.1:8000 \
-  --admin-token "$ZHAOCAI_ADMIN_TOKEN"
-```
-
-同步后自动创建以下稳定别名：
-
-| 别名 | 说明 |
-|------|------|
-| `openrouter/free/best` | 综合评分最高的免费模型 |
-| `openrouter/free/general` | 通用对话最佳 |
-| `openrouter/free/code` | 编程能力最强 |
-| `openrouter/free/fast` | 响应最快（小模型） |
-
-使用同步后的免费模型：
-
-```bash
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"openrouter/free/best","messages":[{"role":"user","content":"hi"}]}'
-```
-
----
-
-## GPT-5.4 模型别名配置
-
-GPT-5.4 系列通过控制面板的模型别名系统配置，路由完全走现有 `get_model_candidates()` 逻辑，无需硬编码 if/else：
-
-```bash
-# 创建 OpenAI provider
-curl -X POST http://localhost:8000/control/v1/providers \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"openai","provider_type":"openai","base_url":"https://api.openai.com/v1","auth_scheme":"bearer","api_key":"sk-..."}'
-
-# 创建 GPT-5.4 别名（假设 provider_id=1）
-curl -X POST http://localhost:8000/control/v1/models \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"provider_id":1,"upstream_model":"gpt-5.4","alias":"gpt-5.4","capabilities":["chat","reasoning"]}'
-
-# 高规格场景变体
-curl -X POST http://localhost:8000/control/v1/models \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"provider_id":1,"upstream_model":"gpt-5.4","alias":"gpt-5.4-xhigh"}'
-
-# 通过不同 provider 的通用别名（如 SiliconFlow/OpenRouter）
-curl -X POST http://localhost:8000/control/v1/models \
-  -H "X-Admin-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"provider_id":2,"upstream_model":"gpt-5.4","alias":"gpt-5.4-general"}'
-```
-
----
-
-## Docker 部署
-
-```bash
-# 构建并启动
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f zhaocai
-
-# 停止
-docker-compose down
-```
-
----
-
-## 配置说明
-
-### 环境变量
-
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `ZHAOCAI_ENCRYPTION_KEY` | 推荐 | API Key 加密密钥（Fernet），留空则不启用静态加密 |
-| `ZHAOCAI_ADMIN_TOKEN` | ✅ | 管理接口认证 Token |
-| `ZHAOCAI_ROUTING_SOURCE` | ❌ | 推理路由来源：`config` / `control_plane` / `hybrid` |
-| `ZHAOCAI_CONTROL_SYNC_INTERVAL_SECONDS` | ❌ | 控制面路由同步间隔（秒） |
-| `ZHAOCAI_NODE_PROVIDER_MODE` | ❌ | 节点配置下发模式：`direct` / `gateway` |
-| `ZHAOCAI_NODE_GATEWAY_BASE_URL` | `gateway`模式建议 | 节点调用的网关地址（通常是树莓派地址`/v1`） |
-| `ZHAOCAI_PORT` | ❌ | 服务端口（默认8000）|
-| `ZHAOCAI_CORS_ORIGINS` | ❌ | CORS 允许来源 |
-| `OPENAI_API_KEY` | ❌ | OpenAI API Key |
-| `ANTHROPIC_API_KEY` | ❌ | Anthropic API Key |
-| ... | ... | 其他 Provider API Keys |
-
-### 配置文件
-
-`config.yaml` 用于配置：
-- 网关监听地址
-- Provider 列表和路由策略
-- 限流参数
-
-当 `ZHAOCAI_ROUTING_SOURCE=control_plane` 时，运行时模型与 provider 主要来自控制面数据库；`config.yaml` 可仅保留网关基础配置与路由策略。
-
----
-
-## OpenClaw Skill
-
-本仓库包含一个 OpenClaw Skill：
-
-`./.codex/skills/openclaw-gateway-manager`
-
-包含：
-- SKILL.md 工作流文档
-- API 和 JSON 映射参考
-- 配置拉取和验证脚本
-
----
-
-## 注意事项
-
-- 控制面板数据库默认使用 SQLite: `ZHAOCAI_CONTROL_DB=sqlite:///./data/control_plane.db`
-- PostgreSQL 后端预留但未实现
-- 流式模式通过合成非流式上游响应实现 SSE 格式
-- 首次启动会执行 Provider 健康检查
-
----
-
-## 技术栈
-
-- **后端**: Python 3.11+, FastAPI, Uvicorn
-- **数据库**: SQLite (PostgreSQL 预留)
-- **HTTP 客户端**: httpx
-- **配置**: PyYAML, python-dotenv
-- **安全**: cryptography (Fernet 加密)
-
----
-
-## License
-
-MIT
+- [v2 设计文档](docs/plans/2026-03-25-zhaocai-gateway-v2-design.md)
+- [v2 实现计划](docs/plans/2026-03-25-zhaocai-gateway-v2-implementation-plan.md)

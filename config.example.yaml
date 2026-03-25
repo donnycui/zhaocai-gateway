@@ -1,3 +1,8 @@
+# NOTE:
+# This file is still used by the legacy gateway.py runtime.
+# The v2.0 phase 1 control-plane scaffold stores providers, models, devices, and assignments in SQLite.
+# Keep this file only if you want to run the legacy config-driven routing path alongside the new v2 work.
+
 gateway:
   host: "0.0.0.0"
   port: 8000
@@ -99,4 +104,3 @@ rate_limit:
 logging:
   level: "info"
   format: "text"
-
