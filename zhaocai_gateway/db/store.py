@@ -382,7 +382,7 @@ class SQLiteStore:
 
         latest_row = self.conn.execute(
             """
-            SELECT version
+            SELECT *
             FROM config_snapshots
             WHERE device_id = ?
             ORDER BY version DESC
@@ -390,6 +390,17 @@ class SQLiteStore:
             """,
             (device_id,),
         ).fetchone()
+        if latest_row is not None and str(latest_row["content_hash"]) == content_hash:
+            return ConfigSnapshot(
+                id=int(latest_row["id"]),
+                device_id=int(latest_row["device_id"]),
+                version=int(latest_row["version"]),
+                etag=str(latest_row["etag"]),
+                payload_json=json.loads(latest_row["payload_json"]),
+                content_hash=str(latest_row["content_hash"]),
+                created_at=str(latest_row["created_at"]),
+            )
+
         next_version = 1 if latest_row is None else int(latest_row["version"]) + 1
         etag = f"\"{content_hash[:16]}-v{next_version}\""
 

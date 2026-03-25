@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-
 from zhaocai_gateway.db.store import SQLiteStore
 
 
@@ -31,10 +29,28 @@ class ConfigCompilerService:
                 "auth_scheme": provider.auth_scheme,
                 "extra_headers": provider.extra_headers,
             }
-            models.append(asdict(model))
+            models.append(
+                {
+                    "id": model.id,
+                    "provider_id": model.provider_id,
+                    "upstream_model": model.upstream_model,
+                    "display_name": model.display_name,
+                    "capabilities": model.capabilities,
+                    "context_window": model.context_window,
+                    "max_tokens": model.max_tokens,
+                    "enabled": model.enabled,
+                }
+            )
 
         return {
-            "device": asdict(device),
+            "device": {
+                "id": device.id,
+                "name": device.name,
+                "device_type": device.device_type,
+                "hostname": device.hostname,
+                "platform": device.platform,
+                "active": device.active,
+            },
             "providers": list(provider_map.values()),
             "models": models,
         }

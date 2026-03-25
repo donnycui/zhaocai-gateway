@@ -69,6 +69,51 @@ def test_get_config_meta():
     assert payload["etag"] != ""
 
 
+def test_get_config_meta_reuses_version_when_payload_unchanged():
+    client = create_test_client()
+    provider = client.post(
+        "/admin/providers",
+        json={
+            "name": "reuse-provider",
+            "base_url": "https://api.openai.com/v1",
+            "provider_type": "openai",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    ).json()["provider"]
+    model = client.post(
+        "/admin/models",
+        json={
+            "provider_id": provider["id"],
+            "upstream_model": "gpt-4.1",
+            "display_name": "GPT-4.1",
+            "capabilities": ["text"],
+            "context_window": 128000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    ).json()["model"]
+    registration = register_device(client, device_name="reuse-worker")
+    client.put(
+        f"/admin/devices/{registration['device']['id']}/models",
+        json={"model_ids": [model["id"]]},
+    )
+
+    first = client.get(
+        "/agent/v1/config/meta",
+        headers={"Authorization": f"Bearer {registration['sync_token']}"},
+    ).json()
+    second = client.get(
+        "/agent/v1/config/meta",
+        headers={"Authorization": f"Bearer {registration['sync_token']}"},
+    ).json()
+
+    assert first["version"] == 1
+    assert second["version"] == 1
+    assert first["etag"] == second["etag"]
+
+
 def test_get_full_config():
     client = create_test_client()
     provider = client.post(
