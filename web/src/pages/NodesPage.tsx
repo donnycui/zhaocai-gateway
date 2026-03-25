@@ -44,24 +44,24 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
   const installCommand = pairingInfo
     ? `zhaocai-agent register --server https://raspberrypi.tailnet.ts.net --token ${pairingInfo.pairingToken}`
-    : "Issue a pairing token to generate the install command.";
+    : "先为设备签发一次性 pairing token，安装命令会自动生成。";
 
   return (
     <section className="page two-column">
       <form className="panel form-panel" onSubmit={handleCreateDevice}>
         <div className="panel-header">
-          <h3>Create Node</h3>
-          <p>Register a managed machine before pairing the local agent.</p>
+          <h3>创建节点</h3>
+          <p>先在控制面登记设备，再让本地 agent 完成配对。</p>
         </div>
         <label>
-          <span>Name</span>
+          <span>名称</span>
           <input
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
           />
         </label>
         <label>
-          <span>Device Type</span>
+          <span>设备类型</span>
           <input
             value={form.device_type}
             onChange={(event) =>
@@ -70,7 +70,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
           />
         </label>
         <label>
-          <span>Hostname</span>
+          <span>主机名</span>
           <input
             value={form.hostname}
             onChange={(event) =>
@@ -79,7 +79,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
           />
         </label>
         <label>
-          <span>Platform</span>
+          <span>平台</span>
           <input
             value={form.platform}
             onChange={(event) =>
@@ -87,18 +87,18 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
             }
           />
         </label>
-        <button type="submit">Create Node</button>
+        <button type="submit">创建节点</button>
       </form>
 
       <div className="stack">
         <div className="panel">
           <div className="panel-header">
-            <h3>Pairing Tokens</h3>
-            <p>Issue a one-time token and run the generated command on the target machine.</p>
+            <h3>Pairing Token</h3>
+            <p>为目标设备签发一次性 token，再去目标机器执行注册命令。</p>
           </div>
           <div className="device-list">
             {devices.length === 0 ? (
-              <div className="empty-state">No nodes created yet.</div>
+              <div className="empty-state">还没有创建任何节点。</div>
             ) : (
               devices.map((device) => (
                 <div key={device.id} className="device-card static-card">
@@ -107,7 +107,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
                     <span>{device.device_type}</span>
                   </div>
                   <button className="secondary-button" onClick={() => void handleIssueToken(device)}>
-                    Issue Token
+                    签发 Token
                   </button>
                 </div>
               ))
@@ -117,13 +117,13 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
         <div className="panel">
           <div className="panel-header">
-            <h3>Install Command</h3>
-            <p>{latestDevice ? `Latest node: ${latestDevice.name}` : "Create a node first."}</p>
+            <h3>安装命令</h3>
+            <p>{latestDevice ? `最新节点：${latestDevice.name}` : "请先创建节点。"}</p>
           </div>
           <pre className="code-block">{installCommand}</pre>
           {pairingInfo ? (
             <p className="inline-message">
-              Token for {pairingInfo.deviceName} expires at {pairingInfo.expiresAt}.
+              {pairingInfo.deviceName} 的 token 过期时间：{pairingInfo.expiresAt}
             </p>
           ) : null}
         </div>

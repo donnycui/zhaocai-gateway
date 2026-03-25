@@ -2,6 +2,7 @@ from pathlib import Path
 
 from agent.cli import build_parser
 from agent.config import AgentConfig, load_agent_config, save_agent_config
+from agent.install import launchd_install_artifact, systemd_install_artifact, write_install_artifact
 from agent.openclaw_writer import write_openclaw_config
 
 
@@ -41,4 +42,53 @@ def test_agent_cli_has_expected_commands():
     parser = build_parser()
     subparsers = parser._subparsers._actions[1].choices
 
-    assert sorted(subparsers.keys()) == ["register", "run", "sync-once"]
+    assert sorted(subparsers.keys()) == [
+        "install-launchd",
+        "install-systemd",
+        "register",
+        "run",
+        "sync-once",
+    ]
+
+
+def test_systemd_install_artifact_content(tmp_path: Path):
+    artifact = systemd_install_artifact(
+        python_path="/srv/zhaocai/.venv/bin/python",
+        config_path="/srv/zhaocai/agent.json",
+        interval_seconds=45,
+        working_directory="/srv/zhaocai",
+        output_path=str(tmp_path / "zhaocai-agent.service"),
+    )
+
+    assert "systemctl --user enable --now zhaocai-agent.service" not in artifact.content
+    assert "ExecStart=/srv/zhaocai/.venv/bin/python -m agent.cli run --config-path /srv/zhaocai/agent.json --interval 45" in artifact.content
+
+
+def test_launchd_install_artifact_content(tmp_path: Path):
+    artifact = launchd_install_artifact(
+        python_path="/Users/donny/.venv/bin/python",
+        config_path="/Users/donny/.zhaocai-gateway/agent.json",
+        interval_seconds=30,
+        working_directory="/Users/donny/.zhaocai-gateway",
+        output_path=str(tmp_path / "com.zhaocai.agent.plist"),
+    )
+
+    assert "<string>com.zhaocai.agent</string>" in artifact.content
+    assert "<string>/Users/donny/.venv/bin/python</string>" in artifact.content
+    assert "<string>--interval</string>" in artifact.content
+    assert "<string>30</string>" in artifact.content
+
+
+def test_write_install_artifact(tmp_path: Path):
+    artifact = systemd_install_artifact(
+        python_path="/srv/zhaocai/.venv/bin/python",
+        config_path="/srv/zhaocai/agent.json",
+        interval_seconds=60,
+        working_directory="/srv/zhaocai",
+        output_path=str(tmp_path / "systemd" / "zhaocai-agent.service"),
+    )
+
+    path = write_install_artifact(artifact)
+
+    assert path.exists()
+    assert "zhaocai-agent.service" in str(path)

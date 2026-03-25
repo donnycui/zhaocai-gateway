@@ -13,6 +13,13 @@ from agent.config import (
     load_agent_config,
     save_agent_config,
 )
+from agent.install import (
+    default_python_path,
+    default_working_directory,
+    launchd_install_artifact,
+    systemd_install_artifact,
+    write_install_artifact,
+)
 from agent.sync import run_sync_loop, sync_once
 
 
@@ -55,6 +62,58 @@ def build_parser() -> argparse.ArgumentParser:
         help="Agent config path",
     )
     run_parser.add_argument("--interval", type=int, default=60, help="Sync interval in seconds")
+
+    install_systemd = subparsers.add_parser(
+        "install-systemd",
+        help="Generate a systemd user service file for the node agent",
+    )
+    install_systemd.add_argument(
+        "--config-path",
+        default=str(DEFAULT_AGENT_CONFIG_PATH),
+        help="Agent config path",
+    )
+    install_systemd.add_argument("--interval", type=int, default=60, help="Sync interval in seconds")
+    install_systemd.add_argument(
+        "--python-path",
+        default=default_python_path(),
+        help="Python interpreter path used by the service",
+    )
+    install_systemd.add_argument(
+        "--working-directory",
+        default=default_working_directory(),
+        help="Working directory for runtime logs and state",
+    )
+    install_systemd.add_argument(
+        "--output",
+        default="",
+        help="Optional explicit output path for the generated service file",
+    )
+
+    install_launchd = subparsers.add_parser(
+        "install-launchd",
+        help="Generate a launchd plist for the node agent",
+    )
+    install_launchd.add_argument(
+        "--config-path",
+        default=str(DEFAULT_AGENT_CONFIG_PATH),
+        help="Agent config path",
+    )
+    install_launchd.add_argument("--interval", type=int, default=60, help="Sync interval in seconds")
+    install_launchd.add_argument(
+        "--python-path",
+        default=default_python_path(),
+        help="Python interpreter path used by launchd",
+    )
+    install_launchd.add_argument(
+        "--working-directory",
+        default=default_working_directory(),
+        help="Working directory for runtime logs and state",
+    )
+    install_launchd.add_argument(
+        "--output",
+        default="",
+        help="Optional explicit output path for the generated plist",
+    )
 
     return parser
 
@@ -99,6 +158,34 @@ def handle_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_install_systemd(args: argparse.Namespace) -> int:
+    artifact = systemd_install_artifact(
+        python_path=args.python_path,
+        config_path=args.config_path,
+        interval_seconds=args.interval,
+        working_directory=args.working_directory,
+        output_path=args.output or None,
+    )
+    path = write_install_artifact(artifact)
+    print(f"systemd service written to {path}")
+    print("next: systemctl --user daemon-reload && systemctl --user enable --now zhaocai-agent.service")
+    return 0
+
+
+def handle_install_launchd(args: argparse.Namespace) -> int:
+    artifact = launchd_install_artifact(
+        python_path=args.python_path,
+        config_path=args.config_path,
+        interval_seconds=args.interval,
+        working_directory=args.working_directory,
+        output_path=args.output or None,
+    )
+    path = write_install_artifact(artifact)
+    print(f"launchd plist written to {path}")
+    print(f"next: launchctl load {path}")
+    return 0
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -109,6 +196,10 @@ def main() -> int:
         return handle_sync_once(args)
     if args.command == "run":
         return handle_run(args)
+    if args.command == "install-systemd":
+        return handle_install_systemd(args)
+    if args.command == "install-launchd":
+        return handle_install_launchd(args)
 
     parser.error("Unknown command")
     return 2

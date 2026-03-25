@@ -94,6 +94,28 @@ phase 1 的重点是**控制面 + 配置同步**，不是“所有推理都必�
 - 节点从树莓派拉取自己的配置
 - 节点本地 OpenClaw 继续读取本地配置文件
 
+### 主从关系
+
+`node-agent` 是 `zhaocai-gateway v2` 体系中的一个**子模块**，不是完整 gateway。
+
+可以把当前结构理解成：
+
+```text
+Raspberry Pi
+  = zhaocai_gateway/ + web/
+  = 主控服务 / 配置源 / 控制面
+
+Mac / VPS / Other Nodes
+  = agent/
+  = 节点客户端 / 配置同步执行端
+```
+
+也就是说：
+
+- 只有树莓派运行完整 `zhaocai_gateway.main`
+- 其他机器只运行 `agent`
+- `agent` 不持有控制面职责，只负责注册、拉配置、写本地 OpenClaw 配置
+
 后续如果需要，再扩展到混合模式：
 
 - 某些模型由节点本地直连上游
@@ -200,6 +222,18 @@ cd ..
 .venv/bin/python -m agent.cli run --interval 60
 ```
 
+生成 Linux `systemd` 用户服务文件：
+
+```bash
+.venv/bin/python -m agent.cli install-systemd
+```
+
+生成 macOS `launchd` plist：
+
+```bash
+.venv/bin/python -m agent.cli install-launchd
+```
+
 ## Repo Layout
 
 ### v2.0 phase 1
@@ -220,6 +254,14 @@ cd ..
 - [control_plane/](control_plane/)
 - [providers/](providers/)
 - [responses/](responses/)
+
+### legacy cleanup note
+
+如果生产已经切到 `v2`：
+
+- 旧目录建议先保留为**回滚备份**
+- 不要在确认稳定前立即删除
+- 推荐等 `v2` 连续稳定运行一段时间后，再压缩归档或移除旧目录
 
 ## API 摘要
 

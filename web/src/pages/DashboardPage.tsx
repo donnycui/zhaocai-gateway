@@ -19,49 +19,49 @@ export default function DashboardPage({
     <section className="page">
       <div className="page-header">
         <div>
-          <h2>Overview</h2>
-          <p>Centralized provider, model, and node status for phase 1.</p>
+          <h2>系统总览</h2>
+          <p>查看 Provider、模型和设备的当前状态。</p>
         </div>
         <button className="secondary-button" onClick={onRefresh}>
-          Refresh
+          刷新
         </button>
       </div>
 
       <div className="stats-grid">
         <article className="stat-card">
-          <span className="stat-label">Providers</span>
+          <span className="stat-label">上游服务</span>
           <strong>{providers.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Models</span>
+          <span className="stat-label">模型</span>
           <strong>{models.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Devices</span>
+          <span className="stat-label">设备</span>
           <strong>{devices.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">Needs Attention</span>
+          <span className="stat-label">待处理</span>
           <strong>{offlineDevices.length}</strong>
         </article>
       </div>
 
       <div className="panel">
-        <h3>Device Status</h3>
+        <h3>设备状态</h3>
         <table className="table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Last Seen</th>
-              <th>Config Version</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>最近心跳</th>
+              <th>配置版本</th>
             </tr>
           </thead>
           <tbody>
             {devices.length === 0 ? (
               <tr>
                 <td colSpan={4} className="empty-cell">
-                  No devices registered yet.
+                  还没有注册任何设备。
                 </td>
               </tr>
             ) : (
@@ -69,7 +69,7 @@ export default function DashboardPage({
                 <tr key={device.id}>
                   <td>{device.name}</td>
                   <td>{device.device_type}</td>
-                  <td>{device.last_seen_at ?? "Never"}</td>
+                  <td>{device.last_seen_at ?? "从未"}</td>
                   <td>{device.current_config_version}</td>
                 </tr>
               ))

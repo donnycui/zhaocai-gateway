@@ -57,15 +57,15 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-block">
           <span className="brand-kicker">Zhaocai Gateway</span>
-          <h1>v2 Control Plane</h1>
-          <p>Central provider management and per-device OpenClaw sync.</p>
+          <h1>v2 控制台</h1>
+          <p>统一管理 Provider，并按设备下发 OpenClaw 配置。</p>
         </div>
         <nav className="nav">
           {[
-            { id: "dashboard", label: "Dashboard" },
-            { id: "providers", label: "Providers" },
-            { id: "devices", label: "Devices" },
-            { id: "nodes", label: "Nodes" },
+            { id: "dashboard", label: "总览" },
+            { id: "providers", label: "上游服务" },
+            { id: "devices", label: "设备" },
+            { id: "nodes", label: "节点接入" },
           ].map((item) => (
             <button
               key={item.id}
@@ -81,24 +81,24 @@ export default function App() {
       <main className="main-content">
         <header className="topbar">
           <div className="topbar-left">
-            <span className="status-chip">{loading ? "Loading" : "Ready"}</span>
+            <span className="status-chip">{loading ? "加载中" : "就绪"}</span>
             {error ? <span className="error-chip">{error}</span> : null}
           </div>
           <div className="topbar-actions">
             <label className="token-input">
-              <span>Admin Token</span>
+              <span>管理令牌</span>
               <input
                 type="password"
                 value={adminToken}
                 onChange={(event) => setAdminToken(event.target.value)}
-                placeholder="Paste X-Admin-Token"
+                placeholder="粘贴 X-Admin-Token"
               />
             </label>
             <button className="secondary-button" onClick={handleSaveAdminToken}>
-              Save Token
+              保存令牌
             </button>
             <button className="secondary-button" onClick={() => void refreshAll()}>
-              Refresh All
+              刷新全部
             </button>
           </div>
         </header>

@@ -44,12 +44,12 @@ export default function DevicesPage({
     <section className="page two-column">
       <div className="panel">
         <div className="panel-header">
-          <h3>Devices</h3>
-          <p>Pick a device, then choose which models it should receive.</p>
+          <h3>设备列表</h3>
+          <p>选择设备后，直接勾选它可以使用的模型。</p>
         </div>
         <div className="device-list">
           {devices.length === 0 ? (
-            <div className="empty-state">No devices available yet.</div>
+            <div className="empty-state">当前还没有可管理的设备。</div>
           ) : (
             devices.map((device) => (
               <button
@@ -62,7 +62,7 @@ export default function DevicesPage({
               >
                 <strong>{device.name}</strong>
                 <span>{device.device_type}</span>
-                <span>Version {device.current_config_version}</span>
+                <span>配置版本 {device.current_config_version}</span>
               </button>
             ))
           )}
@@ -72,8 +72,8 @@ export default function DevicesPage({
       <div className="stack">
         <div className="panel">
           <div className="panel-header">
-            <h3>Assigned Models</h3>
-            <p>{selectedDevice ? `Editing ${selectedDevice.name}` : "Select a device first."}</p>
+            <h3>设备模型分配</h3>
+            <p>{selectedDevice ? `正在编辑：${selectedDevice.name}` : "请先选择一台设备。"}</p>
           </div>
           <div className="checkbox-grid">
             {models.map((model) => (
@@ -91,7 +91,7 @@ export default function DevicesPage({
               </label>
             ))}
             {models.length === 0 ? (
-              <div className="empty-state">No models available for assignment.</div>
+              <div className="empty-state">当前没有可分配的模型。</div>
             ) : null}
           </div>
         </div>
@@ -99,15 +99,15 @@ export default function DevicesPage({
         <div className="panel">
           <div className="page-header">
             <div>
-              <h3>Config Preview</h3>
-              <p>Inspect the exact device payload before agent sync.</p>
+              <h3>配置预览</h3>
+              <p>在 agent 同步前，先查看这台设备将收到的完整配置。</p>
             </div>
             <button className="secondary-button" onClick={() => void loadPreview()} disabled={!selectedDevice}>
-              Load Preview
+              加载预览
             </button>
           </div>
           <pre className="code-block">
-            {preview ? JSON.stringify(preview, null, 2) : "No preview loaded yet."}
+            {preview ? JSON.stringify(preview, null, 2) : "尚未加载配置预览。"}
           </pre>
         </div>
       </div>

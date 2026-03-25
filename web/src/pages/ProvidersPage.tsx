@@ -34,6 +34,7 @@ export default function ProvidersPage({
   const [providerForm, setProviderForm] = useState(defaultProviderForm);
   const [modelForm, setModelForm] = useState(defaultModelForm);
   const [validationMessage, setValidationMessage] = useState<string>("");
+  const [syncMessage, setSyncMessage] = useState<string>("");
   const modelCounts = useMemo(() => {
     const counts = new Map<number, number>();
     models.forEach((model) => {
@@ -61,6 +62,14 @@ export default function ProvidersPage({
     setValidationMessage(result.message);
   }
 
+  async function handleSyncOpenRouterFree() {
+    const result = await api.syncOpenRouterFree();
+    setSyncMessage(
+      `已同步免费模型 ${result.free_models_found} 个，新建 ${result.created} 个，更新 ${result.updated} 个。`,
+    );
+    await onRefresh();
+  }
+
   async function handleCreateModel(event: React.FormEvent) {
     event.preventDefault();
     if (!modelForm.provider_id) return;
@@ -86,24 +95,30 @@ export default function ProvidersPage({
     <section className="page two-column">
       <div className="stack">
         <div className="panel">
-          <div className="panel-header">
-            <h3>Providers</h3>
-            <p>Define upstream providers once on the control plane.</p>
+          <div className="page-header">
+            <div className="panel-header" style={{ marginBottom: 0 }}>
+              <h3>上游服务</h3>
+              <p>在控制面统一定义所有上游 Provider。</p>
+            </div>
+            <button className="secondary-button" onClick={() => void handleSyncOpenRouterFree()}>
+              同步 OpenRouter 免费模型
+            </button>
           </div>
+          {syncMessage ? <p className="inline-message">{syncMessage}</p> : null}
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Base URL</th>
-                <th>Models</th>
+                <th>名称</th>
+                <th>类型</th>
+                <th>接口地址</th>
+                <th>模型数</th>
               </tr>
             </thead>
             <tbody>
               {providers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="empty-cell">
-                    No providers yet.
+                    还没有任何 Provider。
                   </td>
                 </tr>
               ) : (
@@ -122,22 +137,22 @@ export default function ProvidersPage({
 
         <div className="panel">
           <div className="panel-header">
-            <h3>Models</h3>
-            <p>Real upstream models that can be assigned to devices.</p>
+            <h3>模型列表</h3>
+            <p>这里展示可直接分配给设备的真实上游模型。</p>
           </div>
           <table className="table">
             <thead>
               <tr>
-                <th>Display Name</th>
-                <th>Upstream</th>
-                <th>Provider ID</th>
+                <th>显示名</th>
+                <th>上游模型</th>
+                <th>服务 ID</th>
               </tr>
             </thead>
             <tbody>
               {models.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="empty-cell">
-                    No models yet.
+                    还没有任何模型。
                   </td>
                 </tr>
               ) : (
@@ -157,11 +172,11 @@ export default function ProvidersPage({
       <div className="stack">
         <form className="panel form-panel" onSubmit={handleCreateProvider}>
           <div className="panel-header">
-            <h3>Add Provider</h3>
-            <p>Minimal upstream definition for phase 1.</p>
+            <h3>新增 Provider</h3>
+            <p>录入一个最小可用的上游 Provider 定义。</p>
           </div>
           <label>
-            <span>Name</span>
+            <span>名称</span>
             <input
               value={providerForm.name}
               onChange={(event) =>
@@ -185,7 +200,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Provider Type</span>
+            <span>服务类型</span>
             <input
               value={providerForm.provider_type}
               onChange={(event) =>
@@ -197,7 +212,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Auth Scheme</span>
+            <span>鉴权方式</span>
             <input
               value={providerForm.auth_scheme}
               onChange={(event) =>
@@ -209,7 +224,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>API Key</span>
+            <span>API 密钥</span>
             <input
               value={providerForm.api_key}
               onChange={(event) =>
@@ -221,7 +236,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Extra Headers JSON</span>
+            <span>额外请求头 JSON</span>
             <textarea
               value={providerForm.extra_headers}
               onChange={(event) =>
@@ -234,20 +249,20 @@ export default function ProvidersPage({
           </label>
           <div className="action-row">
             <button type="button" className="secondary-button" onClick={handleValidateProvider}>
-              Validate
+              校验
             </button>
-            <button type="submit">Create Provider</button>
+            <button type="submit">创建上游服务</button>
           </div>
           {validationMessage ? <p className="inline-message">{validationMessage}</p> : null}
         </form>
 
         <form className="panel form-panel" onSubmit={handleCreateModel}>
           <div className="panel-header">
-            <h3>Add Model</h3>
-            <p>Attach a real model to an existing provider.</p>
+            <h3>新增模型</h3>
+            <p>把一个真实模型挂到已有 Provider 下。</p>
           </div>
           <label>
-            <span>Provider</span>
+            <span>上游服务</span>
             <select
               value={modelForm.provider_id}
               onChange={(event) =>
@@ -257,7 +272,7 @@ export default function ProvidersPage({
                 }))
               }
             >
-              <option value="">Select provider</option>
+              <option value="">请选择上游服务</option>
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name}
@@ -266,7 +281,7 @@ export default function ProvidersPage({
             </select>
           </label>
           <label>
-            <span>Upstream Model</span>
+            <span>上游模型名</span>
             <input
               value={modelForm.upstream_model}
               onChange={(event) =>
@@ -278,7 +293,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Display Name</span>
+            <span>显示名称</span>
             <input
               value={modelForm.display_name}
               onChange={(event) =>
@@ -290,7 +305,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Capabilities</span>
+            <span>能力标签</span>
             <input
               value={modelForm.capabilities}
               onChange={(event) =>
@@ -302,7 +317,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Context Window</span>
+            <span>上下文窗口</span>
             <input
               value={modelForm.context_window}
               onChange={(event) =>
@@ -314,7 +329,7 @@ export default function ProvidersPage({
             />
           </label>
           <label>
-            <span>Max Tokens</span>
+            <span>最大输出 Tokens</span>
             <input
               value={modelForm.max_tokens}
               onChange={(event) =>
@@ -325,7 +340,7 @@ export default function ProvidersPage({
               }
             />
           </label>
-          <button type="submit">Create Model</button>
+          <button type="submit">创建模型</button>
         </form>
       </div>
     </section>
