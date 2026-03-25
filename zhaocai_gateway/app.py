@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from zhaocai_gateway.api import create_admin_router, create_agent_router
-from zhaocai_gateway.config import load_runtime_config
+from zhaocai_gateway.config import load_runtime_config, load_server_config
 from zhaocai_gateway.db.store import SQLiteStore
 
 
@@ -36,6 +39,7 @@ def create_app(
     register_defaults: bool = True,
     db_path: str = ":memory:",
     cors_origins: list[str] | None = None,
+    static_dir: str | Path | None = None,
 ) -> FastAPI:
     runtime_config = load_runtime_config()
     store = SQLiteStore(db_path)
@@ -57,10 +61,23 @@ def create_app(
     app.include_router(create_admin_router(store))
     app.include_router(create_agent_router(store))
 
+    resolved_static_dir = Path(static_dir).resolve() if static_dir is not None else None
+    has_static_index = bool(
+        resolved_static_dir
+        and resolved_static_dir.exists()
+        and (resolved_static_dir / "index.html").exists()
+    )
+    if resolved_static_dir and resolved_static_dir.exists():
+        assets_dir = resolved_static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
     if register_defaults:
 
         @app.get("/")
-        async def root() -> dict[str, str]:
+        async def root():
+            if has_static_index and resolved_static_dir is not None:
+                return FileResponse(resolved_static_dir / "index.html")
             return {
                 "name": app.title,
                 "version": app.version,
@@ -73,3 +90,15 @@ def create_app(
             return {"status": "healthy"}
 
     return app
+
+
+def create_default_app() -> FastAPI:
+    runtime_config = load_runtime_config()
+    server_config = load_server_config()
+    return create_app(
+        title=runtime_config.title,
+        description=runtime_config.description,
+        version=runtime_config.version,
+        db_path=server_config.db_path,
+        static_dir=server_config.web_dist_path,
+    )

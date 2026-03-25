@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 from typing import Any
+from pathlib import Path
 
 from zhaocai_gateway.db.schema import SCHEMA_SQL
 from zhaocai_gateway.domain.models import (
@@ -19,6 +20,8 @@ from zhaocai_gateway.domain.models import (
 class SQLiteStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
+        if db_path != ":memory:":
+            Path(db_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
 
