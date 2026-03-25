@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from zhaocai_gateway.db.store import SQLiteStore
-from zhaocai_gateway.services import ModelService, ProviderService
+from zhaocai_gateway.services import DeviceService, ModelService, PairingService, ProviderService
 
 
 class ProviderCreate(BaseModel):
@@ -35,9 +35,27 @@ class ModelCreate(BaseModel):
     enabled: bool = True
 
 
+class DeviceCreate(BaseModel):
+    name: str = Field(min_length=1)
+    device_type: str = Field(min_length=1)
+    hostname: str = ""
+    platform: str = ""
+    active: bool = True
+
+
+class PairingTokenCreate(BaseModel):
+    expires_in_seconds: int = 600
+
+
+class DeviceModelBindingUpdate(BaseModel):
+    model_ids: list[int] = Field(default_factory=list)
+
+
 def create_admin_router(store: SQLiteStore) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
+    device_service = DeviceService(store)
+    pairing_service = PairingService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     @router.get("/providers")
@@ -79,6 +97,38 @@ def create_admin_router(store: SQLiteStore) -> APIRouter:
                 context_window=payload.context_window,
                 max_tokens=payload.max_tokens,
                 enabled=payload.enabled,
+            )
+        }
+
+    @router.get("/devices")
+    def list_devices() -> dict:
+        return {"devices": device_service.list()}
+
+    @router.post("/devices")
+    def create_device(payload: DeviceCreate) -> dict:
+        return {
+            "device": device_service.create(
+                name=payload.name,
+                device_type=payload.device_type,
+                hostname=payload.hostname,
+                platform=payload.platform,
+                active=payload.active,
+            )
+        }
+
+    @router.post("/devices/{device_id}/pairing-token")
+    def create_pairing_token(device_id: int, payload: PairingTokenCreate) -> dict:
+        return pairing_service.issue_pairing_token(
+            device_id=device_id,
+            expires_in_seconds=payload.expires_in_seconds,
+        )
+
+    @router.put("/devices/{device_id}/models")
+    def assign_device_models(device_id: int, payload: DeviceModelBindingUpdate) -> dict:
+        return {
+            "device": device_service.assign_models(
+                device_id=device_id,
+                model_ids=payload.model_ids,
             )
         }
 

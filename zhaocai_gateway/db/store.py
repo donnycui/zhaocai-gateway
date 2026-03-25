@@ -6,7 +6,7 @@ import sqlite3
 from typing import Any
 
 from zhaocai_gateway.db.schema import SCHEMA_SQL
-from zhaocai_gateway.domain.models import ConfigSnapshot, Device, Model, Provider
+from zhaocai_gateway.domain.models import ConfigSnapshot, Device, Model, PairingToken, Provider
 
 
 class SQLiteStore:
@@ -198,6 +198,151 @@ class SQLiteStore:
             sync_token_hash=str(row["sync_token_hash"]),
             current_config_version=int(row["current_config_version"]),
         )
+
+    def list_devices(self) -> list[Device]:
+        rows = self.conn.execute(
+            "SELECT * FROM devices ORDER BY id ASC",
+        ).fetchall()
+        return [
+            Device(
+                id=int(row["id"]),
+                name=str(row["name"]),
+                device_type=str(row["device_type"]),
+                hostname=str(row["hostname"]),
+                platform=str(row["platform"]),
+                active=bool(row["active"]),
+                last_seen_at=row["last_seen_at"],
+                sync_token_hash=str(row["sync_token_hash"]),
+                current_config_version=int(row["current_config_version"]),
+            )
+            for row in rows
+        ]
+
+    def set_device_model_bindings(self, *, device_id: int, model_ids: list[int]) -> None:
+        self.conn.execute(
+            "DELETE FROM device_model_bindings WHERE device_id = ?",
+            (device_id,),
+        )
+        self.conn.executemany(
+            "INSERT INTO device_model_bindings (device_id, model_id) VALUES (?, ?)",
+            [(device_id, model_id) for model_id in model_ids],
+        )
+        self.conn.commit()
+
+    def get_device_model_ids(self, device_id: int) -> list[int]:
+        rows = self.conn.execute(
+            "SELECT model_id FROM device_model_bindings WHERE device_id = ? ORDER BY model_id ASC",
+            (device_id,),
+        ).fetchall()
+        return [int(row["model_id"]) for row in rows]
+
+    def create_pairing_token(
+        self,
+        *,
+        device_id: int,
+        token_hash: str,
+        expires_at: str,
+    ) -> PairingToken:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO pairing_tokens (device_id, token_hash, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (device_id, token_hash, expires_at),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM pairing_tokens WHERE id = ?",
+            (int(cursor.lastrowid),),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create pairing token")
+        return PairingToken(
+            id=int(row["id"]),
+            device_id=int(row["device_id"]),
+            token_hash=str(row["token_hash"]),
+            expires_at=str(row["expires_at"]),
+            used_at=row["used_at"],
+            created_at=str(row["created_at"]),
+        )
+
+    def consume_pairing_token(
+        self,
+        *,
+        token_hash: str,
+        used_at: str,
+        now: str,
+    ) -> PairingToken | None:
+        row = self.conn.execute(
+            """
+            SELECT *
+            FROM pairing_tokens
+            WHERE token_hash = ?
+              AND used_at IS NULL
+              AND expires_at > ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (token_hash, now),
+        ).fetchone()
+        if row is None:
+            return None
+        self.conn.execute(
+            "UPDATE pairing_tokens SET used_at = ? WHERE id = ?",
+            (used_at, int(row["id"])),
+        )
+        self.conn.commit()
+        return PairingToken(
+            id=int(row["id"]),
+            device_id=int(row["device_id"]),
+            token_hash=str(row["token_hash"]),
+            expires_at=str(row["expires_at"]),
+            used_at=used_at,
+            created_at=str(row["created_at"]),
+        )
+
+    def activate_device_registration(
+        self,
+        *,
+        device_id: int,
+        hostname: str,
+        platform: str,
+        sync_token_hash: str,
+        last_seen_at: str,
+    ) -> Device:
+        self.conn.execute(
+            """
+            UPDATE devices
+            SET hostname = ?, platform = ?, sync_token_hash = ?, last_seen_at = ?
+            WHERE id = ?
+            """,
+            (hostname, platform, sync_token_hash, last_seen_at, device_id),
+        )
+        self.conn.commit()
+        device = self.get_device(device_id)
+        if device is None:
+            raise RuntimeError("Failed to activate device registration")
+        return device
+
+    def touch_device_heartbeat(
+        self,
+        *,
+        sync_token_hash: str,
+        last_seen_at: str,
+    ) -> Device | None:
+        row = self.conn.execute(
+            "SELECT id FROM devices WHERE sync_token_hash = ?",
+            (sync_token_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        device_id = int(row["id"])
+        self.conn.execute(
+            "UPDATE devices SET last_seen_at = ? WHERE id = ?",
+            (last_seen_at, device_id),
+        )
+        self.conn.commit()
+        return self.get_device(device_id)
 
     def save_config_snapshot(self, *, device_id: int, payload: dict[str, Any]) -> ConfigSnapshot:
         payload_text = json.dumps(payload, sort_keys=True, ensure_ascii=False)

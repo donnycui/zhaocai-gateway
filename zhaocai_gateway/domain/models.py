@@ -42,6 +42,16 @@ class Device:
 
 
 @dataclass(frozen=True)
+class PairingToken:
+    id: int
+    device_id: int
+    token_hash: str
+    expires_at: str
+    used_at: str | None
+    created_at: str
+
+
+@dataclass(frozen=True)
 class ConfigSnapshot:
     id: int
     device_id: int

@@ -5,7 +5,7 @@ from typing import Any, Callable, Optional
 
 from fastapi import FastAPI
 
-from zhaocai_gateway.api import create_admin_router
+from zhaocai_gateway.api import create_admin_router, create_agent_router
 from zhaocai_gateway.config import load_runtime_config
 from zhaocai_gateway.db.store import SQLiteStore
 
@@ -33,6 +33,7 @@ def create_app(
     )
     app.state.store = store
     app.include_router(create_admin_router(store))
+    app.include_router(create_agent_router(store))
 
     if register_defaults:
 
