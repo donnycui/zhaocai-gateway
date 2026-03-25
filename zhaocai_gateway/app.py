@@ -4,6 +4,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Any, Callable, Optional
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from zhaocai_gateway.api import create_admin_router, create_agent_router
 from zhaocai_gateway.config import load_runtime_config
@@ -11,6 +12,19 @@ from zhaocai_gateway.db.store import SQLiteStore
 
 
 Lifespan = Optional[Callable[[FastAPI], AbstractAsyncContextManager[Any]]]
+
+
+def _default_cors_origins() -> list[str]:
+    return [
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4174",
+        "http://127.0.0.1:4174",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:4015",
+        "http://127.0.0.1:4015",
+    ]
 
 
 def create_app(
@@ -30,6 +44,13 @@ def create_app(
         description=description or runtime_config.description,
         version=version or runtime_config.version,
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_default_cors_origins(),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.state.store = store
     app.include_router(create_admin_router(store))

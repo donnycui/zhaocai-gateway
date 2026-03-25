@@ -624,9 +624,16 @@ def _load_cors_origins() -> list[str]:
     origins_str = os.getenv("ZHAOCAI_CORS_ORIGINS", "")
     if origins_str:
         return [o.strip() for o in origins_str.split(",") if o.strip()]
-    # Default: same-origin only for security
+    # Default: allow same-origin backend access plus local frontend dev ports.
     port = os.getenv("ZHAOCAI_PORT", "8000")
-    return [f"http://localhost:{port}", f"http://127.0.0.1:{port}"]
+    return [
+        f"http://localhost:{port}",
+        f"http://127.0.0.1:{port}",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4174",
+        "http://127.0.0.1:4174",
+    ]
 
 
 _cors_origins = _load_cors_origins()
