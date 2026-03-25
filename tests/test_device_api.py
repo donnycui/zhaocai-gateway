@@ -104,3 +104,48 @@ def test_list_devices():
     payload = response.json()
     assert len(payload["devices"]) == 1
     assert payload["devices"][0]["name"] == "raspberrypi"
+
+
+def test_get_device_config_preview():
+    client = create_test_client()
+    provider = client.post(
+        "/admin/providers",
+        json={
+            "name": "openrouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "provider_type": "openai",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    ).json()["provider"]
+    model = client.post(
+        "/admin/models",
+        json={
+            "provider_id": provider["id"],
+            "upstream_model": "gpt-4.1-mini",
+            "display_name": "GPT-4.1 mini",
+            "capabilities": ["text"],
+            "context_window": 128000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    ).json()["model"]
+    device = client.post(
+        "/admin/devices",
+        json={
+            "name": "worker-preview",
+            "device_type": "vps",
+        },
+    ).json()["device"]
+    client.put(
+        f"/admin/devices/{device['id']}/models",
+        json={"model_ids": [model["id"]]},
+    )
+
+    response = client.get(f"/admin/devices/{device['id']}/config-preview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["device"]["id"] == device["id"]
+    assert payload["models"][0]["upstream_model"] == "gpt-4.1-mini"

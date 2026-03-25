@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from zhaocai_gateway.db.store import SQLiteStore
-from zhaocai_gateway.services import DeviceService, ModelService, PairingService, ProviderService
+from zhaocai_gateway.services import (
+    ConfigCompilerService,
+    DeviceService,
+    ModelService,
+    PairingService,
+    ProviderService,
+)
 
 
 class ProviderCreate(BaseModel):
@@ -56,6 +62,7 @@ def create_admin_router(store: SQLiteStore) -> APIRouter:
     model_service = ModelService(store)
     device_service = DeviceService(store)
     pairing_service = PairingService(store)
+    compiler_service = ConfigCompilerService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     @router.get("/providers")
@@ -131,5 +138,15 @@ def create_admin_router(store: SQLiteStore) -> APIRouter:
                 model_ids=payload.model_ids,
             )
         }
+
+    @router.get("/devices/{device_id}/config-preview")
+    def get_device_config_preview(device_id: int) -> dict:
+        device = device_service.get(device_id)
+        if device is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Device {device_id} not found",
+            )
+        return compiler_service.compile_device_config(device_id)
 
     return router
