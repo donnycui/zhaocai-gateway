@@ -46,6 +46,10 @@ openclaw_node_*.json
 *~
 .DS_Store
 
+# Frontend workspace
+web/node_modules/
+web/dist/
+
 # Logs and coverage
 *.log
 logs/
