@@ -26,7 +26,6 @@ load_dotenv()
 import httpx
 import yaml
 from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -612,19 +611,10 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Zhaocai Gateway...")
 
 
-app = create_app(
-    title="Zhaocai Gateway",
-    description="AI Provider Gateway + OpenClaw Control Plane",
-    version="2.0.0",
-    lifespan=lifespan,
-    register_defaults=False,
-)
-
 def _load_cors_origins() -> list[str]:
     origins_str = os.getenv("ZHAOCAI_CORS_ORIGINS", "")
     if origins_str:
         return [o.strip() for o in origins_str.split(",") if o.strip()]
-    # Default: allow same-origin backend access plus local frontend dev ports.
     port = os.getenv("ZHAOCAI_PORT", "8000")
     return [
         f"http://localhost:{port}",
@@ -636,13 +626,13 @@ def _load_cors_origins() -> list[str]:
     ]
 
 
-_cors_origins = _load_cors_origins()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = create_app(
+    title="Zhaocai Gateway",
+    description="AI Provider Gateway + OpenClaw Control Plane",
+    version="2.0.0",
+    lifespan=lifespan,
+    register_defaults=False,
+    cors_origins=_load_cors_origins(),
 )
 
 app.include_router(control_api_router)

@@ -35,6 +35,7 @@ def create_app(
     lifespan: Lifespan = None,
     register_defaults: bool = True,
     db_path: str = ":memory:",
+    cors_origins: list[str] | None = None,
 ) -> FastAPI:
     runtime_config = load_runtime_config()
     store = SQLiteStore(db_path)
@@ -47,7 +48,7 @@ def create_app(
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=_default_cors_origins(),
+        allow_origins=cors_origins or _default_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
