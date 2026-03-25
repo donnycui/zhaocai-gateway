@@ -60,3 +60,10 @@ class ConfigSnapshot:
     payload_json: dict[str, Any]
     content_hash: str
     created_at: str
+
+
+@dataclass(frozen=True)
+class AppliedConfigReport:
+    device_id: int
+    version: int
+    status: str

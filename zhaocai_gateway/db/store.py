@@ -6,7 +6,14 @@ import sqlite3
 from typing import Any
 
 from zhaocai_gateway.db.schema import SCHEMA_SQL
-from zhaocai_gateway.domain.models import ConfigSnapshot, Device, Model, PairingToken, Provider
+from zhaocai_gateway.domain.models import (
+    AppliedConfigReport,
+    ConfigSnapshot,
+    Device,
+    Model,
+    PairingToken,
+    Provider,
+)
 
 
 class SQLiteStore:
@@ -142,6 +149,31 @@ class SQLiteStore:
     def list_models(self) -> list[Model]:
         rows = self.conn.execute(
             "SELECT * FROM models ORDER BY id ASC",
+        ).fetchall()
+        return [
+            Model(
+                id=int(row["id"]),
+                provider_id=int(row["provider_id"]),
+                upstream_model=str(row["upstream_model"]),
+                display_name=str(row["display_name"]),
+                capabilities=json.loads(row["capabilities"] or "[]"),
+                context_window=row["context_window"],
+                max_tokens=row["max_tokens"],
+                enabled=bool(row["enabled"]),
+            )
+            for row in rows
+        ]
+
+    def list_models_for_device(self, device_id: int) -> list[Model]:
+        rows = self.conn.execute(
+            """
+            SELECT m.*
+            FROM device_model_bindings dmb
+            JOIN models m ON m.id = dmb.model_id
+            WHERE dmb.device_id = ?
+            ORDER BY m.id ASC
+            """,
+            (device_id,),
         ).fetchall()
         return [
             Model(
@@ -389,4 +421,62 @@ class SQLiteStore:
             payload_json=json.loads(row["payload_json"]),
             content_hash=str(row["content_hash"]),
             created_at=str(row["created_at"]),
+        )
+
+    def get_latest_config_snapshot(self, device_id: int) -> ConfigSnapshot | None:
+        row = self.conn.execute(
+            """
+            SELECT *
+            FROM config_snapshots
+            WHERE device_id = ?
+            ORDER BY version DESC
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return ConfigSnapshot(
+            id=int(row["id"]),
+            device_id=int(row["device_id"]),
+            version=int(row["version"]),
+            etag=str(row["etag"]),
+            payload_json=json.loads(row["payload_json"]),
+            content_hash=str(row["content_hash"]),
+            created_at=str(row["created_at"]),
+        )
+
+    def get_device_by_sync_token_hash(self, sync_token_hash: str) -> Device | None:
+        row = self.conn.execute(
+            "SELECT * FROM devices WHERE sync_token_hash = ?",
+            (sync_token_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Device(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            device_type=str(row["device_type"]),
+            hostname=str(row["hostname"]),
+            platform=str(row["platform"]),
+            active=bool(row["active"]),
+            last_seen_at=row["last_seen_at"],
+            sync_token_hash=str(row["sync_token_hash"]),
+            current_config_version=int(row["current_config_version"]),
+        )
+
+    def record_applied_config(
+        self,
+        *,
+        sync_token_hash: str,
+        version: int,
+        status: str,
+    ) -> AppliedConfigReport | None:
+        device = self.get_device_by_sync_token_hash(sync_token_hash)
+        if device is None:
+            return None
+        return AppliedConfigReport(
+            device_id=device.id,
+            version=version,
+            status=status,
         )
