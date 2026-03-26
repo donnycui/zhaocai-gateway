@@ -27,7 +27,43 @@ class SQLiteStore:
 
     def init_schema(self) -> None:
         self.conn.executescript(SCHEMA_SQL)
+        self._ensure_model_column("reasoning", "ALTER TABLE models ADD COLUMN reasoning INTEGER NOT NULL DEFAULT 0")
+        self._ensure_model_column(
+            "input_modalities",
+            "ALTER TABLE models ADD COLUMN input_modalities TEXT NOT NULL DEFAULT '[\"text\"]'",
+        )
+        self._ensure_model_column("cost_input", "ALTER TABLE models ADD COLUMN cost_input REAL")
+        self._ensure_model_column("cost_output", "ALTER TABLE models ADD COLUMN cost_output REAL")
+        self._ensure_model_column("cost_cache_read", "ALTER TABLE models ADD COLUMN cost_cache_read REAL")
+        self._ensure_model_column("cost_cache_write", "ALTER TABLE models ADD COLUMN cost_cache_write REAL")
         self.conn.commit()
+
+    def _ensure_model_column(self, column: str, ddl: str) -> None:
+        columns = [row[1] for row in self.conn.execute("PRAGMA table_info(models)").fetchall()]
+        if column not in columns:
+            self.conn.execute(ddl)
+            self.conn.commit()
+
+    @staticmethod
+    def _row_to_model(row: sqlite3.Row) -> Model:
+        provider_name = row["provider_name"] if "provider_name" in row.keys() else None
+        return Model(
+            id=int(row["id"]),
+            provider_id=int(row["provider_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            capabilities=json.loads(row["capabilities"] or "[]"),
+            reasoning=bool(row["reasoning"]),
+            input_modalities=json.loads(row["input_modalities"] or '["text"]'),
+            context_window=row["context_window"],
+            max_tokens=row["max_tokens"],
+            cost_input=row["cost_input"],
+            cost_output=row["cost_output"],
+            cost_cache_read=row["cost_cache_read"],
+            cost_cache_write=row["cost_cache_write"],
+            enabled=bool(row["enabled"]),
+            provider_name=str(provider_name) if provider_name is not None else None,
+        )
 
     def create_provider(
         self,
@@ -61,6 +97,51 @@ class SQLiteStore:
         if provider is None:
             raise RuntimeError("Failed to create provider")
         return provider
+
+    def update_provider(
+        self,
+        provider_id: int,
+        *,
+        name: str,
+        provider_type: str,
+        base_url: str,
+        auth_scheme: str,
+        api_key_encrypted: str,
+        extra_headers: dict[str, str],
+        enabled: bool,
+    ) -> Provider:
+        self.conn.execute(
+            """
+            UPDATE providers
+            SET name = ?,
+                provider_type = ?,
+                base_url = ?,
+                auth_scheme = ?,
+                api_key_encrypted = ?,
+                extra_headers = ?,
+                enabled = ?
+            WHERE id = ?
+            """,
+            (
+                name,
+                provider_type,
+                base_url,
+                auth_scheme,
+                api_key_encrypted,
+                json.dumps(extra_headers, ensure_ascii=False),
+                int(enabled),
+                provider_id,
+            ),
+        )
+        self.conn.commit()
+        provider = self.get_provider(provider_id)
+        if provider is None:
+            raise RuntimeError("Failed to update provider")
+        return provider
+
+    def delete_provider(self, provider_id: int) -> None:
+        self.conn.execute("DELETE FROM providers WHERE id = ?", (provider_id,))
+        self.conn.commit()
 
     def get_provider(self, provider_id: int) -> Provider | None:
         row = self.conn.execute(
@@ -123,23 +204,50 @@ class SQLiteStore:
         upstream_model: str,
         display_name: str,
         capabilities: list[str],
+        reasoning: bool = False,
+        input_modalities: list[str] | None = None,
         context_window: int | None,
         max_tokens: int | None,
+        cost_input: float | None = None,
+        cost_output: float | None = None,
+        cost_cache_read: float | None = None,
+        cost_cache_write: float | None = None,
         enabled: bool,
     ) -> Model:
+        effective_input_modalities = input_modalities or ["text"]
         cursor = self.conn.execute(
             """
             INSERT INTO models
-            (provider_id, upstream_model, display_name, capabilities, context_window, max_tokens, enabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (
+                provider_id,
+                upstream_model,
+                display_name,
+                capabilities,
+                reasoning,
+                input_modalities,
+                context_window,
+                max_tokens,
+                cost_input,
+                cost_output,
+                cost_cache_read,
+                cost_cache_write,
+                enabled
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 provider_id,
                 upstream_model,
                 display_name,
                 json.dumps(capabilities, ensure_ascii=False),
+                int(reasoning),
+                json.dumps(effective_input_modalities, ensure_ascii=False),
                 context_window,
                 max_tokens,
+                cost_input,
+                cost_output,
+                cost_cache_read,
+                cost_cache_write,
                 int(enabled),
             ),
         )
@@ -151,21 +259,17 @@ class SQLiteStore:
 
     def get_model(self, model_id: int) -> Model | None:
         row = self.conn.execute(
-            "SELECT * FROM models WHERE id = ?",
+            """
+            SELECT m.*, p.name AS provider_name
+            FROM models m
+            JOIN providers p ON p.id = m.provider_id
+            WHERE m.id = ?
+            """,
             (model_id,),
         ).fetchone()
         if row is None:
             return None
-        return Model(
-            id=int(row["id"]),
-            provider_id=int(row["provider_id"]),
-            upstream_model=str(row["upstream_model"]),
-            display_name=str(row["display_name"]),
-            capabilities=json.loads(row["capabilities"] or "[]"),
-            context_window=row["context_window"],
-            max_tokens=row["max_tokens"],
-            enabled=bool(row["enabled"]),
-        )
+        return self._row_to_model(row)
 
     def get_model_by_provider_and_upstream(
         self,
@@ -174,43 +278,88 @@ class SQLiteStore:
     ) -> Model | None:
         row = self.conn.execute(
             """
-            SELECT *
-            FROM models
-            WHERE provider_id = ? AND upstream_model = ?
+            SELECT m.*, p.name AS provider_name
+            FROM models m
+            JOIN providers p ON p.id = m.provider_id
+            WHERE m.provider_id = ? AND m.upstream_model = ?
             LIMIT 1
             """,
             (provider_id, upstream_model),
         ).fetchone()
         if row is None:
             return None
-        return Model(
-            id=int(row["id"]),
-            provider_id=int(row["provider_id"]),
-            upstream_model=str(row["upstream_model"]),
-            display_name=str(row["display_name"]),
-            capabilities=json.loads(row["capabilities"] or "[]"),
-            context_window=row["context_window"],
-            max_tokens=row["max_tokens"],
-            enabled=bool(row["enabled"]),
-        )
+        return self._row_to_model(row)
 
     def list_models(self) -> list[Model]:
         rows = self.conn.execute(
-            "SELECT * FROM models ORDER BY id ASC",
+            """
+            SELECT m.*, p.name AS provider_name
+            FROM models m
+            JOIN providers p ON p.id = m.provider_id
+            ORDER BY m.id ASC
+            """,
         ).fetchall()
-        return [
-            Model(
-                id=int(row["id"]),
-                provider_id=int(row["provider_id"]),
-                upstream_model=str(row["upstream_model"]),
-                display_name=str(row["display_name"]),
-                capabilities=json.loads(row["capabilities"] or "[]"),
-                context_window=row["context_window"],
-                max_tokens=row["max_tokens"],
-                enabled=bool(row["enabled"]),
-            )
-            for row in rows
-        ]
+        return [self._row_to_model(row) for row in rows]
+
+    def update_model(
+        self,
+        model_id: int,
+        *,
+        upstream_model: str,
+        display_name: str,
+        capabilities: list[str],
+        reasoning: bool,
+        input_modalities: list[str],
+        context_window: int | None,
+        max_tokens: int | None,
+        cost_input: float | None,
+        cost_output: float | None,
+        cost_cache_read: float | None,
+        cost_cache_write: float | None,
+        enabled: bool,
+    ) -> Model:
+        self.conn.execute(
+            """
+            UPDATE models
+            SET upstream_model = ?,
+                display_name = ?,
+                capabilities = ?,
+                reasoning = ?,
+                input_modalities = ?,
+                context_window = ?,
+                max_tokens = ?,
+                cost_input = ?,
+                cost_output = ?,
+                cost_cache_read = ?,
+                cost_cache_write = ?,
+                enabled = ?
+            WHERE id = ?
+            """,
+            (
+                upstream_model,
+                display_name,
+                json.dumps(capabilities, ensure_ascii=False),
+                int(reasoning),
+                json.dumps(input_modalities, ensure_ascii=False),
+                context_window,
+                max_tokens,
+                cost_input,
+                cost_output,
+                cost_cache_read,
+                cost_cache_write,
+                int(enabled),
+                model_id,
+            ),
+        )
+        self.conn.commit()
+        model = self.get_model(model_id)
+        if model is None:
+            raise RuntimeError("Failed to update model")
+        return model
+
+    def delete_model(self, model_id: int) -> None:
+        self.conn.execute("DELETE FROM models WHERE id = ?", (model_id,))
+        self.conn.commit()
 
     def upsert_model(
         self,
@@ -219,10 +368,17 @@ class SQLiteStore:
         upstream_model: str,
         display_name: str,
         capabilities: list[str],
+        reasoning: bool = False,
+        input_modalities: list[str] | None = None,
         context_window: int | None,
         max_tokens: int | None,
+        cost_input: float | None = None,
+        cost_output: float | None = None,
+        cost_cache_read: float | None = None,
+        cost_cache_write: float | None = None,
         enabled: bool,
     ) -> Model:
+        effective_input_modalities = input_modalities or ["text"]
         existing = self.get_model_by_provider_and_upstream(provider_id, upstream_model)
         if existing is None:
             return self.create_model(
@@ -230,8 +386,14 @@ class SQLiteStore:
                 upstream_model=upstream_model,
                 display_name=display_name,
                 capabilities=capabilities,
+                reasoning=reasoning,
+                input_modalities=effective_input_modalities,
                 context_window=context_window,
                 max_tokens=max_tokens,
+                cost_input=cost_input,
+                cost_output=cost_output,
+                cost_cache_read=cost_cache_read,
+                cost_cache_write=cost_cache_write,
                 enabled=enabled,
             )
 
@@ -240,16 +402,28 @@ class SQLiteStore:
             UPDATE models
             SET display_name = ?,
                 capabilities = ?,
+                reasoning = ?,
+                input_modalities = ?,
                 context_window = ?,
                 max_tokens = ?,
+                cost_input = ?,
+                cost_output = ?,
+                cost_cache_read = ?,
+                cost_cache_write = ?,
                 enabled = ?
             WHERE id = ?
             """,
             (
                 display_name,
                 json.dumps(capabilities, ensure_ascii=False),
+                int(reasoning),
+                json.dumps(effective_input_modalities, ensure_ascii=False),
                 context_window,
                 max_tokens,
+                cost_input,
+                cost_output,
+                cost_cache_read,
+                cost_cache_write,
                 int(enabled),
                 existing.id,
             ),
@@ -263,27 +437,20 @@ class SQLiteStore:
     def list_models_for_device(self, device_id: int) -> list[Model]:
         rows = self.conn.execute(
             """
-            SELECT m.*
+            SELECT m.*, p.name AS provider_name
             FROM device_model_bindings dmb
             JOIN models m ON m.id = dmb.model_id
+            JOIN providers p ON p.id = m.provider_id
             WHERE dmb.device_id = ?
             ORDER BY m.id ASC
             """,
             (device_id,),
         ).fetchall()
-        return [
-            Model(
-                id=int(row["id"]),
-                provider_id=int(row["provider_id"]),
-                upstream_model=str(row["upstream_model"]),
-                display_name=str(row["display_name"]),
-                capabilities=json.loads(row["capabilities"] or "[]"),
-                context_window=row["context_window"],
-                max_tokens=row["max_tokens"],
-                enabled=bool(row["enabled"]),
-            )
-            for row in rows
-        ]
+        return [self._row_to_model(row) for row in rows]
+
+    def delete_device(self, device_id: int) -> None:
+        self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+        self.conn.commit()
 
     def create_device(
         self,
@@ -586,4 +753,24 @@ class SQLiteStore:
             device_id=device.id,
             version=version,
             status=status,
+        )
+    @staticmethod
+    def _row_to_model(row: sqlite3.Row) -> Model:
+        provider_name = row["provider_name"] if "provider_name" in row.keys() else None
+        return Model(
+            id=int(row["id"]),
+            provider_id=int(row["provider_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            capabilities=json.loads(row["capabilities"] or "[]"),
+            reasoning=bool(row["reasoning"]),
+            input_modalities=json.loads(row["input_modalities"] or '["text"]'),
+            context_window=row["context_window"],
+            max_tokens=row["max_tokens"],
+            cost_input=row["cost_input"],
+            cost_output=row["cost_output"],
+            cost_cache_read=row["cost_cache_read"],
+            cost_cache_write=row["cost_cache_write"],
+            enabled=bool(row["enabled"]),
+            provider_name=str(provider_name) if provider_name is not None else None,
         )

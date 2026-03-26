@@ -29,7 +29,7 @@ export default function DashboardPage({
 
       <div className="stats-grid">
         <article className="stat-card">
-          <span className="stat-label">上游服务</span>
+          <span className="stat-label">供应商</span>
           <strong>{providers.length}</strong>
         </article>
         <article className="stat-card">

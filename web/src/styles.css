@@ -295,6 +295,14 @@ button {
   padding: 16px;
 }
 
+.device-card-button {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
 .device-card.selected {
   border-color: rgba(241, 90, 36, 0.48);
   background: linear-gradient(135deg, rgba(241, 90, 36, 0.08), rgba(18, 121, 185, 0.06));
@@ -304,6 +312,12 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .device-card strong {
@@ -318,6 +332,208 @@ button {
 .checkbox-grid {
   display: grid;
   gap: 10px;
+}
+
+.nested-grid {
+  margin-top: 10px;
+}
+
+.provider-group {
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  border-radius: 16px;
+  background: rgba(250, 252, 255, 0.82);
+  padding: 10px;
+}
+
+.provider-group-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(19, 34, 56, 0.04);
+  color: #132238;
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.provider-group-toggle span {
+  color: #5c6d82;
+  font-size: 0.9rem;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.model-card-list {
+  display: grid;
+  gap: 16px;
+}
+
+.model-editor-card {
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  border-radius: 20px;
+  background: rgba(248, 250, 255, 0.88);
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.model-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(18, 121, 185, 0.12);
+  color: #145b88;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.advanced-section summary {
+  cursor: pointer;
+  color: #32465f;
+  font-weight: 600;
+}
+
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.input-type-group {
+  display: grid;
+  gap: 8px;
+}
+
+.option-card {
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 110px;
+}
+
+.option-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.option-card-header span:first-child {
+  color: #32465f;
+  font-weight: 600;
+}
+
+.option-card-hint {
+  color: #6b7788;
+  font-size: 0.88rem;
+}
+
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.toggle-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.input-type-pills {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.choice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  width: 116px;
+  height: 54px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(19, 34, 56, 0.1);
+  background: rgba(248, 250, 255, 0.96);
+  flex: 0 0 116px;
+}
+
+.choice-pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choice-pill.selected,
+.compact-toggle.selected {
+  border-color: rgba(18, 121, 185, 0.28);
+  background: rgba(18, 121, 185, 0.08);
+}
+
+.choice-indicator,
+.toggle-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(19, 34, 56, 0.32);
+  background: #fff;
+  flex: 0 0 20px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.choice-pill.selected .choice-indicator,
+.compact-toggle.selected .toggle-indicator {
+  border-color: #1279b9;
+  background: #1279b9;
+}
+
+.choice-pill.selected .choice-indicator::after,
+.compact-toggle.selected .toggle-indicator::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.compact-toggle {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(19, 34, 56, 0.1);
+  background: rgba(248, 250, 255, 0.96);
 }
 
 .checkbox-card {
@@ -387,6 +603,11 @@ button {
   .app-shell,
   .two-column,
   .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-grid,
+  .advanced-grid {
     grid-template-columns: 1fr;
   }
 

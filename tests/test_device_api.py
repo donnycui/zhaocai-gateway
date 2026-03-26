@@ -171,5 +171,6 @@ def test_get_device_config_preview():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["device"]["id"] == device["id"]
-    assert payload["models"][0]["upstream_model"] == "gpt-4.1-mini"
+    assert "device" not in payload
+    assert payload["models"]["providers"]["openrouter"]["models"][0]["id"] == "gpt-4.1-mini"
+    assert payload["agents"]["defaults"]["model"]["primary"] == "openrouter/gpt-4.1-mini"

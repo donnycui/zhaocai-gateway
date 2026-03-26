@@ -31,13 +31,44 @@ class ProviderValidate(BaseModel):
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
+class ProviderUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    provider_type: str = Field(min_length=1)
+    auth_scheme: str = Field(min_length=1)
+    api_key: str = ""
+    enabled: bool = True
+    extra_headers: dict[str, str] = Field(default_factory=dict)
+
+
 class ModelCreate(BaseModel):
     provider_id: int
     upstream_model: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     capabilities: list[str] = Field(default_factory=list)
+    reasoning: bool = False
+    input_modalities: list[str] = Field(default_factory=lambda: ["text"])
     context_window: int | None = None
     max_tokens: int | None = None
+    cost_input: float | None = None
+    cost_output: float | None = None
+    cost_cache_read: float | None = None
+    cost_cache_write: float | None = None
+    enabled: bool = True
+
+
+class ModelUpdate(BaseModel):
+    upstream_model: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    capabilities: list[str] = Field(default_factory=list)
+    reasoning: bool = False
+    input_modalities: list[str] = Field(default_factory=lambda: ["text"])
+    context_window: int | None = None
+    max_tokens: int | None = None
+    cost_input: float | None = None
+    cost_output: float | None = None
+    cost_cache_read: float | None = None
+    cost_cache_write: float | None = None
     enabled: bool = True
 
 
@@ -82,6 +113,14 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"providers": provider_service.list()}
 
+    @router.get("/providers/{provider_id}")
+    def get_provider(provider_id: int, x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        provider = provider_service.get(provider_id)
+        if provider is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+        return {"provider": provider, "models": model_service.list_for_provider(provider_id)}
+
     @router.post("/providers")
     def create_provider(
         payload: ProviderCreate,
@@ -98,6 +137,35 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 extra_headers=payload.extra_headers,
             )
         }
+
+    @router.patch("/providers/{provider_id}")
+    def update_provider(
+        provider_id: int,
+        payload: ProviderUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "provider": provider_service.update(
+                provider_id,
+                name=payload.name,
+                base_url=payload.base_url,
+                provider_type=payload.provider_type,
+                auth_scheme=payload.auth_scheme,
+                api_key=payload.api_key,
+                extra_headers=payload.extra_headers,
+                enabled=payload.enabled,
+            )
+        }
+
+    @router.delete("/providers/{provider_id}")
+    def delete_provider(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        provider_service.delete(provider_id)
+        return {"ok": True, "provider_id": provider_id}
 
     @router.post("/providers/validate")
     def validate_provider(
@@ -127,11 +195,51 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 upstream_model=payload.upstream_model,
                 display_name=payload.display_name,
                 capabilities=payload.capabilities,
+                reasoning=payload.reasoning,
+                input_modalities=payload.input_modalities,
                 context_window=payload.context_window,
                 max_tokens=payload.max_tokens,
+                cost_input=payload.cost_input,
+                cost_output=payload.cost_output,
+                cost_cache_read=payload.cost_cache_read,
+                cost_cache_write=payload.cost_cache_write,
                 enabled=payload.enabled,
             )
         }
+
+    @router.patch("/models/{model_id}")
+    def update_model(
+        model_id: int,
+        payload: ModelUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "model": model_service.update(
+                model_id,
+                upstream_model=payload.upstream_model,
+                display_name=payload.display_name,
+                capabilities=payload.capabilities,
+                reasoning=payload.reasoning,
+                input_modalities=payload.input_modalities,
+                context_window=payload.context_window,
+                max_tokens=payload.max_tokens,
+                cost_input=payload.cost_input,
+                cost_output=payload.cost_output,
+                cost_cache_read=payload.cost_cache_read,
+                cost_cache_write=payload.cost_cache_write,
+                enabled=payload.enabled,
+            )
+        }
+
+    @router.delete("/models/{model_id}")
+    def delete_model(
+        model_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        model_service.delete(model_id)
+        return {"ok": True, "model_id": model_id}
 
     @router.post("/sync/openrouter-free")
     def sync_openrouter_free(x_admin_token: str | None = Header(default=None)) -> dict:
@@ -158,6 +266,12 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 active=payload.active,
             )
         }
+
+    @router.delete("/devices/{device_id}")
+    def delete_device(device_id: int, x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        device_service.delete(device_id)
+        return {"ok": True, "device_id": device_id}
 
     @router.post("/devices/{device_id}/pairing-token")
     def create_pairing_token(

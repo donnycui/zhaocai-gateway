@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from zhaocai_gateway.db.store import SQLiteStore
 
 
@@ -12,8 +14,11 @@ class ConfigCompilerService:
         if device is None:
             raise ValueError(f"Device {device_id} not found")
 
-        models = []
-        provider_map: dict[int, dict] = {}
+        provider_models: dict[str, list[dict]] = defaultdict(list)
+        provider_entries: dict[str, dict] = {}
+        catalog_entries: dict[str, dict] = {}
+        ordered_model_keys: list[str] = []
+
         for model in self.store.list_models_for_device(device_id):
             if not model.enabled:
                 continue
@@ -21,39 +26,65 @@ class ConfigCompilerService:
             if provider is None or not provider.enabled:
                 continue
 
-            provider_map[provider.id] = {
-                "id": provider.id,
-                "name": provider.name,
-                "provider_type": provider.provider_type,
-                "base_url": provider.base_url,
-                "auth_scheme": provider.auth_scheme,
-                "extra_headers": provider.extra_headers,
+            provider_key = provider.name
+            provider_entries[provider_key] = {
+                "baseUrl": provider.base_url,
+                "apiKey": provider.api_key_encrypted,
+                "api": self._to_openclaw_api(provider.provider_type),
+                "models": provider_models[provider_key],
             }
-            models.append(
+            reasoning = "reasoning" in model.capabilities
+            input_types = ["text"]
+            provider_models[provider_key].append(
                 {
-                    "id": model.id,
-                    "provider_id": model.provider_id,
-                    "upstream_model": model.upstream_model,
-                    "display_name": model.display_name,
-                    "capabilities": model.capabilities,
-                    "context_window": model.context_window,
-                    "max_tokens": model.max_tokens,
-                    "enabled": model.enabled,
+                    "id": model.upstream_model,
+                    "name": model.display_name,
+                    "reasoning": reasoning,
+                    "input": input_types,
+                    "contextWindow": model.context_window,
+                    "maxTokens": model.max_tokens,
                 }
             )
+            full_model_key = f"{provider_key}/{model.upstream_model}"
+            ordered_model_keys.append(full_model_key)
+            catalog_entries[full_model_key] = {"alias": model.display_name}
 
-        return {
-            "device": {
-                "id": device.id,
-                "name": device.name,
-                "device_type": device.device_type,
-                "hostname": device.hostname,
-                "platform": device.platform,
-                "active": device.active,
+        primary = ordered_model_keys[0] if ordered_model_keys else None
+        fallbacks = ordered_model_keys[1:] if len(ordered_model_keys) > 1 else []
+
+        payload = {
+            "models": {
+                "mode": "merge",
+                "providers": dict(provider_entries),
             },
-            "providers": list(provider_map.values()),
-            "models": models,
+            "agents": {
+                "defaults": {
+                    "model": {
+                        "primary": primary,
+                        "fallbacks": fallbacks,
+                    }
+                    if primary
+                    else None,
+                    "models": catalog_entries,
+                }
+            },
         }
+
+        if payload["agents"]["defaults"]["model"] is None:
+            payload["agents"]["defaults"].pop("model")
+        if not payload["agents"]["defaults"]["models"]:
+            payload["agents"]["defaults"].pop("models")
+        if not payload["agents"]["defaults"]:
+            payload.pop("agents")
+
+        return payload
+
+    @staticmethod
+    def _to_openclaw_api(provider_type: str) -> str:
+        normalized = (provider_type or "openai").lower()
+        if normalized == "anthropic":
+            return "anthropic-messages"
+        return "openai-completions"
 
     def create_snapshot(self, device_id: int):
         payload = self.compile_device_config(device_id)

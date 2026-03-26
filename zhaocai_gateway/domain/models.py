@@ -23,9 +23,16 @@ class Model:
     upstream_model: str
     display_name: str
     capabilities: list[str]
+    reasoning: bool
+    input_modalities: list[str]
     context_window: int | None
     max_tokens: int | None
+    cost_input: float | None
+    cost_output: float | None
+    cost_cache_read: float | None
+    cost_cache_write: float | None
     enabled: bool
+    provider_name: str | None = None
 
 
 @dataclass(frozen=True)

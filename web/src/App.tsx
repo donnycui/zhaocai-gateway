@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import DashboardPage from "./pages/DashboardPage";
 import DevicesPage from "./pages/DevicesPage";
 import NodesPage from "./pages/NodesPage";
+import ProviderEditorPage from "./pages/ProviderEditorPage";
 import ProvidersPage from "./pages/ProvidersPage";
 import {
   api,
@@ -13,7 +14,7 @@ import {
   type Provider,
 } from "./lib/api";
 
-type Page = "dashboard" | "providers" | "devices" | "nodes";
+type Page = "dashboard" | "providers" | "provider-editor" | "devices" | "nodes";
 
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
@@ -23,6 +24,7 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const [adminToken, setAdminToken] = useState<string>(() => getStoredAdminToken());
+  const [editingProviderId, setEditingProviderId] = useState<number | null>(null);
 
   async function refreshAll() {
     setLoading(true);
@@ -52,6 +54,16 @@ export default function App() {
     void refreshAll();
   }
 
+  function openProviderCreate() {
+    setEditingProviderId(null);
+    setPage("provider-editor");
+  }
+
+  function openProviderEdit(providerId: number) {
+    setEditingProviderId(providerId);
+    setPage("provider-editor");
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -63,7 +75,7 @@ export default function App() {
         <nav className="nav">
           {[
             { id: "dashboard", label: "总览" },
-            { id: "providers", label: "上游服务" },
+            { id: "providers", label: "供应商" },
             { id: "devices", label: "设备" },
             { id: "nodes", label: "节点接入" },
           ].map((item) => (
@@ -112,7 +124,20 @@ export default function App() {
           />
         ) : null}
         {page === "providers" ? (
-          <ProvidersPage providers={providers} models={models} onRefresh={refreshAll} />
+          <ProvidersPage
+            providers={providers}
+            models={models}
+            onRefresh={refreshAll}
+            onCreate={openProviderCreate}
+            onEdit={openProviderEdit}
+          />
+        ) : null}
+        {page === "provider-editor" ? (
+          <ProviderEditorPage
+            providerId={editingProviderId}
+            onBack={() => setPage("providers")}
+            onSaved={refreshAll}
+          />
         ) : null}
         {page === "devices" ? (
           <DevicesPage devices={devices} models={models} onRefresh={refreshAll} />

@@ -43,6 +43,9 @@ class DeviceService:
             return None
         return self._serialize(device)
 
+    def delete(self, device_id: int) -> None:
+        self.store.delete_device(device_id)
+
     def _serialize(self, device) -> dict:
         payload = asdict(device)
         payload["model_ids"] = self.store.get_device_model_ids(device.id)

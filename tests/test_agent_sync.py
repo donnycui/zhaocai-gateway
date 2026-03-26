@@ -169,9 +169,13 @@ def test_get_full_config():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["device"]["id"] == registration["device"]["id"]
-    assert len(payload["models"]) == 1
-    assert payload["models"][0]["display_name"] == "Claude Sonnet 4.5"
+    assert "device" not in payload
+    assert "models" in payload
+    assert "providers" in payload["models"]
+    assert "anthropic" in payload["models"]["providers"]
+    assert payload["models"]["providers"]["anthropic"]["api"] == "anthropic-messages"
+    assert payload["models"]["providers"]["anthropic"]["models"][0]["name"] == "Claude Sonnet 4.5"
+    assert payload["agents"]["defaults"]["model"]["primary"] == "anthropic/claude-sonnet-4.5"
 
 
 def test_post_config_applied():

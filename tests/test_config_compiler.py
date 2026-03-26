@@ -31,9 +31,12 @@ def test_compile_device_specific_model_list(store):
 
     payload = ConfigCompilerService(store).compile_device_config(device.id)
 
-    assert payload["device"]["id"] == device.id
-    assert len(payload["models"]) == 1
-    assert payload["models"][0]["upstream_model"] == "gpt-4.1"
+    assert payload["models"]["mode"] == "merge"
+    assert "openai" in payload["models"]["providers"]
+    assert payload["models"]["providers"]["openai"]["api"] == "openai-completions"
+    assert payload["models"]["providers"]["openai"]["models"][0]["id"] == "gpt-4.1"
+    assert payload["agents"]["defaults"]["model"]["primary"] == "openai/gpt-4.1"
+    assert payload["agents"]["defaults"]["models"]["openai/gpt-4.1"]["alias"] == "GPT-4.1"
 
 
 def test_compile_skips_disabled_models(store):
@@ -66,7 +69,8 @@ def test_compile_skips_disabled_models(store):
 
     payload = ConfigCompilerService(store).compile_device_config(device.id)
 
-    assert payload["models"] == []
+    assert payload["models"]["providers"] == {}
+    assert payload.get("agents", {}).get("defaults", {}) == {}
 
 
 def test_snapshot_etag_changes_when_payload_changes(store):

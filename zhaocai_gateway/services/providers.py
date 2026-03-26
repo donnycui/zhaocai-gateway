@@ -13,6 +13,12 @@ class ProviderService:
     def list(self) -> list[dict]:
         return [asdict(provider) for provider in self.store.list_providers()]
 
+    def get(self, provider_id: int) -> dict | None:
+        provider = self.store.get_provider(provider_id)
+        if provider is None:
+            return None
+        return asdict(provider)
+
     def create(
         self,
         *,
@@ -33,6 +39,33 @@ class ProviderService:
             enabled=True,
         )
         return asdict(provider)
+
+    def update(
+        self,
+        provider_id: int,
+        *,
+        name: str,
+        base_url: str,
+        provider_type: str,
+        auth_scheme: str,
+        api_key: str,
+        extra_headers: dict[str, str],
+        enabled: bool,
+    ) -> dict:
+        provider = self.store.update_provider(
+            provider_id,
+            name=name,
+            base_url=base_url,
+            provider_type=provider_type,
+            auth_scheme=auth_scheme,
+            api_key_encrypted=api_key,
+            extra_headers=extra_headers,
+            enabled=enabled,
+        )
+        return asdict(provider)
+
+    def delete(self, provider_id: int) -> None:
+        self.store.delete_provider(provider_id)
 
     def validate(
         self,
