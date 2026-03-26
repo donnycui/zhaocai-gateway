@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 import httpx
+import pytest
 
 from zhaocai_gateway.app import create_app
 
@@ -55,6 +56,165 @@ def test_validate_provider_input():
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "auth_scheme", "expected_suffix", "expected_header"),
+    [
+        ("openai-completions", "bearer", "/chat/completions", "Authorization"),
+        ("openai-responses", "bearer", "/responses", "Authorization"),
+        ("anthropic-messages", "x-api-key", "/messages", "x-api-key"),
+    ],
+)
+def test_test_provider_connectivity_uses_protocol_specific_request(
+    monkeypatch,
+    provider_type: str,
+    auth_scheme: str,
+    expected_suffix: str,
+    expected_header: str,
+):
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "provider-under-test",
+            "base_url": "https://example.com/v1",
+            "provider_type": provider_type,
+            "auth_scheme": auth_scheme,
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+    client.post(
+        "/admin/models",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider_id,
+            "upstream_model": "model-a",
+            "display_name": "Model A",
+            "capabilities": ["text"],
+            "context_window": 128000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    )
+
+    calls: list[dict] = []
+
+    class DummyResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {"ok": True}
+
+    def fake_request(method: str, url: str, headers: dict, json: dict, timeout: float) -> DummyResponse:
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        f"/admin/providers/{provider_id}/test",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["results"][0]["ok"] is True
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["url"] == f"https://example.com/v1{expected_suffix}"
+    assert calls[0]["headers"][expected_header] in {"Bearer sk-test", "sk-test"}
+    assert calls[0]["timeout"] == 20.0
+    assert calls[0]["json"]["model"] == "model-a"
+    if provider_type == "openai-responses":
+        assert calls[0]["json"]["input"] == "ping"
+    elif provider_type == "anthropic-messages":
+        assert calls[0]["headers"]["anthropic-version"] == "2023-06-01"
+        assert calls[0]["json"]["messages"][0]["content"] == "ping"
+    else:
+        assert calls[0]["json"]["messages"][0]["content"] == "ping"
+
+
+def test_test_provider_connectivity_reports_model_failures(monkeypatch):
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "openai",
+            "base_url": "https://api.example.com/v1",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+    client.post(
+        "/admin/models",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider_id,
+            "upstream_model": "good-model",
+            "display_name": "Good Model",
+            "capabilities": ["text"],
+            "context_window": 128000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    )
+    client.post(
+        "/admin/models",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider_id,
+            "upstream_model": "bad-model",
+            "display_name": "Bad Model",
+            "capabilities": ["text"],
+            "context_window": 128000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    )
+
+    class DummyResponse:
+        def __init__(self, status_code: int, payload: dict):
+            self.status_code = status_code
+            self.is_success = 200 <= status_code < 300
+            self._payload = payload
+            self.text = ""
+
+        def json(self) -> dict:
+            return self._payload
+
+    def fake_request(method: str, url: str, headers: dict, json: dict, timeout: float) -> DummyResponse:
+        if json["model"] == "bad-model":
+            return DummyResponse(404, {"error": {"message": "Model not found"}})
+        return DummyResponse(200, {"ok": True})
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(f"/admin/providers/{provider_id}/test", headers=admin_headers())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is False
+    assert len(payload["results"]) == 2
+    assert any(result["ok"] is False for result in payload["results"])
+    assert any("Model not found" in result["message"] for result in payload["results"])
 
 
 def test_create_model_under_provider():

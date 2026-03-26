@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import time
 from urllib.parse import urlparse
+
+import httpx
 
 from zhaocai_gateway.db.store import SQLiteStore
 
@@ -80,3 +83,158 @@ class ProviderService:
             "ok": bool(ok and auth_ok),
             "message": "Provider input looks valid" if ok and auth_ok else "Invalid provider input",
         }
+
+    def test_connectivity(self, provider_id: int) -> dict:
+        provider = self.store.get_provider(provider_id)
+        if provider is None:
+            raise ValueError(f"Provider {provider_id} not found")
+
+        models = [
+            model
+            for model in self.store.list_models()
+            if model.provider_id == provider_id and model.enabled
+        ]
+        if not models:
+            return {
+                "ok": False,
+                "provider": asdict(provider),
+                "message": "这个供应商还没有可测试的模型。",
+                "results": [],
+            }
+
+        results: list[dict] = []
+        for model in models:
+            started_at = time.perf_counter()
+            try:
+                response = httpx.request(
+                    "POST",
+                    self._build_test_url(provider.base_url, provider.provider_type),
+                    headers=self._build_headers(
+                        auth_scheme=provider.auth_scheme,
+                        api_key=provider.api_key_encrypted,
+                        extra_headers=provider.extra_headers,
+                        provider_type=provider.provider_type,
+                    ),
+                    json=self._build_payload(
+                        provider_type=provider.provider_type,
+                        model_id=model.upstream_model,
+                    ),
+                    timeout=20.0,
+                )
+                latency_ms = int((time.perf_counter() - started_at) * 1000)
+                ok = response.is_success
+                results.append(
+                    {
+                        "model_id": model.upstream_model,
+                        "display_name": model.display_name,
+                        "ok": ok,
+                        "status_code": response.status_code,
+                        "latency_ms": latency_ms,
+                        "message": "测试通过" if ok else self._extract_error_message(response),
+                    }
+                )
+            except httpx.HTTPError as exc:
+                latency_ms = int((time.perf_counter() - started_at) * 1000)
+                results.append(
+                    {
+                        "model_id": model.upstream_model,
+                        "display_name": model.display_name,
+                        "ok": False,
+                        "status_code": None,
+                        "latency_ms": latency_ms,
+                        "message": str(exc),
+                    }
+                )
+
+        passed = sum(1 for item in results if item["ok"])
+        return {
+            "ok": passed == len(results),
+            "provider": asdict(provider),
+            "message": f"已检测 {len(results)} 个模型，成功 {passed} 个，失败 {len(results) - passed} 个。",
+            "results": results,
+        }
+
+    @staticmethod
+    def _build_test_url(base_url: str, provider_type: str) -> str:
+        normalized = (provider_type or "openai-completions").lower()
+        path = "/chat/completions"
+        if normalized == "openai-responses":
+            path = "/responses"
+        elif normalized in {"anthropic", "anthropic-messages"}:
+            path = "/messages"
+
+        normalized_base = base_url.rstrip("/")
+        if normalized_base.endswith(path):
+            return normalized_base
+        return f"{normalized_base}{path}"
+
+    @staticmethod
+    def _build_payload(*, provider_type: str, model_id: str) -> dict:
+        normalized = (provider_type or "openai-completions").lower()
+        if normalized == "openai-responses":
+            return {
+                "model": model_id,
+                "input": "ping",
+                "max_output_tokens": 1,
+            }
+        if normalized in {"anthropic", "anthropic-messages"}:
+            return {
+                "model": model_id,
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+            }
+        return {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1,
+            "temperature": 0,
+        }
+
+    @staticmethod
+    def _build_headers(
+        *,
+        auth_scheme: str,
+        api_key: str,
+        extra_headers: dict[str, str],
+        provider_type: str,
+    ) -> dict[str, str]:
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            **extra_headers,
+        }
+        normalized_auth = (auth_scheme or "bearer").lower()
+        if api_key:
+            if normalized_auth == "x-api-key":
+                headers["x-api-key"] = api_key
+            elif normalized_auth == "basic":
+                headers["Authorization"] = f"Basic {api_key}"
+            else:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+        normalized_provider = (provider_type or "openai-completions").lower()
+        if normalized_provider in {"anthropic", "anthropic-messages"}:
+            headers.setdefault("anthropic-version", "2023-06-01")
+        return headers
+
+    @staticmethod
+    def _extract_error_message(response: httpx.Response) -> str:
+        prefix = f"HTTP {response.status_code}"
+        try:
+            payload = response.json()
+        except ValueError:
+            body = response.text.strip()
+            return f"{prefix}: {body}" if body else prefix
+
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message") or error.get("type")
+                if message:
+                    return f"{prefix}: {message}"
+            detail = payload.get("detail")
+            if isinstance(detail, str) and detail:
+                return f"{prefix}: {detail}"
+            message = payload.get("message")
+            if isinstance(message, str) and message:
+                return f"{prefix}: {message}"
+        return prefix

@@ -178,6 +178,17 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             auth_scheme=payload.auth_scheme,
         )
 
+    @router.post("/providers/{provider_id}/test")
+    def test_provider(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return provider_service.test_connectivity(provider_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
     @router.get("/models")
     def list_models(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)

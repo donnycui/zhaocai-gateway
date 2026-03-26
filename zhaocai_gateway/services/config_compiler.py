@@ -81,9 +81,11 @@ class ConfigCompilerService:
 
     @staticmethod
     def _to_openclaw_api(provider_type: str) -> str:
-        normalized = (provider_type or "openai").lower()
-        if normalized == "anthropic":
+        normalized = (provider_type or "openai-completions").lower()
+        if normalized in {"anthropic", "anthropic-messages"}:
             return "anthropic-messages"
+        if normalized == "openai-responses":
+            return "openai-responses"
         return "openai-completions"
 
     def create_snapshot(self, device_id: int):

@@ -1,6 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
-import { api, type Model, type Provider } from "../lib/api";
+import {
+  api,
+  type Model,
+  type Provider,
+  type ProviderTestReport,
+} from "../lib/api";
 
 interface ProvidersPageProps {
   providers: Provider[];
@@ -8,6 +13,72 @@ interface ProvidersPageProps {
   onRefresh: () => Promise<void>;
   onCreate: () => void;
   onEdit: (providerId: number) => void;
+}
+
+const protocolLabels: Record<string, string> = {
+  "openai-completions": "OpenAI Completions",
+  "openai-responses": "OpenAI Responses",
+  "anthropic-messages": "Anthropic Messages",
+  openai: "OpenAI Completions",
+  anthropic: "Anthropic Messages",
+};
+
+function IconButton({
+  title,
+  onClick,
+  children,
+  disabled = false,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="icon-button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TestIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 3h6v2l-1 1v3.09l4.69 7.82A3 3 0 0 1 16.12 21H7.88a3 3 0 0 1-2.57-4.09L10 9.09V6L9 5V3Zm2 3v3.64l-4.98 8.31a1 1 0 0 0 .86 1.5h8.24a1 1 0 0 0 .86-1.5L13 9.64V6h-2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M15.17 3.59a2 2 0 0 1 2.83 0l2.41 2.41a2 2 0 0 1 0 2.83L9.24 20H4v-5.24L15.17 3.59Zm1.41 1.41L6 15.59V18h2.41L19 7.41 16.58 5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h2v8H7V9Zm4 0h2v8h-2V9Zm4 0h2v8h-2V9ZM6 21a2 2 0 0 1-2-2V8h16v11a2 2 0 0 1-2 2H6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export default function ProvidersPage({
@@ -18,6 +89,8 @@ export default function ProvidersPage({
   onEdit,
 }: ProvidersPageProps) {
   const [syncMessage, setSyncMessage] = useState<string>("");
+  const [testingProviderId, setTestingProviderId] = useState<number | null>(null);
+  const [testReport, setTestReport] = useState<ProviderTestReport | null>(null);
   const modelCounts = useMemo(() => {
     const counts = new Map<number, number>();
     models.forEach((model) => {
@@ -41,6 +114,17 @@ export default function ProvidersPage({
     await onRefresh();
   }
 
+  async function handleTestProvider(providerId: number) {
+    setTestingProviderId(providerId);
+    setSyncMessage("");
+    try {
+      const result = await api.testProvider(providerId);
+      setTestReport(result);
+    } finally {
+      setTestingProviderId(null);
+    }
+  }
+
   return (
     <section className="page">
       <div className="panel">
@@ -57,6 +141,35 @@ export default function ProvidersPage({
           </div>
         </div>
         {syncMessage ? <p className="inline-message">{syncMessage}</p> : null}
+        {testReport ? (
+          <div className="test-results-panel">
+            <div className="panel-header" style={{ marginBottom: 0 }}>
+              <h3>{testReport.provider.name} 测试结果</h3>
+              <p>{testReport.message}</p>
+            </div>
+            {testReport.results.length === 0 ? (
+              <p className="inline-message">当前没有可检测的模型。</p>
+            ) : (
+              <div className="test-result-list">
+                {testReport.results.map((result) => (
+                  <div key={result.model_id} className="test-result-row">
+                    <div className="test-result-main">
+                      <strong>{result.display_name || result.model_id}</strong>
+                      <span>{result.model_id}</span>
+                    </div>
+                    <div className="test-result-meta">
+                      <span className={result.ok ? "status-chip" : "error-chip"}>
+                        {result.ok ? "通过" : "失败"}
+                      </span>
+                      <span>{result.latency_ms} ms</span>
+                    </div>
+                    <p>{result.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
         <table className="table">
           <thead>
             <tr>
@@ -78,17 +191,24 @@ export default function ProvidersPage({
               providers.map((provider) => (
                 <tr key={provider.id}>
                   <td>{provider.name}</td>
-                  <td>{provider.provider_type}</td>
+                  <td>{protocolLabels[provider.provider_type] ?? provider.provider_type}</td>
                   <td className="truncate-cell">{provider.base_url}</td>
                   <td>{modelCounts.get(provider.id) ?? 0}</td>
                   <td>
                     <div className="inline-actions">
-                      <button className="secondary-button" onClick={() => onEdit(provider.id)}>
-                        编辑
-                      </button>
-                      <button className="secondary-button" onClick={() => void handleDeleteProvider(provider.id)}>
-                        删除
-                      </button>
+                      <IconButton
+                        title="测试供应商"
+                        onClick={() => void handleTestProvider(provider.id)}
+                        disabled={testingProviderId === provider.id}
+                      >
+                        <TestIcon />
+                      </IconButton>
+                      <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
+                        <DeleteIcon />
+                      </IconButton>
                     </div>
                   </td>
                 </tr>

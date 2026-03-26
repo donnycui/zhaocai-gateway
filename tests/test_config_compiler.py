@@ -119,3 +119,36 @@ def test_snapshot_etag_changes_when_payload_changes(store):
     assert first_snapshot.version == 1
     assert second_snapshot.version == 2
     assert first_snapshot.etag != second_snapshot.etag
+
+
+def test_compile_uses_openai_responses_protocol(store):
+    provider = store.create_provider(
+        name="responses-provider",
+        provider_type="openai-responses",
+        base_url="https://example.com/v1",
+        auth_scheme="bearer",
+        api_key_encrypted="enc:test",
+        extra_headers={},
+        enabled=True,
+    )
+    model = store.create_model(
+        provider_id=provider.id,
+        upstream_model="gpt-5.4",
+        display_name="GPT-5.4",
+        capabilities=["text"],
+        context_window=200000,
+        max_tokens=32000,
+        enabled=True,
+    )
+    device = store.create_device(
+        name="mac",
+        device_type="mac",
+        hostname="mac.local",
+        platform="darwin",
+        active=True,
+    )
+    store.set_device_model_bindings(device_id=device.id, model_ids=[model.id])
+
+    payload = ConfigCompilerService(store).compile_device_config(device.id)
+
+    assert payload["models"]["providers"]["responses-provider"]["api"] == "openai-responses"

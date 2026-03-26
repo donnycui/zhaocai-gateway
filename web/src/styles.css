@@ -320,6 +320,33 @@ button {
   flex-wrap: wrap;
 }
 
+.icon-button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  background: rgba(19, 34, 56, 0.06);
+  color: #132238;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: rgba(18, 121, 185, 0.12);
+  color: #145b88;
+}
+
+.icon-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .device-card strong {
   font-size: 1rem;
 }
@@ -597,6 +624,49 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.test-results-panel {
+  margin: 14px 0 18px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(246, 250, 255, 0.84);
+  display: grid;
+  gap: 14px;
+}
+
+.test-result-list {
+  display: grid;
+  gap: 12px;
+}
+
+.test-result-row {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.test-result-main,
+.test-result-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.test-result-main span,
+.test-result-row p,
+.test-result-meta span:last-child {
+  color: #5c6d82;
+}
+
+.test-result-row p {
+  margin: 0;
 }
 
 @media (max-width: 1024px) {
