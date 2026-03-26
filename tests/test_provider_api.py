@@ -179,8 +179,153 @@ def test_sync_openrouter_free_models(monkeypatch):
     payload = response.json()
     assert payload["free_models_found"] == 1
     assert payload["created"] == 1
+    assert payload["selected_top5"] == ["google/gemini-2.0-flash-exp:free"]
 
     models_response = client.get("/admin/models", headers=admin_headers())
     models = models_response.json()["models"]
     assert len(models) == 1
     assert models[0]["upstream_model"] == "google/gemini-2.0-flash-exp:free"
+    assert models[0]["provider_name"] == "openrouter-free"
+
+
+def test_sync_openrouter_free_models_keeps_only_top_five(monkeypatch):
+    client = create_test_client()
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": f"vendor/model-{index}:free",
+                        "name": f"Model {index}",
+                        "pricing": {"prompt": "0", "completion": "0"},
+                        "context_length": 200000 - (index * 1000),
+                    }
+                    for index in range(8)
+                ]
+            }
+
+    monkeypatch.setattr(httpx, "get", lambda url, timeout: DummyResponse())
+
+    response = client.post("/admin/sync/openrouter-free", headers=admin_headers())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["selected_top5"]) == 5
+
+    models_response = client.get("/admin/models", headers=admin_headers())
+    models = models_response.json()["models"]
+    free_models = [
+        model
+        for model in models
+        if model["provider_name"] == "openrouter-free"
+    ]
+    assert len(free_models) == 5
+
+
+def test_sync_openrouter_free_models_guarantees_multimodal(monkeypatch):
+    client = create_test_client()
+
+    free_models = []
+    for index in range(6):
+        item = {
+            "id": f"vendor/text-{index}:free",
+            "name": f"Text {index}",
+            "pricing": {"prompt": "0", "completion": "0"},
+            "context_length": 200000 - (index * 1000),
+        }
+        free_models.append(item)
+
+    free_models.append(
+        {
+            "id": "vendor/vision-1:free",
+            "name": "Vision 1",
+            "pricing": {"prompt": "0", "completion": "0"},
+            "context_length": 64000,
+            "input_modalities": ["text", "image"],
+        }
+    )
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"data": free_models}
+
+    monkeypatch.setattr(httpx, "get", lambda url, timeout: DummyResponse())
+
+    response = client.post("/admin/sync/openrouter-free", headers=admin_headers())
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["selected_top5"]) == 5
+    assert "vendor/vision-1:free" in payload["selected_top5"]
+
+    models_response = client.get("/admin/models", headers=admin_headers())
+    models = models_response.json()["models"]
+    free_models = [
+        model
+        for model in models
+        if model["provider_name"] == "openrouter-free"
+    ]
+    assert len(free_models) == 5
+    assert any(model["upstream_model"] == "vendor/vision-1:free" for model in free_models)
+
+
+def test_sync_openrouter_free_models_cleans_legacy_free_rows(monkeypatch):
+    client = create_test_client()
+
+    provider = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "openrouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "provider_type": "openai",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    ).json()["provider"]
+    client.post(
+        "/admin/models",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider["id"],
+            "upstream_model": "legacy/free-model:free",
+            "display_name": "Legacy Free",
+            "capabilities": ["text"],
+            "context_window": 32000,
+            "max_tokens": 4096,
+            "enabled": True,
+        },
+    )
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": "vendor/new-1:free",
+                        "name": "New 1",
+                        "pricing": {"prompt": "0", "completion": "0"},
+                        "context_length": 128000,
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(httpx, "get", lambda url, timeout: DummyResponse())
+
+    response = client.post("/admin/sync/openrouter-free", headers=admin_headers())
+
+    assert response.status_code == 200
+    models_response = client.get("/admin/models", headers=admin_headers())
+    models = models_response.json()["models"]
+    assert all(model["upstream_model"] != "legacy/free-model:free" for model in models)

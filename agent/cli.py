@@ -9,6 +9,7 @@ from agent.client import AgentClient
 from agent.config import (
     DEFAULT_AGENT_CONFIG_PATH,
     DEFAULT_OUTPUT_PATH,
+    DEFAULT_RELOAD_COMMAND,
     AgentConfig,
     load_agent_config,
     save_agent_config,
@@ -42,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register.add_argument(
         "--reload-cmd",
-        default="",
+        default=DEFAULT_RELOAD_COMMAND,
         help="Optional command to reload OpenClaw after config updates",
     )
     register.add_argument("--hostname", default=socket.gethostname(), help="Hostname to register")

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agent.cli import build_parser
-from agent.config import AgentConfig, load_agent_config, save_agent_config
+from agent.config import DEFAULT_RELOAD_COMMAND, AgentConfig, load_agent_config, save_agent_config
 from agent.install import launchd_install_artifact, systemd_install_artifact, write_install_artifact
 from agent.openclaw_writer import write_openclaw_config
 
@@ -26,6 +26,16 @@ def test_agent_config_roundtrip(tmp_path: Path):
     assert loaded.last_version == 3
 
 
+def test_agent_default_reload_command():
+    config = AgentConfig(
+        server_url="https://raspberrypi.tailnet.ts.net",
+        sync_token="sync-token",
+        device_id=1,
+    )
+
+    assert config.reload_command == DEFAULT_RELOAD_COMMAND
+
+
 def test_write_openclaw_config_creates_backup(tmp_path: Path):
     target = tmp_path / "openclaw.json"
     target.write_text('{"old": true}', encoding="utf-8")
@@ -36,6 +46,36 @@ def test_write_openclaw_config_creates_backup(tmp_path: Path):
     assert Path(backup_path).exists()
     assert target.read_text(encoding="utf-8").strip().startswith("{")
     assert '"new": true' in target.read_text(encoding="utf-8").lower()
+
+
+def test_write_openclaw_config_merges_into_existing_document(tmp_path: Path):
+    target = tmp_path / "openclaw.json"
+    target.write_text(
+        '{"channels":{"telegram":{"enabled":true}},"models":{"providers":{"old":{"api":"openai-completions","models":[]}}}}',
+        encoding="utf-8",
+    )
+
+    write_openclaw_config(
+        target,
+        {
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-4.1", "name": "GPT-4.1"}],
+                    }
+                }
+            },
+            "agents": {"defaults": {"model": {"primary": "new/gpt-4.1", "fallbacks": []}}},
+        },
+    )
+
+    merged = target.read_text(encoding="utf-8")
+
+    assert '"telegram"' in merged
+    assert '"old"' in merged
+    assert '"new"' in merged
+    assert '"primary": "new/gpt-4.1"' in merged
 
 
 def test_agent_cli_has_expected_commands():

@@ -7,6 +7,7 @@ from pathlib import Path
 
 DEFAULT_AGENT_CONFIG_PATH = Path.home() / ".zhaocai-gateway" / "agent.json"
 DEFAULT_OUTPUT_PATH = Path.home() / ".openclaw" / "openclaw.json"
+DEFAULT_RELOAD_COMMAND = "openclaw gateway restart"
 
 
 @dataclass
@@ -15,7 +16,7 @@ class AgentConfig:
     sync_token: str
     device_id: int
     output_path: str = str(DEFAULT_OUTPUT_PATH)
-    reload_command: str = ""
+    reload_command: str = DEFAULT_RELOAD_COMMAND
     last_version: int = 0
     last_etag: str = ""
 
