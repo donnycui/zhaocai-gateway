@@ -253,6 +253,44 @@ def test_create_model_under_provider():
     assert payload["model"]["upstream_model"] == "gpt-4.1"
 
 
+def test_create_model_persists_reasoning_capability():
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+
+    response = client.post(
+        "/admin/models",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider_id,
+            "upstream_model": "o1",
+            "display_name": "o1",
+            "capabilities": ["text"],
+            "reasoning": True,
+            "input_modalities": ["text"],
+            "context_window": 200000,
+            "max_tokens": 16000,
+            "enabled": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model"]["reasoning"] is True
+    assert "reasoning" in payload["model"]["capabilities"]
+
+
 def test_list_providers_and_models():
     client = create_test_client()
     provider_response = client.post(

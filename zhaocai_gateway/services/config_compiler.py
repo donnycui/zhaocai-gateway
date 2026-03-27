@@ -33,7 +33,7 @@ class ConfigCompilerService:
                 "api": self._to_openclaw_api(provider.provider_type),
                 "models": provider_models[provider_key],
             }
-            reasoning = "reasoning" in model.capabilities
+            reasoning = model.reasoning
             input_types = model.input_modalities or ["text"]
             model_entry = {
                 "id": model.upstream_model,

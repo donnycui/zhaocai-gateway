@@ -11,6 +11,27 @@ class ModelService:
     def __init__(self, store: SQLiteStore) -> None:
         self.store = store
 
+    @staticmethod
+    def _normalize_capabilities(
+        capabilities: list[str],
+        *,
+        reasoning: bool,
+        input_modalities: list[str],
+    ) -> list[str]:
+        normalized: list[str] = []
+        for capability in capabilities:
+            text = str(capability).strip().lower()
+            if text and text not in normalized:
+                normalized.append(text)
+
+        if "text" not in normalized:
+            normalized.insert(0, "text")
+        if reasoning and "reasoning" not in normalized:
+            normalized.append("reasoning")
+        if "image" in input_modalities and "multimodal" not in normalized:
+            normalized.append("multimodal")
+        return normalized
+
     def list(self) -> list[dict]:
         return [asdict(model) for model in self.store.list_models()]
 
@@ -34,11 +55,16 @@ class ModelService:
         cost_cache_write: float | None,
         enabled: bool,
     ) -> dict:
+        normalized_capabilities = self._normalize_capabilities(
+            capabilities,
+            reasoning=reasoning,
+            input_modalities=input_modalities,
+        )
         model = self.store.create_model(
             provider_id=provider_id,
             upstream_model=upstream_model,
             display_name=display_name,
-            capabilities=capabilities,
+            capabilities=normalized_capabilities,
             reasoning=reasoning,
             input_modalities=input_modalities,
             context_window=context_window,
@@ -68,11 +94,16 @@ class ModelService:
         cost_cache_write: float | None,
         enabled: bool,
     ) -> dict:
+        normalized_capabilities = self._normalize_capabilities(
+            capabilities,
+            reasoning=reasoning,
+            input_modalities=input_modalities,
+        )
         model = self.store.update_model(
             model_id,
             upstream_model=upstream_model,
             display_name=display_name,
-            capabilities=capabilities,
+            capabilities=normalized_capabilities,
             reasoning=reasoning,
             input_modalities=input_modalities,
             context_window=context_window,

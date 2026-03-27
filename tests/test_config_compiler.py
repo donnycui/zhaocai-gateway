@@ -190,3 +190,39 @@ def test_compile_omits_null_numeric_fields_and_keeps_modalities(store):
     assert model_payload["input"] == ["text", "image"]
     assert "contextWindow" not in model_payload
     assert "maxTokens" not in model_payload
+
+
+def test_compile_uses_reasoning_boolean_not_capabilities(store):
+    provider = store.create_provider(
+        name="reasoning-provider",
+        provider_type="openai-completions",
+        base_url="https://example.com/v1",
+        auth_scheme="bearer",
+        api_key_encrypted="enc:test",
+        extra_headers={},
+        enabled=True,
+    )
+    model = store.create_model(
+        provider_id=provider.id,
+        upstream_model="reasoning-model",
+        display_name="Reasoning Model",
+        capabilities=["text"],
+        reasoning=True,
+        input_modalities=["text"],
+        context_window=128000,
+        max_tokens=16000,
+        enabled=True,
+    )
+    device = store.create_device(
+        name="reasoner",
+        device_type="mac",
+        hostname="reasoner.local",
+        platform="darwin",
+        active=True,
+    )
+    store.set_device_model_bindings(device_id=device.id, model_ids=[model.id])
+
+    payload = ConfigCompilerService(store).compile_device_config(device.id)
+    model_payload = payload["models"]["providers"]["reasoning-provider"]["models"][0]
+
+    assert model_payload["reasoning"] is True
