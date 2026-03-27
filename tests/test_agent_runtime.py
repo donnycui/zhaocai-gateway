@@ -2,7 +2,15 @@ from pathlib import Path
 
 from agent.cli import build_parser
 from agent.config import DEFAULT_RELOAD_COMMAND, AgentConfig, load_agent_config, save_agent_config
-from agent.install import launchd_install_artifact, systemd_install_artifact, write_install_artifact
+from agent.install import (
+    collect_doctor_checks,
+    detect_service_manager,
+    install_artifact_for_manager,
+    install_next_steps,
+    launchd_install_artifact,
+    systemd_install_artifact,
+    write_install_artifact,
+)
 from agent.openclaw_writer import write_openclaw_config
 
 
@@ -83,6 +91,8 @@ def test_agent_cli_has_expected_commands():
     subparsers = parser._subparsers._actions[1].choices
 
     assert sorted(subparsers.keys()) == [
+        "doctor",
+        "install",
         "install-launchd",
         "install-systemd",
         "register",
@@ -132,3 +142,73 @@ def test_write_install_artifact(tmp_path: Path):
 
     assert path.exists()
     assert "zhaocai-agent.service" in str(path)
+
+
+def test_detect_service_manager():
+    assert detect_service_manager("Linux") == "systemd"
+    assert detect_service_manager("Darwin") == "launchd"
+
+
+def test_install_artifact_for_manager_launchd(tmp_path: Path):
+    artifact = install_artifact_for_manager(
+        service_manager="launchd",
+        python_path="/Users/donny/.venv/bin/python",
+        config_path="/Users/donny/.zhaocai-gateway/agent.json",
+        interval_seconds=45,
+        working_directory="/Users/donny/.zhaocai-gateway",
+        output_path=str(tmp_path / "com.zhaocai.agent.plist"),
+    )
+
+    assert artifact.path.name == "com.zhaocai.agent.plist"
+    assert "<string>agent.cli</string>" in artifact.content
+
+
+def test_install_next_steps():
+    systemd_steps = install_next_steps("systemd", "/tmp/zhaocai-agent.service")
+    launchd_steps = install_next_steps("launchd", "/tmp/com.zhaocai.agent.plist")
+
+    assert systemd_steps[0] == "systemctl --user daemon-reload"
+    assert "launchctl load /tmp/com.zhaocai.agent.plist" in launchd_steps[-1]
+
+
+def test_collect_doctor_checks_with_valid_config(tmp_path: Path):
+    config_path = tmp_path / "agent.json"
+    output_path = tmp_path / "openclaw" / "openclaw.json"
+    service_path = tmp_path / "zhaocai-agent.service"
+    service_path.write_text("[Unit]\nDescription=Test\n", encoding="utf-8")
+    save_agent_config(
+        AgentConfig(
+            server_url="https://raspberrypi.tailnet.ts.net",
+            sync_token="sync-token",
+            device_id=3,
+            output_path=str(output_path),
+            reload_command="echo ok",
+        ),
+        config_path,
+    )
+
+    checks = collect_doctor_checks(
+        config_path=config_path,
+        service_manager="systemd",
+        service_path=service_path,
+        working_directory=tmp_path / ".zhaocai-gateway",
+        command_lookup=lambda name: f"/usr/bin/{name}",
+    )
+
+    assert all(check.ok for check in checks)
+
+
+def test_collect_doctor_checks_reports_missing_config(tmp_path: Path):
+    service_path = tmp_path / "missing.service"
+    checks = collect_doctor_checks(
+        config_path=tmp_path / "missing-agent.json",
+        service_manager="systemd",
+        service_path=service_path,
+        working_directory=tmp_path / ".zhaocai-gateway",
+        command_lookup=lambda name: None,
+    )
+
+    by_name = {check.name: check for check in checks}
+    assert by_name["agent 配置"].ok is False
+    assert by_name["重启命令"].ok is False
+    assert by_name["systemd 服务文件"].ok is False

@@ -15,8 +15,12 @@ from agent.config import (
     save_agent_config,
 )
 from agent.install import (
+    collect_doctor_checks,
     default_python_path,
     default_working_directory,
+    detect_service_manager,
+    install_artifact_for_manager,
+    install_next_steps,
     launchd_install_artifact,
     systemd_install_artifact,
     write_install_artifact,
@@ -63,6 +67,64 @@ def build_parser() -> argparse.ArgumentParser:
         help="Agent config path",
     )
     run_parser.add_argument("--interval", type=int, default=60, help="Sync interval in seconds")
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Generate the recommended background service file for this platform",
+    )
+    install_parser.add_argument(
+        "--config-path",
+        default=str(DEFAULT_AGENT_CONFIG_PATH),
+        help="Agent config path",
+    )
+    install_parser.add_argument("--interval", type=int, default=60, help="Sync interval in seconds")
+    install_parser.add_argument(
+        "--python-path",
+        default=default_python_path(),
+        help="Python interpreter path used by the service",
+    )
+    install_parser.add_argument(
+        "--working-directory",
+        default=default_working_directory(),
+        help="Working directory for runtime logs and state",
+    )
+    install_parser.add_argument(
+        "--service-manager",
+        choices=["auto", "systemd", "launchd"],
+        default="auto",
+        help="Override the detected background service manager",
+    )
+    install_parser.add_argument(
+        "--output",
+        default="",
+        help="Optional explicit output path for the generated service file",
+    )
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check whether this node is ready for background sync",
+    )
+    doctor_parser.add_argument(
+        "--config-path",
+        default=str(DEFAULT_AGENT_CONFIG_PATH),
+        help="Agent config path",
+    )
+    doctor_parser.add_argument(
+        "--service-manager",
+        choices=["auto", "systemd", "launchd"],
+        default="auto",
+        help="Override the detected background service manager",
+    )
+    doctor_parser.add_argument(
+        "--service-path",
+        default="",
+        help="Optional explicit service definition path to check",
+    )
+    doctor_parser.add_argument(
+        "--working-directory",
+        default=default_working_directory(),
+        help="Working directory to check for logs and runtime state",
+    )
 
     install_systemd = subparsers.add_parser(
         "install-systemd",
@@ -159,6 +221,33 @@ def handle_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_install(args: argparse.Namespace) -> int:
+    try:
+        service_manager = (
+            detect_service_manager(platform.system())
+            if args.service_manager == "auto"
+            else args.service_manager
+        )
+    except ValueError as exc:
+        print(str(exc))
+        return 2
+
+    artifact = install_artifact_for_manager(
+        service_manager=service_manager,
+        python_path=args.python_path,
+        config_path=args.config_path,
+        interval_seconds=args.interval,
+        working_directory=args.working_directory,
+        output_path=args.output or None,
+    )
+    path = write_install_artifact(artifact)
+    print(f"{service_manager} service written to {path}")
+    print("next:")
+    for step in install_next_steps(service_manager, path):
+        print(f"  {step}")
+    return 0
+
+
 def handle_install_systemd(args: argparse.Namespace) -> int:
     artifact = systemd_install_artifact(
         python_path=args.python_path,
@@ -187,6 +276,32 @@ def handle_install_launchd(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_doctor(args: argparse.Namespace) -> int:
+    try:
+        service_manager = (
+            detect_service_manager(platform.system())
+            if args.service_manager == "auto"
+            else args.service_manager
+        )
+    except ValueError as exc:
+        print(str(exc))
+        return 2
+
+    checks = collect_doctor_checks(
+        config_path=args.config_path,
+        service_manager=service_manager,
+        service_path=args.service_path or None,
+        working_directory=args.working_directory,
+    )
+    ok = True
+    print(f"service manager: {service_manager}")
+    for check in checks:
+        status = "PASS" if check.ok else "FAIL"
+        print(f"[{status}] {check.name}: {check.detail}")
+        ok = ok and check.ok
+    return 0 if ok else 1
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -197,10 +312,14 @@ def main() -> int:
         return handle_sync_once(args)
     if args.command == "run":
         return handle_run(args)
+    if args.command == "install":
+        return handle_install(args)
     if args.command == "install-systemd":
         return handle_install_systemd(args)
     if args.command == "install-launchd":
         return handle_install_launchd(args)
+    if args.command == "doctor":
+        return handle_doctor(args)
 
     parser.error("Unknown command")
     return 2

@@ -222,17 +222,44 @@ cd ..
 .venv/bin/python -m agent.cli run --interval 60
 ```
 
-生成 Linux `systemd` 用户服务文件：
+推荐安装后台常驻服务：
+
+```bash
+.venv/bin/python -m agent.cli install
+```
+
+运行安装自检：
+
+```bash
+.venv/bin/python -m agent.cli doctor
+```
+
+如果需要显式指定服务管理器：
+
+Linux `systemd` 用户服务文件：
 
 ```bash
 .venv/bin/python -m agent.cli install-systemd
 ```
 
-生成 macOS `launchd` plist：
+macOS `launchd` plist：
 
 ```bash
 .venv/bin/python -m agent.cli install-launchd
 ```
+
+`install` 会根据当前平台自动选择：
+
+- `Linux -> systemd`
+- `macOS -> launchd`
+
+`doctor` 会检查：
+
+- agent 配置文件是否存在
+- OpenClaw 配置目录是否可写
+- `openclaw gateway restart` 是否可执行
+- `systemd/launchd` 服务文件是否已经生成
+- `~/.zhaocai-gateway` 工作目录是否可写
 
 ## Repo Layout
 
