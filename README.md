@@ -261,6 +261,137 @@ macOS `launchd` plist：
 - `systemd/launchd` 服务文件是否已经生成
 - `~/.zhaocai-gateway` 工作目录是否可写
 
+### 6. 节点接入实操
+
+下面这套流程适合：
+
+- 树莓派运行控制面
+- Mac / VPS 运行 OpenClaw
+- 节点通过 `node-agent` 拉取模型相关配置
+
+在开始之前，先在控制面里完成两件事：
+
+1. 在 `节点接入` 页面创建目标设备
+2. 为该设备签发一次性 `pairing token`
+
+同时准备好你的控制面地址，推荐直接使用 Tailscale 地址，例如：
+
+- `https://raspberrypi.tailnet.ts.net`
+
+#### Mac 节点
+
+首次准备：
+
+```bash
+git clone git@github.com:donnycui/zhaocai-gateway.git
+cd zhaocai-gateway
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+注册并立即同步一次：
+
+```bash
+.venv/bin/python -m agent.cli register \
+  --server https://raspberrypi.tailnet.ts.net \
+  --token YOUR_PAIRING_TOKEN
+
+.venv/bin/python -m agent.cli sync-once
+```
+
+检查本机是否具备常驻运行条件：
+
+```bash
+.venv/bin/python -m agent.cli doctor
+```
+
+安装为 macOS 后台服务：
+
+```bash
+.venv/bin/python -m agent.cli install
+```
+
+安装命令会生成：
+
+- `~/Library/LaunchAgents/com.zhaocai.agent.plist`
+
+然后按 CLI 输出执行：
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.zhaocai.agent.plist >/dev/null 2>&1 || true
+launchctl load ~/Library/LaunchAgents/com.zhaocai.agent.plist
+```
+
+#### Linux / VPS 节点
+
+首次准备：
+
+```bash
+git clone git@github.com:donnycui/zhaocai-gateway.git
+cd zhaocai-gateway
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+注册并立即同步一次：
+
+```bash
+.venv/bin/python -m agent.cli register \
+  --server https://raspberrypi.tailnet.ts.net \
+  --token YOUR_PAIRING_TOKEN
+
+.venv/bin/python -m agent.cli sync-once
+```
+
+运行自检：
+
+```bash
+.venv/bin/python -m agent.cli doctor --service-manager systemd
+```
+
+安装为 `systemd` 用户服务：
+
+```bash
+.venv/bin/python -m agent.cli install --service-manager systemd
+```
+
+安装命令会生成：
+
+- `~/.config/systemd/user/zhaocai-agent.service`
+
+然后按 CLI 输出执行：
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now zhaocai-agent.service
+systemctl --user status zhaocai-agent.service
+```
+
+#### 每次配置更新后会发生什么
+
+`node-agent` 每次拿到新配置后会自动：
+
+1. 合并写入本机 `~/.openclaw/openclaw.json`
+2. 仅更新模型相关区块
+3. 执行：
+
+```bash
+openclaw gateway restart
+```
+
+如果你想先手动验证，也可以直接运行：
+
+```bash
+.venv/bin/python -m agent.cli sync-once
+```
+
+成功时会看到类似输出：
+
+```text
+sync updated version=3 etag="..."
+backup=/Users/yourname/.openclaw/openclaw.json.bak
+```
+
 ## Repo Layout
 
 ### v2.0 phase 1
