@@ -57,6 +57,7 @@ export default function ProviderEditorPage({
   const isCreateMode = providerId == null;
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [provider, setProvider] = useState({
     name: "",
     base_url: "",
@@ -110,74 +111,83 @@ export default function ProviderEditorPage({
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
     setMessage("");
+    setLoading(true);
     const authScheme = provider.provider_type === "anthropic-messages" ? "x-api-key" : "bearer";
 
-    let activeProviderId = providerId;
-    if (isCreateMode) {
-      const created = await api.createProvider({
-        name: provider.name,
-        base_url: provider.base_url,
-        provider_type: provider.provider_type,
-        auth_scheme: authScheme,
-        api_key: provider.api_key,
-        extra_headers: {},
-      });
-      activeProviderId = created.id;
-    } else if (activeProviderId != null) {
-      await api.updateProvider(activeProviderId, {
-        name: provider.name,
-        base_url: provider.base_url,
-        provider_type: provider.provider_type,
-        auth_scheme: authScheme,
-        api_key: provider.api_key,
-        enabled: provider.enabled,
-        extra_headers: {},
-      });
-    }
-
-    if (activeProviderId == null) {
-      throw new Error("Provider ID is missing");
-    }
-
-    const existing = isCreateMode ? [] : (await api.getProvider(activeProviderId)).models;
-    const existingIds = new Set(existing.map((model) => model.id));
-    const nextIds = new Set<number>();
-
-    for (const model of models.filter((entry) => entry.upstream_model.trim() && entry.display_name.trim())) {
-      const payload = {
-        upstream_model: model.upstream_model.trim(),
-        display_name: model.display_name.trim(),
-        capabilities: ["text"],
-        reasoning: model.reasoning,
-        input_modalities: model.input_modalities,
-        context_window: model.context_window ? Number(model.context_window) : null,
-        max_tokens: model.max_tokens ? Number(model.max_tokens) : null,
-        cost_input: model.cost_input ? Number(model.cost_input) : null,
-        cost_output: model.cost_output ? Number(model.cost_output) : null,
-        cost_cache_read: model.cost_cache_read ? Number(model.cost_cache_read) : null,
-        cost_cache_write: model.cost_cache_write ? Number(model.cost_cache_write) : null,
-        enabled: true,
-      };
-      if (model.id) {
-        nextIds.add(model.id);
-        await api.updateModel(model.id, payload);
-      } else {
-        const created = await api.createModel({
-          provider_id: activeProviderId,
-          ...payload,
+    try {
+      let activeProviderId = providerId;
+      if (isCreateMode) {
+        const created = await api.createProvider({
+          name: provider.name,
+          base_url: provider.base_url,
+          provider_type: provider.provider_type,
+          auth_scheme: authScheme,
+          api_key: provider.api_key,
+          extra_headers: {},
         });
-        nextIds.add(created.id);
+        activeProviderId = created.id;
+      } else if (activeProviderId != null) {
+        await api.updateProvider(activeProviderId, {
+          name: provider.name,
+          base_url: provider.base_url,
+          provider_type: provider.provider_type,
+          auth_scheme: authScheme,
+          api_key: provider.api_key,
+          enabled: provider.enabled,
+          extra_headers: {},
+        });
       }
-    }
 
-    for (const existingModelId of existingIds) {
-      if (!nextIds.has(existingModelId)) {
-        await api.deleteModel(existingModelId);
+      if (activeProviderId == null) {
+        throw new Error("Provider ID is missing");
       }
-    }
 
-    setMessage("保存成功。");
-    await onSaved();
+      const existing = isCreateMode ? [] : (await api.getProvider(activeProviderId)).models;
+      const existingIds = new Set(existing.map((model) => model.id));
+      const nextIds = new Set<number>();
+
+      for (const model of models.filter((entry) => entry.upstream_model.trim() && entry.display_name.trim())) {
+        const payload = {
+          upstream_model: model.upstream_model.trim(),
+          display_name: model.display_name.trim(),
+          capabilities: ["text"],
+          reasoning: model.reasoning,
+          input_modalities: model.input_modalities,
+          context_window: model.context_window ? Number(model.context_window) : null,
+          max_tokens: model.max_tokens ? Number(model.max_tokens) : null,
+          cost_input: model.cost_input ? Number(model.cost_input) : null,
+          cost_output: model.cost_output ? Number(model.cost_output) : null,
+          cost_cache_read: model.cost_cache_read ? Number(model.cost_cache_read) : null,
+          cost_cache_write: model.cost_cache_write ? Number(model.cost_cache_write) : null,
+          enabled: true,
+        };
+        if (model.id) {
+          nextIds.add(model.id);
+          await api.updateModel(model.id, payload);
+        } else {
+          const created = await api.createModel({
+            provider_id: activeProviderId,
+            ...payload,
+          });
+          nextIds.add(created.id);
+        }
+      }
+
+      for (const existingModelId of existingIds) {
+        if (!nextIds.has(existingModelId)) {
+          await api.deleteModel(existingModelId);
+        }
+      }
+
+      setMessageTone("success");
+      setMessage("保存成功。");
+      await onSaved();
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "保存失败。");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -197,6 +207,11 @@ export default function ProviderEditorPage({
             </button>
           </div>
         </div>
+        {message ? (
+          <p className={messageTone === "success" ? "inline-message" : "error-inline-message"}>
+            {message}
+          </p>
+        ) : null}
 
         <div className="editor-grid">
           <label>
@@ -388,7 +403,6 @@ export default function ProviderEditorPage({
           </button>
         </div>
 
-        {message ? <p className="inline-message">{message}</p> : null}
       </form>
     </section>
   );

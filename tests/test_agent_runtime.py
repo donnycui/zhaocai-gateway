@@ -59,7 +59,7 @@ def test_write_openclaw_config_creates_backup(tmp_path: Path):
 def test_write_openclaw_config_merges_into_existing_document(tmp_path: Path):
     target = tmp_path / "openclaw.json"
     target.write_text(
-        '{"channels":{"telegram":{"enabled":true}},"models":{"providers":{"old":{"api":"openai-completions","models":[]}}}}',
+        '{"channels":{"telegram":{"enabled":true}},"models":{"providers":{"old":{"api":"openai-completions","models":[]}}},"agents":{"defaults":{"compaction":{"mode":"safeguard"},"models":{"old/gpt-4.1":{"alias":"old"}},"model":{"primary":"old/gpt-4.1","fallbacks":[]}}}}',
         encoding="utf-8",
     )
 
@@ -81,8 +81,10 @@ def test_write_openclaw_config_merges_into_existing_document(tmp_path: Path):
     merged = target.read_text(encoding="utf-8")
 
     assert '"telegram"' in merged
-    assert '"old"' in merged
     assert '"new"' in merged
+    assert '"old":{"api"' not in merged
+    assert '"old/gpt-4.1"' not in merged
+    assert '"compaction"' in merged
     assert '"primary": "new/gpt-4.1"' in merged
 
 

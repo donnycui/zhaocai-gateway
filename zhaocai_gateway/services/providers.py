@@ -32,11 +32,15 @@ class ProviderService:
         api_key: str,
         extra_headers: dict[str, str],
     ) -> dict:
+        normalized_name = name.strip()
+        normalized_base_url = base_url.strip()
+        normalized_provider_type = provider_type.strip()
+        normalized_auth_scheme = auth_scheme.strip()
         provider = self.store.create_provider(
-            name=name,
-            provider_type=provider_type,
-            base_url=base_url,
-            auth_scheme=auth_scheme,
+            name=normalized_name,
+            provider_type=normalized_provider_type,
+            base_url=normalized_base_url,
+            auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
             extra_headers=extra_headers,
             enabled=True,
@@ -55,12 +59,16 @@ class ProviderService:
         extra_headers: dict[str, str],
         enabled: bool,
     ) -> dict:
+        normalized_name = name.strip()
+        normalized_base_url = base_url.strip()
+        normalized_provider_type = provider_type.strip()
+        normalized_auth_scheme = auth_scheme.strip()
         provider = self.store.update_provider(
             provider_id,
-            name=name,
-            base_url=base_url,
-            provider_type=provider_type,
-            auth_scheme=auth_scheme,
+            name=normalized_name,
+            base_url=normalized_base_url,
+            provider_type=normalized_provider_type,
+            auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
             extra_headers=extra_headers,
             enabled=enabled,
@@ -76,9 +84,9 @@ class ProviderService:
         base_url: str,
         auth_scheme: str,
     ) -> dict:
-        parsed = urlparse(base_url)
+        parsed = urlparse(base_url.strip())
         ok = parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-        auth_ok = auth_scheme in {"bearer", "x-api-key", "basic"}
+        auth_ok = auth_scheme.strip().lower() in {"bearer", "x-api-key", "basic"}
         return {
             "ok": bool(ok and auth_ok),
             "message": "Provider input looks valid" if ok and auth_ok else "Invalid provider input",
@@ -156,21 +164,21 @@ class ProviderService:
 
     @staticmethod
     def _build_test_url(base_url: str, provider_type: str) -> str:
-        normalized = (provider_type or "openai-completions").lower()
+        normalized = (provider_type or "openai-completions").strip().lower()
         path = "/chat/completions"
         if normalized == "openai-responses":
             path = "/responses"
         elif normalized in {"anthropic", "anthropic-messages"}:
             path = "/messages"
 
-        normalized_base = base_url.rstrip("/")
+        normalized_base = base_url.strip().rstrip("/")
         if normalized_base.endswith(path):
             return normalized_base
         return f"{normalized_base}{path}"
 
     @staticmethod
     def _build_payload(*, provider_type: str, model_id: str) -> dict:
-        normalized = (provider_type or "openai-completions").lower()
+        normalized = (provider_type or "openai-completions").strip().lower()
         if normalized == "openai-responses":
             return {
                 "model": model_id,
@@ -202,7 +210,7 @@ class ProviderService:
             "Content-Type": "application/json",
             **extra_headers,
         }
-        normalized_auth = (auth_scheme or "bearer").lower()
+        normalized_auth = (auth_scheme or "bearer").strip().lower()
         if api_key:
             if normalized_auth == "x-api-key":
                 headers["x-api-key"] = api_key
@@ -211,7 +219,7 @@ class ProviderService:
             else:
                 headers["Authorization"] = f"Bearer {api_key}"
 
-        normalized_provider = (provider_type or "openai-completions").lower()
+        normalized_provider = (provider_type or "openai-completions").strip().lower()
         if normalized_provider in {"anthropic", "anthropic-messages"}:
             headers.setdefault("anthropic-version", "2023-06-01")
         return headers
