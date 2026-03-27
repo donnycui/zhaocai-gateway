@@ -152,3 +152,41 @@ def test_compile_uses_openai_responses_protocol(store):
     payload = ConfigCompilerService(store).compile_device_config(device.id)
 
     assert payload["models"]["providers"]["responses-provider"]["api"] == "openai-responses"
+
+
+def test_compile_omits_null_numeric_fields_and_keeps_modalities(store):
+    provider = store.create_provider(
+        name="siliconflow",
+        provider_type="openai-completions",
+        base_url="https://api.siliconflow.cn/v1",
+        auth_scheme="bearer",
+        api_key_encrypted="enc:test",
+        extra_headers={},
+        enabled=True,
+    )
+    model = store.create_model(
+        provider_id=provider.id,
+        upstream_model="vision-model",
+        display_name="Vision Model",
+        capabilities=["text", "multimodal"],
+        reasoning=False,
+        input_modalities=["text", "image"],
+        context_window=None,
+        max_tokens=None,
+        enabled=True,
+    )
+    device = store.create_device(
+        name="mac",
+        device_type="mac",
+        hostname="mac.local",
+        platform="darwin",
+        active=True,
+    )
+    store.set_device_model_bindings(device_id=device.id, model_ids=[model.id])
+
+    payload = ConfigCompilerService(store).compile_device_config(device.id)
+    model_payload = payload["models"]["providers"]["siliconflow"]["models"][0]
+
+    assert model_payload["input"] == ["text", "image"]
+    assert "contextWindow" not in model_payload
+    assert "maxTokens" not in model_payload

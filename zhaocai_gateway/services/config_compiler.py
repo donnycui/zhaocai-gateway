@@ -34,17 +34,18 @@ class ConfigCompilerService:
                 "models": provider_models[provider_key],
             }
             reasoning = "reasoning" in model.capabilities
-            input_types = ["text"]
-            provider_models[provider_key].append(
-                {
-                    "id": model.upstream_model,
-                    "name": model.display_name,
-                    "reasoning": reasoning,
-                    "input": input_types,
-                    "contextWindow": model.context_window,
-                    "maxTokens": model.max_tokens,
-                }
-            )
+            input_types = model.input_modalities or ["text"]
+            model_entry = {
+                "id": model.upstream_model,
+                "name": model.display_name,
+                "reasoning": reasoning,
+                "input": input_types,
+            }
+            if model.context_window is not None:
+                model_entry["contextWindow"] = model.context_window
+            if model.max_tokens is not None:
+                model_entry["maxTokens"] = model.max_tokens
+            provider_models[provider_key].append(model_entry)
             full_model_key = f"{provider_key}/{model.upstream_model}"
             ordered_model_keys.append(full_model_key)
             catalog_entries[full_model_key] = {"alias": model.display_name}
