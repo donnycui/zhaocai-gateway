@@ -26,6 +26,10 @@ const protocolLabels: Record<string, string> = {
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
 function providerSupportsLiveBalance(provider: Provider): boolean {
+  const queryType = (provider.balance_query_type ?? "").toLowerCase();
+  if (queryType === "openrouter" || queryType === "newapi") {
+    return true;
+  }
   const name = provider.name.toLowerCase();
   const baseUrl = provider.base_url.toLowerCase();
   return name.includes("openrouter") || baseUrl.includes("openrouter.ai");
@@ -370,41 +374,47 @@ export default function ProvidersPage({
                     <div className="provider-protocol-badge">
                       {protocolLabels[provider.provider_type] ?? provider.provider_type}
                     </div>
-                    <div className="provider-balance-block">
-                      <span className="provider-balance-time">{formatBalanceTime(provider)}</span>
-                      <strong className="provider-balance-value">{formatBalance(provider)}</strong>
-                      <span className="provider-balance-meta">{modelCounts.get(provider.id) ?? 0} 个模型</span>
-                    </div>
-                  </div>
+                    <div className="provider-side-rail">
+                      <div className="provider-telemetry">
+                        <div className="provider-telemetry-top">
+                          <IconButton
+                            title="刷新余额"
+                            onClick={() => void handleRefreshBalance(provider.id)}
+                            disabled={refreshingBalance}
+                          >
+                            <RefreshIcon />
+                          </IconButton>
+                          <div className="provider-balance-block">
+                            <span className="provider-balance-time">{formatBalanceTime(provider)}</span>
+                            <strong className="provider-balance-value">{formatBalance(provider)}</strong>
+                          </div>
+                        </div>
+                        <span className="provider-balance-meta">{modelCounts.get(provider.id) ?? 0} 个模型</span>
+                      </div>
 
-                  <div className="provider-card-actions">
-                    <IconButton
-                      title="刷新余额"
-                      onClick={() => void handleRefreshBalance(provider.id)}
-                      disabled={refreshingBalance}
-                    >
-                      <RefreshIcon />
-                    </IconButton>
-                    <IconButton
-                      title="测试供应商"
-                      onClick={() => void handleTestProvider(provider.id)}
-                      disabled={testingProviderId === provider.id}
-                    >
-                      <TestIcon />
-                    </IconButton>
-                    <IconButton
-                      title="复制供应商"
-                      onClick={() => void handleDuplicateProvider(provider.id)}
-                      disabled={duplicatingProviderId === provider.id}
-                    >
-                      <CopyIcon />
-                    </IconButton>
-                    <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
-                      <DeleteIcon />
-                    </IconButton>
+                      <div className="provider-card-actions">
+                        <IconButton
+                          title="测试供应商"
+                          onClick={() => void handleTestProvider(provider.id)}
+                          disabled={testingProviderId === provider.id}
+                        >
+                          <TestIcon />
+                        </IconButton>
+                        <IconButton
+                          title="复制供应商"
+                          onClick={() => void handleDuplicateProvider(provider.id)}
+                          disabled={duplicatingProviderId === provider.id}
+                        >
+                          <CopyIcon />
+                        </IconButton>
+                        <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </div>
+                    </div>
                   </div>
                 </article>
               );

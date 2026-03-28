@@ -5,6 +5,10 @@ export interface Provider {
   base_url: string;
   auth_scheme: string;
   api_key_encrypted: string;
+  balance_query_type?: string;
+  balance_access_token?: string;
+  balance_user_id?: string;
+  balance_auto_refresh_minutes?: number;
   extra_headers: Record<string, string>;
   enabled: boolean;
   balance_supported?: boolean;
@@ -196,6 +200,10 @@ export const api = {
     provider_type: string;
     auth_scheme: string;
     api_key: string;
+    balance_query_type: string;
+    balance_access_token: string;
+    balance_user_id: string;
+    balance_auto_refresh_minutes: number;
     extra_headers: Record<string, string>;
   }): Promise<Provider> {
     const result = await request<{ provider: Provider }>("/admin/providers", {
@@ -213,6 +221,10 @@ export const api = {
       provider_type: string;
       auth_scheme: string;
       api_key: string;
+      balance_query_type: string;
+      balance_access_token: string;
+      balance_user_id: string;
+      balance_auto_refresh_minutes: number;
       enabled: boolean;
       extra_headers: Record<string, string>;
     },

@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS providers (
     base_url TEXT NOT NULL,
     auth_scheme TEXT NOT NULL,
     api_key_encrypted TEXT NOT NULL,
+    balance_query_type TEXT NOT NULL DEFAULT '',
+    balance_access_token TEXT NOT NULL DEFAULT '',
+    balance_user_id TEXT NOT NULL DEFAULT '',
+    balance_auto_refresh_minutes INTEGER NOT NULL DEFAULT 60,
     extra_headers TEXT NOT NULL DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -130,6 +130,58 @@ def test_refresh_unsupported_provider_balance():
     assert provider["balance_message"] == "暂不支持余额查询"
 
 
+def test_refresh_newapi_balance(monkeypatch):
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "newapi-provider",
+            "base_url": "https://newapi.example.com",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-upstream",
+            "balance_query_type": "newapi",
+            "balance_access_token": "newapi-access-token",
+            "balance_user_id": "42",
+            "balance_auto_refresh_minutes": 60,
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "success": True,
+                "data": {"quota": 2500000, "used_quota": 500000},
+            }
+
+    def fake_get(url: str, headers: dict, timeout: float) -> DummyResponse:
+        assert url == "https://newapi.example.com/api/user/self"
+        assert headers["Authorization"] == "Bearer newapi-access-token"
+        assert headers["New-Api-User"] == "42"
+        assert timeout == 20.0
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    response = client.post(
+        f"/admin/providers/{provider_id}/balance-refresh",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    provider = response.json()["provider"]
+    assert provider["balance_supported"] is True
+    assert provider["balance_amount"] == 5.0
+    assert provider["balance_currency"] == "USD"
+    assert provider["balance_status"] == "ok"
+
+
 @pytest.mark.parametrize(
     ("provider_type", "auth_scheme", "expected_suffix", "expected_header"),
     [

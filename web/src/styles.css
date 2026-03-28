@@ -318,7 +318,7 @@ button {
 
 .provider-card-main {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  grid-template-columns: 72px minmax(0, 1fr) auto minmax(320px, auto);
   gap: 18px;
   align-items: center;
 }
@@ -363,6 +363,30 @@ button {
   white-space: nowrap;
 }
 
+.provider-side-rail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: 0;
+}
+
+.provider-telemetry {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  text-align: right;
+  transition: transform 180ms ease;
+}
+
+.provider-telemetry-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
 .provider-balance-block {
   display: grid;
   gap: 6px;
@@ -387,12 +411,18 @@ button {
   gap: 10px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms ease;
+  transform: translateX(10px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.provider-card:hover .provider-telemetry {
+  transform: translateX(-18px);
 }
 
 .provider-card:hover .provider-card-actions {
   opacity: 1;
   pointer-events: auto;
+  transform: translateX(0);
 }
 
 .device-card {
@@ -787,9 +817,16 @@ button {
     justify-items: start;
   }
 
+  .provider-side-rail,
+  .provider-telemetry,
   .provider-balance-block {
     justify-items: start;
     text-align: left;
+  }
+
+  .provider-side-rail,
+  .provider-telemetry-top {
+    justify-content: flex-start;
   }
 
   .provider-card-actions {
@@ -797,6 +834,11 @@ button {
     pointer-events: auto;
     justify-content: flex-start;
     flex-wrap: wrap;
+    transform: none;
+  }
+
+  .provider-card:hover .provider-telemetry {
+    transform: none;
   }
 
   .editor-grid,

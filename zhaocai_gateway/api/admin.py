@@ -19,6 +19,10 @@ class ProviderCreate(BaseModel):
     provider_type: str = Field(min_length=1)
     auth_scheme: str = Field(min_length=1)
     api_key: str = ""
+    balance_query_type: str = ""
+    balance_access_token: str = ""
+    balance_user_id: str = ""
+    balance_auto_refresh_minutes: int = 60
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
@@ -37,6 +41,10 @@ class ProviderUpdate(BaseModel):
     provider_type: str = Field(min_length=1)
     auth_scheme: str = Field(min_length=1)
     api_key: str = ""
+    balance_query_type: str = ""
+    balance_access_token: str = ""
+    balance_user_id: str = ""
+    balance_auto_refresh_minutes: int = 60
     enabled: bool = True
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
@@ -138,6 +146,10 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 provider_type=payload.provider_type,
                 auth_scheme=payload.auth_scheme,
                 api_key=payload.api_key,
+                balance_query_type=payload.balance_query_type,
+                balance_access_token=payload.balance_access_token,
+                balance_user_id=payload.balance_user_id,
+                balance_auto_refresh_minutes=payload.balance_auto_refresh_minutes,
                 extra_headers=payload.extra_headers,
             )
         }
@@ -157,6 +169,10 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 provider_type=payload.provider_type,
                 auth_scheme=payload.auth_scheme,
                 api_key=payload.api_key,
+                balance_query_type=payload.balance_query_type,
+                balance_access_token=payload.balance_access_token,
+                balance_user_id=payload.balance_user_id,
+                balance_auto_refresh_minutes=payload.balance_auto_refresh_minutes,
                 extra_headers=payload.extra_headers,
                 enabled=payload.enabled,
             )

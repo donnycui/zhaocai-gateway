@@ -34,6 +34,10 @@ class ProviderService:
         provider_type: str,
         auth_scheme: str,
         api_key: str,
+        balance_query_type: str,
+        balance_access_token: str,
+        balance_user_id: str,
+        balance_auto_refresh_minutes: int,
         extra_headers: dict[str, str],
     ) -> dict:
         normalized_name = name.strip()
@@ -46,6 +50,10 @@ class ProviderService:
             base_url=normalized_base_url,
             auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
+            balance_query_type=balance_query_type.strip(),
+            balance_access_token=balance_access_token.strip(),
+            balance_user_id=balance_user_id.strip(),
+            balance_auto_refresh_minutes=max(0, balance_auto_refresh_minutes),
             extra_headers=extra_headers,
             enabled=True,
         )
@@ -60,6 +68,10 @@ class ProviderService:
         provider_type: str,
         auth_scheme: str,
         api_key: str,
+        balance_query_type: str,
+        balance_access_token: str,
+        balance_user_id: str,
+        balance_auto_refresh_minutes: int,
         extra_headers: dict[str, str],
         enabled: bool,
     ) -> dict:
@@ -74,6 +86,10 @@ class ProviderService:
             provider_type=normalized_provider_type,
             auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
+            balance_query_type=balance_query_type.strip(),
+            balance_access_token=balance_access_token.strip(),
+            balance_user_id=balance_user_id.strip(),
+            balance_auto_refresh_minutes=max(0, balance_auto_refresh_minutes),
             extra_headers=extra_headers,
             enabled=enabled,
         )
@@ -199,8 +215,11 @@ class ProviderService:
         return {"providers": refreshed}
 
     def _query_balance(self, provider) -> dict:
-        if self._is_openrouter_provider(provider):
+        query_type = self._resolve_balance_query_type(provider)
+        if query_type == "openrouter":
             return self._query_openrouter_balance(provider)
+        if query_type == "newapi":
+            return self._query_newapi_balance(provider)
 
         return {
             "supported": False,
@@ -210,6 +229,15 @@ class ProviderService:
             "message": "暂不支持余额查询",
             "fetched_at": None,
         }
+
+    @staticmethod
+    def _resolve_balance_query_type(provider) -> str:
+        configured = (provider.balance_query_type or "").strip().lower()
+        if configured:
+            return configured
+        if ProviderService._is_openrouter_provider(provider):
+            return "openrouter"
+        return ""
 
     @staticmethod
     def _is_openrouter_provider(provider) -> bool:
@@ -239,6 +267,54 @@ class ProviderService:
         return {
             "supported": True,
             "amount": remaining,
+            "currency": "USD",
+            "status": "ok",
+            "message": "余额已刷新",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _query_newapi_balance(self, provider) -> dict:
+        access_token = (provider.balance_access_token or provider.api_key_encrypted or "").strip()
+        if not access_token:
+            return {
+                "supported": True,
+                "amount": None,
+                "currency": "USD",
+                "status": "error",
+                "message": "未配置 NewAPI Access Token",
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        if provider.balance_user_id.strip():
+            headers["New-Api-User"] = provider.balance_user_id.strip()
+
+        endpoint = f"{provider.base_url.strip().rstrip('/')}/api/user/self"
+        response = httpx.get(endpoint, headers=headers, timeout=20.0)
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data", {}) if isinstance(payload, dict) else {}
+        if not payload.get("success", True):
+            return {
+                "supported": True,
+                "amount": None,
+                "currency": "USD",
+                "status": "error",
+                "message": str(payload.get("message") or "余额查询失败"),
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        quota = self._safe_float(data.get("quota"))
+        amount = None
+        if quota is not None:
+            amount = max(quota / 500000.0, 0.0)
+
+        return {
+            "supported": True,
+            "amount": amount,
             "currency": "USD",
             "status": "ok",
             "message": "余额已刷新",
