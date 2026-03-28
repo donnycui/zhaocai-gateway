@@ -14,16 +14,6 @@ class Provider:
     api_key_encrypted: str
     extra_headers: dict[str, str]
     enabled: bool
-    balance_query_type: str = ""
-    balance_access_token: str = ""
-    balance_user_id: str = ""
-    balance_auto_refresh_minutes: int = 60
-    balance_supported: bool = False
-    balance_amount: float | None = None
-    balance_currency: str | None = None
-    balance_status: str | None = None
-    balance_message: str | None = None
-    balance_fetched_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,14 +74,3 @@ class AppliedConfigReport:
     device_id: int
     version: int
     status: str
-
-
-@dataclass(frozen=True)
-class ProviderBalance:
-    provider_id: int
-    supported: bool
-    amount: float | None
-    currency: str | None
-    status: str
-    message: str
-    fetched_at: str | None

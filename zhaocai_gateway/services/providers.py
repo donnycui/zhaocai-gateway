@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
 import time
 from urllib.parse import urlparse
 
@@ -23,9 +22,6 @@ class ProviderService:
             return None
         return asdict(provider)
 
-    def list_balances(self) -> list[dict]:
-        return [asdict(balance) for balance in self.store.list_provider_balances()]
-
     def create(
         self,
         *,
@@ -34,10 +30,6 @@ class ProviderService:
         provider_type: str,
         auth_scheme: str,
         api_key: str,
-        balance_query_type: str,
-        balance_access_token: str,
-        balance_user_id: str,
-        balance_auto_refresh_minutes: int,
         extra_headers: dict[str, str],
     ) -> dict:
         normalized_name = name.strip()
@@ -50,10 +42,6 @@ class ProviderService:
             base_url=normalized_base_url,
             auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
-            balance_query_type=balance_query_type.strip(),
-            balance_access_token=balance_access_token.strip(),
-            balance_user_id=balance_user_id.strip(),
-            balance_auto_refresh_minutes=max(0, balance_auto_refresh_minutes),
             extra_headers=extra_headers,
             enabled=True,
         )
@@ -68,10 +56,6 @@ class ProviderService:
         provider_type: str,
         auth_scheme: str,
         api_key: str,
-        balance_query_type: str,
-        balance_access_token: str,
-        balance_user_id: str,
-        balance_auto_refresh_minutes: int,
         extra_headers: dict[str, str],
         enabled: bool,
     ) -> dict:
@@ -86,10 +70,6 @@ class ProviderService:
             provider_type=normalized_provider_type,
             auth_scheme=normalized_auth_scheme,
             api_key_encrypted=api_key,
-            balance_query_type=balance_query_type.strip(),
-            balance_access_token=balance_access_token.strip(),
-            balance_user_id=balance_user_id.strip(),
-            balance_auto_refresh_minutes=max(0, balance_auto_refresh_minutes),
             extra_headers=extra_headers,
             enabled=enabled,
         )
@@ -181,154 +161,6 @@ class ProviderService:
             "message": f"已检测 {len(results)} 个模型，成功 {passed} 个，失败 {len(results) - passed} 个。",
             "results": results,
         }
-
-    def refresh_balance(self, provider_id: int) -> dict:
-        provider = self.store.get_provider(provider_id)
-        if provider is None:
-            raise ValueError(f"Provider {provider_id} not found")
-
-        result = self._query_balance(provider)
-        self.store.upsert_provider_balance(
-            provider_id=provider.id,
-            supported=result["supported"],
-            amount=result["amount"],
-            currency=result["currency"],
-            status=result["status"],
-            message=result["message"],
-            fetched_at=result["fetched_at"],
-        )
-        refreshed = self.store.get_provider(provider.id)
-        if refreshed is None:
-            raise RuntimeError("Failed to refresh provider balance")
-        return asdict(refreshed)
-
-    def refresh_balances(self, provider_ids: list[int] | None = None) -> dict:
-        providers = self.store.list_providers()
-        if provider_ids is not None:
-            provider_ids_set = set(provider_ids)
-            providers = [provider for provider in providers if provider.id in provider_ids_set]
-
-        refreshed: list[dict] = []
-        for provider in providers:
-            refreshed.append(self.refresh_balance(provider.id))
-
-        return {"providers": refreshed}
-
-    def _query_balance(self, provider) -> dict:
-        query_type = self._resolve_balance_query_type(provider)
-        if query_type == "openrouter":
-            return self._query_openrouter_balance(provider)
-        if query_type == "newapi":
-            return self._query_newapi_balance(provider)
-
-        return {
-            "supported": False,
-            "amount": None,
-            "currency": None,
-            "status": "unsupported",
-            "message": "暂不支持余额查询",
-            "fetched_at": None,
-        }
-
-    @staticmethod
-    def _resolve_balance_query_type(provider) -> str:
-        configured = (provider.balance_query_type or "").strip().lower()
-        if configured:
-            return configured
-        if ProviderService._is_openrouter_provider(provider):
-            return "openrouter"
-        return ""
-
-    @staticmethod
-    def _is_openrouter_provider(provider) -> bool:
-        name = provider.name.lower()
-        base_url = provider.base_url.lower()
-        return "openrouter" in name or "openrouter.ai" in base_url
-
-    def _query_openrouter_balance(self, provider) -> dict:
-        endpoint = f"{provider.base_url.strip().rstrip('/')}/credits"
-        response = httpx.get(
-            endpoint,
-            headers={"Authorization": f"Bearer {provider.api_key_encrypted}"},
-            timeout=20.0,
-        )
-        response.raise_for_status()
-        payload = response.json()
-
-        data = payload.get("data", payload) if isinstance(payload, dict) else {}
-        total_credits = self._safe_float(data.get("total_credits"))
-        total_usage = self._safe_float(data.get("total_usage"))
-        remaining = None
-        if total_credits is not None and total_usage is not None:
-            remaining = max(total_credits - total_usage, 0.0)
-        elif total_credits is not None:
-            remaining = total_credits
-
-        return {
-            "supported": True,
-            "amount": remaining,
-            "currency": "USD",
-            "status": "ok",
-            "message": "余额已刷新",
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-    def _query_newapi_balance(self, provider) -> dict:
-        access_token = (provider.balance_access_token or provider.api_key_encrypted or "").strip()
-        if not access_token:
-            return {
-                "supported": True,
-                "amount": None,
-                "currency": "USD",
-                "status": "error",
-                "message": "未配置 NewAPI Access Token",
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-            }
-
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
-        if provider.balance_user_id.strip():
-            headers["New-Api-User"] = provider.balance_user_id.strip()
-
-        endpoint = f"{provider.base_url.strip().rstrip('/')}/api/user/self"
-        response = httpx.get(endpoint, headers=headers, timeout=20.0)
-        response.raise_for_status()
-        payload = response.json()
-        data = payload.get("data", {}) if isinstance(payload, dict) else {}
-        if not payload.get("success", True):
-            return {
-                "supported": True,
-                "amount": None,
-                "currency": "USD",
-                "status": "error",
-                "message": str(payload.get("message") or "余额查询失败"),
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-            }
-
-        quota = self._safe_float(data.get("quota"))
-        amount = None
-        if quota is not None:
-            amount = max(quota / 500000.0, 0.0)
-
-        return {
-            "supported": True,
-            "amount": amount,
-            "currency": "USD",
-            "status": "ok",
-            "message": "余额已刷新",
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-    @staticmethod
-    def _safe_float(value) -> float | None:
-        try:
-            if value is None:
-                return None
-            return float(value)
-        except (TypeError, ValueError):
-            return None
 
     @staticmethod
     def _build_test_url(base_url: str, provider_type: str) -> str:

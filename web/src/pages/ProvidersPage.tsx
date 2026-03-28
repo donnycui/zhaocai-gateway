@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import {
   api,
@@ -22,59 +22,6 @@ const protocolLabels: Record<string, string> = {
   openai: "OpenAI Completions",
   anthropic: "Anthropic Messages",
 };
-
-const ONE_HOUR_MS = 60 * 60 * 1000;
-
-function providerSupportsLiveBalance(provider: Provider): boolean {
-  const queryType = (provider.balance_query_type ?? "").toLowerCase();
-  if (queryType === "openrouter" || queryType === "newapi") {
-    return true;
-  }
-  const name = provider.name.toLowerCase();
-  const baseUrl = provider.base_url.toLowerCase();
-  return name.includes("openrouter") || baseUrl.includes("openrouter.ai");
-}
-
-function formatBalance(provider: Provider): string {
-  if (!providerSupportsLiveBalance(provider) && provider.balance_status !== "ok") {
-    return "暂不支持";
-  }
-  if (provider.balance_status === "ok" && provider.balance_amount != null) {
-    const amount = provider.balance_amount.toFixed(2);
-    const currency = provider.balance_currency ?? "";
-    return currency ? `${amount} ${currency}` : amount;
-  }
-  if (provider.balance_status === "error") {
-    return "查询失败";
-  }
-  if (provider.balance_status === "loading") {
-    return "查询中...";
-  }
-  if (provider.balance_message) {
-    return provider.balance_message;
-  }
-  return providerSupportsLiveBalance(provider) ? "等待刷新" : "暂不支持";
-}
-
-function formatBalanceTime(provider: Provider): string {
-  if (!provider.balance_fetched_at) {
-    return "未刷新";
-  }
-
-  const date = new Date(provider.balance_fetched_at);
-  if (Number.isNaN(date.getTime())) {
-    return "未知";
-  }
-
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 60_000) {
-    return "刚刚";
-  }
-  if (diffMs < 60 * 60_000) {
-    return `${Math.max(1, Math.floor(diffMs / 60_000))} 分钟前`;
-  }
-  return `${Math.max(1, Math.floor(diffMs / (60 * 60_000)))} 小时前`;
-}
 
 function buildDuplicateName(name: string, existingNames: Set<string>): string {
   const base = `${name} 副本`;
@@ -110,17 +57,6 @@ function IconButton({
     >
       {children}
     </button>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M12 5a7 7 0 0 1 6.31 4H16v2h6V5h-2v2.13A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7Z"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
 
@@ -177,7 +113,6 @@ export default function ProvidersPage({
 }: ProvidersPageProps) {
   const [message, setMessage] = useState<string>("");
   const [testingProviderId, setTestingProviderId] = useState<number | null>(null);
-  const [refreshingBalanceIds, setRefreshingBalanceIds] = useState<number[]>([]);
   const [duplicatingProviderId, setDuplicatingProviderId] = useState<number | null>(null);
   const [testReport, setTestReport] = useState<ProviderTestReport | null>(null);
 
@@ -188,49 +123,6 @@ export default function ProvidersPage({
     });
     return counts;
   }, [models]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshStaleBalances() {
-      const staleProviderIds = providers
-        .filter(providerSupportsLiveBalance)
-        .filter((provider) => {
-          if (!provider.balance_fetched_at) {
-            return true;
-          }
-          const fetchedAt = new Date(provider.balance_fetched_at).getTime();
-          return Number.isNaN(fetchedAt) || Date.now() - fetchedAt >= ONE_HOUR_MS;
-        })
-        .map((provider) => provider.id);
-
-      if (staleProviderIds.length === 0) {
-        return;
-      }
-
-      setRefreshingBalanceIds((current) => Array.from(new Set([...current, ...staleProviderIds])));
-      try {
-        await api.refreshProviderBalances(staleProviderIds);
-        if (!cancelled) {
-          await onRefresh();
-        }
-      } finally {
-        if (!cancelled) {
-          setRefreshingBalanceIds((current) => current.filter((id) => !staleProviderIds.includes(id)));
-        }
-      }
-    }
-
-    void refreshStaleBalances();
-    const timer = window.setInterval(() => {
-      void refreshStaleBalances();
-    }, ONE_HOUR_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [providers, onRefresh]);
 
   async function handleSyncOpenRouterFree() {
     const result = await api.syncOpenRouterFree();
@@ -256,17 +148,6 @@ export default function ProvidersPage({
       setTestReport(result);
     } finally {
       setTestingProviderId(null);
-    }
-  }
-
-  async function handleRefreshBalance(providerId: number) {
-    setRefreshingBalanceIds((current) => Array.from(new Set([...current, providerId])));
-    try {
-      await api.refreshProviderBalance(providerId);
-      setMessage("余额已刷新。");
-      await onRefresh();
-    } finally {
-      setRefreshingBalanceIds((current) => current.filter((id) => id !== providerId));
     }
   }
 
@@ -315,7 +196,7 @@ export default function ProvidersPage({
         <div className="page-header">
           <div className="panel-header" style={{ marginBottom: 0 }}>
             <h3>供应商</h3>
-            <p>统一管理上游供应商，悬停时显示编辑、复制、测试和删除等操作。</p>
+            <p>统一管理上游供应商，悬停时显示测试、复制、编辑和删除操作。</p>
           </div>
           <div className="topbar-actions">
             <button className="secondary-button" onClick={() => void handleSyncOpenRouterFree()}>
@@ -359,66 +240,51 @@ export default function ProvidersPage({
           {providers.length === 0 ? (
             <div className="empty-state">还没有任何供应商。</div>
           ) : (
-            providers.map((provider) => {
-              const refreshingBalance = refreshingBalanceIds.includes(provider.id);
-              return (
-                <article key={provider.id} className="provider-card">
-                  <div className="provider-card-main">
-                    <div className="provider-avatar">
-                      {provider.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="provider-info">
-                      <strong>{provider.name}</strong>
-                      <span className="provider-url">{provider.base_url}</span>
-                    </div>
-                    <div className="provider-protocol-badge">
-                      {protocolLabels[provider.provider_type] ?? provider.provider_type}
-                    </div>
-                    <div className="provider-side-rail">
-                      <div className="provider-telemetry">
-                        <div className="provider-telemetry-top">
-                          <IconButton
-                            title="刷新余额"
-                            onClick={() => void handleRefreshBalance(provider.id)}
-                            disabled={refreshingBalance}
-                          >
-                            <RefreshIcon />
-                          </IconButton>
-                          <div className="provider-balance-block">
-                            <span className="provider-balance-time">{formatBalanceTime(provider)}</span>
-                            <strong className="provider-balance-value">{formatBalance(provider)}</strong>
-                          </div>
-                        </div>
-                        <span className="provider-balance-meta">{modelCounts.get(provider.id) ?? 0} 个模型</span>
-                      </div>
-
-                      <div className="provider-card-actions">
-                        <IconButton
-                          title="测试供应商"
-                          onClick={() => void handleTestProvider(provider.id)}
-                          disabled={testingProviderId === provider.id}
-                        >
-                          <TestIcon />
-                        </IconButton>
-                        <IconButton
-                          title="复制供应商"
-                          onClick={() => void handleDuplicateProvider(provider.id)}
-                          disabled={duplicatingProviderId === provider.id}
-                        >
-                          <CopyIcon />
-                        </IconButton>
-                        <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </div>
-                    </div>
+            providers.map((provider) => (
+              <article key={provider.id} className="provider-card">
+                <div className="provider-card-main">
+                  <div className="provider-avatar">
+                    {provider.name.slice(0, 2).toUpperCase()}
                   </div>
-                </article>
-              );
-            })
+
+                  <div className="provider-info">
+                    <strong>{provider.name}</strong>
+                    <span className="provider-url">{provider.base_url}</span>
+                  </div>
+
+                  <div className="provider-protocol-badge">
+                    {protocolLabels[provider.provider_type] ?? provider.provider_type}
+                  </div>
+
+                  <div className="provider-meta-block">
+                    <span className="provider-balance-meta">{modelCounts.get(provider.id) ?? 0} 个模型</span>
+                  </div>
+
+                  <div className="provider-card-actions">
+                    <IconButton
+                      title="测试供应商"
+                      onClick={() => void handleTestProvider(provider.id)}
+                      disabled={testingProviderId === provider.id}
+                    >
+                      <TestIcon />
+                    </IconButton>
+                    <IconButton
+                      title="复制供应商"
+                      onClick={() => void handleDuplicateProvider(provider.id)}
+                      disabled={duplicatingProviderId === provider.id}
+                    >
+                      <CopyIcon />
+                    </IconButton>
+                    <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </div>
+                </div>
+              </article>
+            ))
           )}
         </div>
       </div>

@@ -5,18 +5,8 @@ export interface Provider {
   base_url: string;
   auth_scheme: string;
   api_key_encrypted: string;
-  balance_query_type?: string;
-  balance_access_token?: string;
-  balance_user_id?: string;
-  balance_auto_refresh_minutes?: number;
   extra_headers: Record<string, string>;
   enabled: boolean;
-  balance_supported?: boolean;
-  balance_amount?: number | null;
-  balance_currency?: string | null;
-  balance_status?: string | null;
-  balance_message?: string | null;
-  balance_fetched_at?: string | null;
 }
 
 export interface Model {
@@ -67,16 +57,6 @@ export interface ProviderTestReport {
   provider: Provider;
   message: string;
   results: ProviderTestItem[];
-}
-
-export interface ProviderBalance {
-  provider_id: number;
-  supported: boolean;
-  amount: number | null;
-  currency: string | null;
-  status: string;
-  message: string;
-  fetched_at: string | null;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -200,10 +180,6 @@ export const api = {
     provider_type: string;
     auth_scheme: string;
     api_key: string;
-    balance_query_type: string;
-    balance_access_token: string;
-    balance_user_id: string;
-    balance_auto_refresh_minutes: number;
     extra_headers: Record<string, string>;
   }): Promise<Provider> {
     const result = await request<{ provider: Provider }>("/admin/providers", {
@@ -221,10 +197,6 @@ export const api = {
       provider_type: string;
       auth_scheme: string;
       api_key: string;
-      balance_query_type: string;
-      balance_access_token: string;
-      balance_user_id: string;
-      balance_auto_refresh_minutes: number;
       enabled: boolean;
       extra_headers: Record<string, string>;
     },
@@ -246,26 +218,6 @@ export const api = {
     return request(`/admin/providers/${providerId}/test`, {
       method: "POST",
     });
-  },
-
-  async getProviderBalances(): Promise<ProviderBalance[]> {
-    const result = await request<{ balances: ProviderBalance[] }>("/admin/provider-balances");
-    return result.balances;
-  },
-
-  async refreshProviderBalance(providerId: number): Promise<Provider> {
-    const result = await request<{ provider: Provider }>(`/admin/providers/${providerId}/balance-refresh`, {
-      method: "POST",
-    });
-    return result.provider;
-  },
-
-  async refreshProviderBalances(provider_ids: number[] = []): Promise<Provider[]> {
-    const result = await request<{ providers: Provider[] }>("/admin/provider-balances/refresh", {
-      method: "POST",
-      body: JSON.stringify({ provider_ids }),
-    });
-    return result.providers;
   },
 
   async validateProvider(payload: {

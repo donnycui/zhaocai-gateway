@@ -7,8 +7,6 @@ type ProviderProtocol =
   | "openai-responses"
   | "anthropic-messages";
 
-type BalanceQueryType = "" | "openrouter" | "newapi" | "sub2api";
-
 interface ProviderEditorPageProps {
   providerId: number | null;
   onBack: () => void;
@@ -33,13 +31,6 @@ const protocolOptions: Array<{ value: ProviderProtocol; label: string }> = [
   { value: "openai-completions", label: "OpenAI Completions" },
   { value: "openai-responses", label: "OpenAI Responses" },
   { value: "anthropic-messages", label: "Anthropic Messages" },
-];
-
-const balanceQueryOptions: Array<{ value: BalanceQueryType; label: string }> = [
-  { value: "", label: "不启用" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "newapi", label: "NewAPI" },
-  { value: "sub2api", label: "sub2api（稍后支持）" },
 ];
 
 function toEditableModel(model?: Model): EditableModel {
@@ -72,10 +63,6 @@ export default function ProviderEditorPage({
     base_url: "",
     provider_type: "openai-completions" as ProviderProtocol,
     api_key: "",
-    balance_query_type: "" as BalanceQueryType,
-    balance_access_token: "",
-    balance_user_id: "",
-    balance_auto_refresh_minutes: "60",
     enabled: true,
   });
   const [models, setModels] = useState<EditableModel[]>([toEditableModel()]);
@@ -92,10 +79,6 @@ export default function ProviderEditorPage({
         base_url: payload.provider.base_url,
         provider_type: (payload.provider.provider_type as ProviderProtocol) ?? "openai-completions",
         api_key: payload.provider.api_key_encrypted,
-        balance_query_type: (payload.provider.balance_query_type as BalanceQueryType) ?? "",
-        balance_access_token: payload.provider.balance_access_token ?? "",
-        balance_user_id: payload.provider.balance_user_id ?? "",
-        balance_auto_refresh_minutes: String(payload.provider.balance_auto_refresh_minutes ?? 60),
         enabled: payload.provider.enabled,
       });
       setModels(payload.models.length > 0 ? payload.models.map((model) => toEditableModel(model)) : [toEditableModel()]);
@@ -140,10 +123,6 @@ export default function ProviderEditorPage({
           provider_type: provider.provider_type,
           auth_scheme: authScheme,
           api_key: provider.api_key,
-          balance_query_type: provider.balance_query_type,
-          balance_access_token: provider.balance_access_token,
-          balance_user_id: provider.balance_user_id,
-          balance_auto_refresh_minutes: Number(provider.balance_auto_refresh_minutes || 60),
           extra_headers: {},
         });
         activeProviderId = created.id;
@@ -154,10 +133,6 @@ export default function ProviderEditorPage({
           provider_type: provider.provider_type,
           auth_scheme: authScheme,
           api_key: provider.api_key,
-          balance_query_type: provider.balance_query_type,
-          balance_access_token: provider.balance_access_token,
-          balance_user_id: provider.balance_user_id,
-          balance_auto_refresh_minutes: Number(provider.balance_auto_refresh_minutes || 60),
           enabled: provider.enabled,
           extra_headers: {},
         });
@@ -278,68 +253,6 @@ export default function ProviderEditorPage({
               onChange={(event) => setProvider((current) => ({ ...current, api_key: event.target.value }))}
             />
           </label>
-          <label>
-            <span>余额查询类型</span>
-            <select
-              value={provider.balance_query_type}
-              onChange={(event) =>
-                setProvider((current) => ({
-                  ...current,
-                  balance_query_type: event.target.value as BalanceQueryType,
-                }))
-              }
-            >
-              {balanceQueryOptions.map((option) => (
-                <option
-                  key={option.value || "none"}
-                  value={option.value}
-                  disabled={option.value === "sub2api"}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>自动刷新间隔（分钟）</span>
-            <input
-              value={provider.balance_auto_refresh_minutes}
-              onChange={(event) =>
-                setProvider((current) => ({
-                  ...current,
-                  balance_auto_refresh_minutes: event.target.value,
-                }))
-              }
-            />
-          </label>
-          {provider.balance_query_type === "newapi" ? (
-            <>
-              <label>
-                <span>NewAPI Access Token</span>
-                <input
-                  value={provider.balance_access_token}
-                  onChange={(event) =>
-                    setProvider((current) => ({
-                      ...current,
-                      balance_access_token: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label>
-                <span>NewAPI User ID</span>
-                <input
-                  value={provider.balance_user_id}
-                  onChange={(event) =>
-                    setProvider((current) => ({
-                      ...current,
-                      balance_user_id: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            </>
-          ) : null}
         </div>
 
         <div className="panel-header" style={{ marginTop: 10 }}>

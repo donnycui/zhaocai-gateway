@@ -10,10 +10,6 @@ CREATE TABLE IF NOT EXISTS providers (
     base_url TEXT NOT NULL,
     auth_scheme TEXT NOT NULL,
     api_key_encrypted TEXT NOT NULL,
-    balance_query_type TEXT NOT NULL DEFAULT '',
-    balance_access_token TEXT NOT NULL DEFAULT '',
-    balance_user_id TEXT NOT NULL DEFAULT '',
-    balance_auto_refresh_minutes INTEGER NOT NULL DEFAULT 60,
     extra_headers TEXT NOT NULL DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -67,18 +63,6 @@ CREATE TABLE IF NOT EXISTS pairing_tokens (
     used_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS provider_balance_cache (
-    provider_id INTEGER PRIMARY KEY,
-    supported INTEGER NOT NULL DEFAULT 0,
-    amount REAL,
-    currency TEXT,
-    status TEXT NOT NULL DEFAULT 'unknown',
-    message TEXT NOT NULL DEFAULT '',
-    fetched_at TEXT,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(provider_id) REFERENCES providers(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS config_snapshots (
