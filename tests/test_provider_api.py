@@ -58,6 +58,78 @@ def test_validate_provider_input():
     assert response.json()["ok"] is True
 
 
+def test_refresh_openrouter_balance(monkeypatch):
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "openrouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"data": {"total_credits": 100.0, "total_usage": 30.25}}
+
+    def fake_get(url: str, headers: dict, timeout: float) -> DummyResponse:
+        assert url == "https://openrouter.ai/api/v1/credits"
+        assert headers["Authorization"] == "Bearer sk-test"
+        assert timeout == 20.0
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    response = client.post(
+        f"/admin/providers/{provider_id}/balance-refresh",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    provider = response.json()["provider"]
+    assert provider["balance_supported"] is True
+    assert provider["balance_amount"] == 69.75
+    assert provider["balance_currency"] == "USD"
+    assert provider["balance_status"] == "ok"
+
+
+def test_refresh_unsupported_provider_balance():
+    client = create_test_client()
+    provider_response = client.post(
+        "/admin/providers",
+        headers=admin_headers(),
+        json={
+            "name": "zai",
+            "base_url": "https://open.bigmodel.cn/api/paas/v4",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+    provider_id = provider_response.json()["provider"]["id"]
+
+    response = client.post(
+        f"/admin/providers/{provider_id}/balance-refresh",
+        headers=admin_headers(),
+    )
+
+    assert response.status_code == 200
+    provider = response.json()["provider"]
+    assert provider["balance_supported"] is False
+    assert provider["balance_status"] == "unsupported"
+    assert provider["balance_message"] == "暂不支持余额查询"
+
+
 @pytest.mark.parametrize(
     ("provider_type", "auth_scheme", "expected_suffix", "expected_header"),
     [

@@ -7,6 +7,35 @@ interface DashboardPageProps {
   onRefresh: () => void;
 }
 
+function formatHeartbeat(lastSeenAt: string | null): string {
+  if (!lastSeenAt) {
+    return "从未";
+  }
+
+  const date = new Date(lastSeenAt);
+  if (Number.isNaN(date.getTime())) {
+    return "未知";
+  }
+
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => ["month", "day", "hour", "minute"].includes(part.type))
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${values.month}-${values.day} ${values.hour}:${values.minute}`;
+}
+
 export default function DashboardPage({
   providers,
   models,
@@ -69,7 +98,7 @@ export default function DashboardPage({
                 <tr key={device.id}>
                   <td>{device.name}</td>
                   <td>{device.device_type}</td>
-                  <td>{device.last_seen_at ?? "从未"}</td>
+                  <td>{formatHeartbeat(device.last_seen_at)}</td>
                   <td>{device.current_config_version}</td>
                 </tr>
               ))

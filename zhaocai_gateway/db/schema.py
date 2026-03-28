@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS pairing_tokens (
     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS provider_balance_cache (
+    provider_id INTEGER PRIMARY KEY,
+    supported INTEGER NOT NULL DEFAULT 0,
+    amount REAL,
+    currency TEXT,
+    status TEXT NOT NULL DEFAULT 'unknown',
+    message TEXT NOT NULL DEFAULT '',
+    fetched_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(provider_id) REFERENCES providers(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS config_snapshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id INTEGER NOT NULL,

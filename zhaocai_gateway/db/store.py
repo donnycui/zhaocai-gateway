@@ -13,6 +13,7 @@ from zhaocai_gateway.domain.models import (
     Device,
     Model,
     PairingToken,
+    ProviderBalance,
     Provider,
 )
 
@@ -98,6 +99,25 @@ class SQLiteStore:
             raise RuntimeError("Failed to create provider")
         return provider
 
+    @staticmethod
+    def _row_to_provider(row: sqlite3.Row) -> Provider:
+        return Provider(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            provider_type=str(row["provider_type"]),
+            base_url=str(row["base_url"]),
+            auth_scheme=str(row["auth_scheme"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            extra_headers=json.loads(row["extra_headers"] or "{}"),
+            enabled=bool(row["enabled"]),
+            balance_supported=bool(row["balance_supported"]) if "balance_supported" in row.keys() and row["balance_supported"] is not None else False,
+            balance_amount=row["balance_amount"] if "balance_amount" in row.keys() else None,
+            balance_currency=str(row["balance_currency"]) if "balance_currency" in row.keys() and row["balance_currency"] is not None else None,
+            balance_status=str(row["balance_status"]) if "balance_status" in row.keys() and row["balance_status"] is not None else None,
+            balance_message=str(row["balance_message"]) if "balance_message" in row.keys() and row["balance_message"] is not None else None,
+            balance_fetched_at=str(row["balance_fetched_at"]) if "balance_fetched_at" in row.keys() and row["balance_fetched_at"] is not None else None,
+        )
+
     def update_provider(
         self,
         provider_id: int,
@@ -145,54 +165,132 @@ class SQLiteStore:
 
     def get_provider(self, provider_id: int) -> Provider | None:
         row = self.conn.execute(
-            "SELECT * FROM providers WHERE id = ?",
+            """
+            SELECT p.*,
+                   pbc.supported AS balance_supported,
+                   pbc.amount AS balance_amount,
+                   pbc.currency AS balance_currency,
+                   pbc.status AS balance_status,
+                   pbc.message AS balance_message,
+                   pbc.fetched_at AS balance_fetched_at
+            FROM providers p
+            LEFT JOIN provider_balance_cache pbc ON pbc.provider_id = p.id
+            WHERE p.id = ?
+            """,
             (provider_id,),
         ).fetchone()
         if row is None:
             return None
-        return Provider(
-            id=int(row["id"]),
-            name=str(row["name"]),
-            provider_type=str(row["provider_type"]),
-            base_url=str(row["base_url"]),
-            auth_scheme=str(row["auth_scheme"]),
-            api_key_encrypted=str(row["api_key_encrypted"]),
-            extra_headers=json.loads(row["extra_headers"] or "{}"),
-            enabled=bool(row["enabled"]),
-        )
+        return self._row_to_provider(row)
 
     def get_provider_by_name(self, name: str) -> Provider | None:
         row = self.conn.execute(
-            "SELECT * FROM providers WHERE name = ?",
+            """
+            SELECT p.*,
+                   pbc.supported AS balance_supported,
+                   pbc.amount AS balance_amount,
+                   pbc.currency AS balance_currency,
+                   pbc.status AS balance_status,
+                   pbc.message AS balance_message,
+                   pbc.fetched_at AS balance_fetched_at
+            FROM providers p
+            LEFT JOIN provider_balance_cache pbc ON pbc.provider_id = p.id
+            WHERE p.name = ?
+            """,
             (name,),
         ).fetchone()
         if row is None:
             return None
-        return Provider(
-            id=int(row["id"]),
-            name=str(row["name"]),
-            provider_type=str(row["provider_type"]),
-            base_url=str(row["base_url"]),
-            auth_scheme=str(row["auth_scheme"]),
-            api_key_encrypted=str(row["api_key_encrypted"]),
-            extra_headers=json.loads(row["extra_headers"] or "{}"),
-            enabled=bool(row["enabled"]),
-        )
+        return self._row_to_provider(row)
 
     def list_providers(self) -> list[Provider]:
         rows = self.conn.execute(
-            "SELECT * FROM providers ORDER BY id ASC",
+            """
+            SELECT p.*,
+                   pbc.supported AS balance_supported,
+                   pbc.amount AS balance_amount,
+                   pbc.currency AS balance_currency,
+                   pbc.status AS balance_status,
+                   pbc.message AS balance_message,
+                   pbc.fetched_at AS balance_fetched_at
+            FROM providers p
+            LEFT JOIN provider_balance_cache pbc ON pbc.provider_id = p.id
+            ORDER BY p.id ASC
+            """,
+        ).fetchall()
+        return [self._row_to_provider(row) for row in rows]
+
+    def upsert_provider_balance(
+        self,
+        *,
+        provider_id: int,
+        supported: bool,
+        amount: float | None,
+        currency: str | None,
+        status: str,
+        message: str,
+        fetched_at: str | None,
+    ) -> ProviderBalance:
+        self.conn.execute(
+            """
+            INSERT INTO provider_balance_cache
+            (provider_id, supported, amount, currency, status, message, fetched_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(provider_id) DO UPDATE SET
+                supported = excluded.supported,
+                amount = excluded.amount,
+                currency = excluded.currency,
+                status = excluded.status,
+                message = excluded.message,
+                fetched_at = excluded.fetched_at,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                provider_id,
+                int(supported),
+                amount,
+                currency,
+                status,
+                message,
+                fetched_at,
+            ),
+        )
+        self.conn.commit()
+        balance = self.get_provider_balance(provider_id)
+        if balance is None:
+            raise RuntimeError("Failed to upsert provider balance")
+        return balance
+
+    def get_provider_balance(self, provider_id: int) -> ProviderBalance | None:
+        row = self.conn.execute(
+            "SELECT * FROM provider_balance_cache WHERE provider_id = ?",
+            (provider_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return ProviderBalance(
+            provider_id=int(row["provider_id"]),
+            supported=bool(row["supported"]),
+            amount=row["amount"],
+            currency=str(row["currency"]) if row["currency"] is not None else None,
+            status=str(row["status"]),
+            message=str(row["message"]),
+            fetched_at=str(row["fetched_at"]) if row["fetched_at"] is not None else None,
+        )
+
+    def list_provider_balances(self) -> list[ProviderBalance]:
+        rows = self.conn.execute(
+            "SELECT * FROM provider_balance_cache ORDER BY provider_id ASC",
         ).fetchall()
         return [
-            Provider(
-                id=int(row["id"]),
-                name=str(row["name"]),
-                provider_type=str(row["provider_type"]),
-                base_url=str(row["base_url"]),
-                auth_scheme=str(row["auth_scheme"]),
-                api_key_encrypted=str(row["api_key_encrypted"]),
-                extra_headers=json.loads(row["extra_headers"] or "{}"),
-                enabled=bool(row["enabled"]),
+            ProviderBalance(
+                provider_id=int(row["provider_id"]),
+                supported=bool(row["supported"]),
+                amount=row["amount"],
+                currency=str(row["currency"]) if row["currency"] is not None else None,
+                status=str(row["status"]),
+                message=str(row["message"]),
+                fetched_at=str(row["fetched_at"]) if row["fetched_at"] is not None else None,
             )
             for row in rows
         ]

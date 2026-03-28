@@ -295,6 +295,106 @@ button {
   gap: 12px;
 }
 
+.provider-card-list {
+  display: grid;
+  gap: 16px;
+}
+
+.provider-card {
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.provider-card:hover {
+  border-color: rgba(18, 121, 185, 0.32);
+  box-shadow: 0 18px 38px rgba(34, 55, 79, 0.12);
+  transform: translateY(-1px);
+}
+
+.provider-card-main {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.provider-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(19, 34, 56, 0.04);
+  color: #5c6d82;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.provider-info {
+  display: grid;
+  gap: 6px;
+}
+
+.provider-info strong {
+  font-size: 1.35rem;
+}
+
+.provider-url {
+  color: #1279b9;
+  font-size: 1rem;
+  word-break: break-all;
+}
+
+.provider-protocol-badge {
+  align-self: center;
+  justify-self: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(19, 34, 56, 0.06);
+  color: #32465f;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.provider-balance-block {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  text-align: right;
+}
+
+.provider-balance-time,
+.provider-balance-meta {
+  color: #6b7788;
+  font-size: 0.9rem;
+}
+
+.provider-balance-value {
+  font-size: 1.35rem;
+  color: #16a34a;
+}
+
+.provider-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.provider-card:hover .provider-card-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .device-card {
   display: grid;
   gap: 6px;
@@ -680,6 +780,23 @@ button {
   .two-column,
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .provider-card-main {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .provider-balance-block {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .provider-card-actions {
+    opacity: 1;
+    pointer-events: auto;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .editor-grid,

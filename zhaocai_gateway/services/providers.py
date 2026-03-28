@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 import time
 from urllib.parse import urlparse
 
@@ -21,6 +22,9 @@ class ProviderService:
         if provider is None:
             return None
         return asdict(provider)
+
+    def list_balances(self) -> list[dict]:
+        return [asdict(balance) for balance in self.store.list_provider_balances()]
 
     def create(
         self,
@@ -161,6 +165,94 @@ class ProviderService:
             "message": f"已检测 {len(results)} 个模型，成功 {passed} 个，失败 {len(results) - passed} 个。",
             "results": results,
         }
+
+    def refresh_balance(self, provider_id: int) -> dict:
+        provider = self.store.get_provider(provider_id)
+        if provider is None:
+            raise ValueError(f"Provider {provider_id} not found")
+
+        result = self._query_balance(provider)
+        self.store.upsert_provider_balance(
+            provider_id=provider.id,
+            supported=result["supported"],
+            amount=result["amount"],
+            currency=result["currency"],
+            status=result["status"],
+            message=result["message"],
+            fetched_at=result["fetched_at"],
+        )
+        refreshed = self.store.get_provider(provider.id)
+        if refreshed is None:
+            raise RuntimeError("Failed to refresh provider balance")
+        return asdict(refreshed)
+
+    def refresh_balances(self, provider_ids: list[int] | None = None) -> dict:
+        providers = self.store.list_providers()
+        if provider_ids is not None:
+            provider_ids_set = set(provider_ids)
+            providers = [provider for provider in providers if provider.id in provider_ids_set]
+
+        refreshed: list[dict] = []
+        for provider in providers:
+            refreshed.append(self.refresh_balance(provider.id))
+
+        return {"providers": refreshed}
+
+    def _query_balance(self, provider) -> dict:
+        if self._is_openrouter_provider(provider):
+            return self._query_openrouter_balance(provider)
+
+        return {
+            "supported": False,
+            "amount": None,
+            "currency": None,
+            "status": "unsupported",
+            "message": "暂不支持余额查询",
+            "fetched_at": None,
+        }
+
+    @staticmethod
+    def _is_openrouter_provider(provider) -> bool:
+        name = provider.name.lower()
+        base_url = provider.base_url.lower()
+        return "openrouter" in name or "openrouter.ai" in base_url
+
+    def _query_openrouter_balance(self, provider) -> dict:
+        endpoint = f"{provider.base_url.strip().rstrip('/')}/credits"
+        response = httpx.get(
+            endpoint,
+            headers={"Authorization": f"Bearer {provider.api_key_encrypted}"},
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        data = payload.get("data", payload) if isinstance(payload, dict) else {}
+        total_credits = self._safe_float(data.get("total_credits"))
+        total_usage = self._safe_float(data.get("total_usage"))
+        remaining = None
+        if total_credits is not None and total_usage is not None:
+            remaining = max(total_credits - total_usage, 0.0)
+        elif total_credits is not None:
+            remaining = total_credits
+
+        return {
+            "supported": True,
+            "amount": remaining,
+            "currency": "USD",
+            "status": "ok",
+            "message": "余额已刷新",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    @staticmethod
+    def _safe_float(value) -> float | None:
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _build_test_url(base_url: str, provider_type: str) -> str:

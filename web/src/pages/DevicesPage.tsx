@@ -118,7 +118,7 @@ export default function DevicesPage({
           </div>
           <div className="checkbox-grid">
             {providerGroups.map(([providerName, providerModels]) => {
-              const expanded = expandedProviders[providerName] ?? true;
+              const expanded = expandedProviders[providerName] ?? false;
               return (
                 <div key={providerName} className="provider-group">
                   <button

@@ -88,6 +88,10 @@ class DeviceModelBindingUpdate(BaseModel):
     model_ids: list[int] = Field(default_factory=list)
 
 
+class ProviderBalanceRefreshRequest(BaseModel):
+    provider_ids: list[int] = Field(default_factory=list)
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
@@ -188,6 +192,31 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             return provider_service.test_connectivity(provider_id)
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.get("/provider-balances")
+    def list_provider_balances(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"balances": provider_service.list_balances()}
+
+    @router.post("/providers/{provider_id}/balance-refresh")
+    def refresh_provider_balance(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {"provider": provider_service.refresh_balance(provider_id)}
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.post("/provider-balances/refresh")
+    def refresh_provider_balances(
+        payload: ProviderBalanceRefreshRequest,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        provider_ids = payload.provider_ids or None
+        return provider_service.refresh_balances(provider_ids)
 
     @router.get("/models")
     def list_models(x_admin_token: str | None = Header(default=None)) -> dict:
