@@ -318,8 +318,8 @@ button {
 
 .provider-card-main {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto auto;
-  gap: 18px;
+  grid-template-columns: 72px minmax(0, 1fr) 170px 110px 180px;
+  gap: 14px;
   align-items: center;
 }
 
@@ -355,6 +355,9 @@ button {
 .provider-protocol-badge {
   align-self: center;
   justify-self: center;
+  width: 100%;
+  max-width: 160px;
+  text-align: center;
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(19, 34, 56, 0.06);
@@ -367,11 +370,13 @@ button {
   color: #6b7788;
   font-size: 0.95rem;
   white-space: nowrap;
+  justify-self: end;
 }
 
 .provider-card-actions {
   display: flex;
   justify-content: flex-end;
+  width: 180px;
   gap: 10px;
   opacity: 0;
   pointer-events: none;
@@ -380,7 +385,7 @@ button {
 }
 
 .provider-card:hover .provider-meta-block {
-  transform: translateX(-18px);
+  transform: translateX(-10px);
 }
 
 .provider-card:hover .provider-card-actions {
@@ -790,6 +795,14 @@ button {
   .provider-card-main {
     grid-template-columns: 1fr;
     justify-items: start;
+  }
+
+  .provider-protocol-badge,
+  .provider-meta-block,
+  .provider-card-actions {
+    justify-self: start;
+    width: auto;
+    max-width: none;
   }
 
   .provider-card-actions {
