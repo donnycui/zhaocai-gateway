@@ -78,6 +78,42 @@ That means future gateway work should happen here, not only inside the website r
 - Add model offline detection (remove aliases for models that disappear)
 - Expose admin visibility into sync candidates and scoring
 
+### 4. Media template control plane — proposed next stage
+
+This is not implemented yet, but the current architecture discussions have converged on the following direction:
+
+- Keep existing `Provider` / `Model` management for normal OpenAI-compatible chat models
+- Add a separate `Media Templates` module for complex media workflows used by `zhaocai-media`
+- `zhaocai-media` should eventually consume a gateway-exported media catalog instead of hardcoding every image / video / TTS model
+
+The main reason is that media integrations such as:
+
+- BizyAir `web_app_id + input_values`
+- Gemini image `generateContent`
+- SiliconFlow TTS
+
+cannot be represented cleanly as a simple `provider + upstream_model` pair.
+
+The proposed control-plane addition should manage:
+
+- media capability type (`image`, `image_edit`, `image_to_video`, `tts`)
+- template type (`bizyair_webapp`, `gemini_generate_content`, `openai_images`, `siliconflow_tts`)
+- input schema
+- request template
+- response mapping
+- UI metadata for website rendering
+
+Recommended future export interface:
+
+- `GET /admin/media/catalog`
+
+Expected consumers:
+
+- `laicai.tech /zhaocai/media`
+- `zhaocai-media`
+
+This would let the website stop hardcoding media model lists and let `zhaocai-media` stop hardcoding complex workflow mappings.
+
 ## Recommended Design Constraint
 
 Keep the gateway as:
@@ -98,4 +134,3 @@ The website repo now reads real runtime-layer data from:
 
 The next architecture step there is to connect real agents.  
 The next architecture step here is to make this gateway the model bridge those agents can reliably call.
-
