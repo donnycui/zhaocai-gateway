@@ -8,6 +8,8 @@ from zhaocai_gateway.db.store import SQLiteStore
 
 
 class ModelService:
+    """OpenClaw model inventory service for the current v2 module."""
+
     def __init__(self, store: SQLiteStore) -> None:
         self.store = store
 

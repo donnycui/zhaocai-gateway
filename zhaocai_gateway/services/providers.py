@@ -10,6 +10,8 @@ from zhaocai_gateway.db.store import SQLiteStore
 
 
 class ProviderService:
+    """OpenClaw provider inventory service for the current v2 module."""
+
     def __init__(self, store: SQLiteStore) -> None:
         self.store = store
 
@@ -89,7 +91,7 @@ class ProviderService:
         auth_ok = auth_scheme.strip().lower() in {"bearer", "x-api-key", "basic"}
         return {
             "ok": bool(ok and auth_ok),
-            "message": "Provider input looks valid" if ok and auth_ok else "Invalid provider input",
+            "message": "OpenClaw provider input looks valid" if ok and auth_ok else "Invalid OpenClaw provider input",
         }
 
     def test_connectivity(self, provider_id: int) -> dict:
@@ -106,7 +108,7 @@ class ProviderService:
             return {
                 "ok": False,
                 "provider": asdict(provider),
-                "message": "这个供应商还没有可测试的模型。",
+                "message": "这个 OpenClaw 供应商还没有可测试的模型。",
                 "results": [],
             }
 

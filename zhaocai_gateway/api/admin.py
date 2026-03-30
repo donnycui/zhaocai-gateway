@@ -108,6 +108,9 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 detail="Invalid admin token",
             )
 
+    # OpenClaw module: the current provider/model/device routes remain the
+    # stable v2 surface while Gateway, Media, and Universal are introduced in
+    # separate namespaces.
     @router.get("/providers")
     def list_providers(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)

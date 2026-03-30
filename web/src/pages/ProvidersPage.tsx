@@ -195,25 +195,25 @@ export default function ProvidersPage({
       <div className="panel">
         <div className="page-header">
           <div className="panel-header" style={{ marginBottom: 0 }}>
-            <h3>供应商</h3>
-            <p>统一管理上游供应商，悬停时显示测试、复制、编辑和删除操作。</p>
+            <h3>OpenClaw 供应商</h3>
+            <p>当前页面管理的是 OpenClaw 模块的上游供应商与模型，Gateway 和 Media 会拆到独立模块。</p>
           </div>
           <div className="topbar-actions">
             <button className="secondary-button" onClick={() => void handleSyncOpenRouterFree()}>
-              同步 OpenRouter 免费模型
+              同步 OpenRouter 免费模型到 OpenClaw
             </button>
-            <button onClick={onCreate}>新增供应商</button>
+            <button onClick={onCreate}>新增 OpenClaw 供应商</button>
           </div>
         </div>
         {message ? <p className="inline-message">{message}</p> : null}
         {testReport ? (
           <div className="test-results-panel">
             <div className="panel-header" style={{ marginBottom: 0 }}>
-              <h3>{testReport.provider.name} 测试结果</h3>
+              <h3>{testReport.provider.name} OpenClaw 测试结果</h3>
               <p>{testReport.message}</p>
             </div>
             {testReport.results.length === 0 ? (
-              <p className="inline-message">当前没有可检测的模型。</p>
+              <p className="inline-message">当前没有可检测的 OpenClaw 模型。</p>
             ) : (
               <div className="test-result-list">
                 {testReport.results.map((result) => (
@@ -238,7 +238,7 @@ export default function ProvidersPage({
 
         <div className="provider-card-list">
           {providers.length === 0 ? (
-            <div className="empty-state">还没有任何供应商。</div>
+            <div className="empty-state">还没有任何 OpenClaw 供应商。</div>
           ) : (
             providers.map((provider) => (
               <article key={provider.id} className="provider-card">
@@ -262,23 +262,23 @@ export default function ProvidersPage({
 
                   <div className="provider-card-actions">
                     <IconButton
-                      title="测试供应商"
+                      title="测试 OpenClaw 供应商"
                       onClick={() => void handleTestProvider(provider.id)}
                       disabled={testingProviderId === provider.id}
                     >
                       <TestIcon />
                     </IconButton>
                     <IconButton
-                      title="复制供应商"
+                      title="复制 OpenClaw 供应商"
                       onClick={() => void handleDuplicateProvider(provider.id)}
                       disabled={duplicatingProviderId === provider.id}
                     >
                       <CopyIcon />
                     </IconButton>
-                    <IconButton title="编辑供应商" onClick={() => onEdit(provider.id)}>
+                    <IconButton title="编辑 OpenClaw 供应商" onClick={() => onEdit(provider.id)}>
                       <EditIcon />
                     </IconButton>
-                    <IconButton title="删除供应商" onClick={() => void handleDeleteProvider(provider.id)}>
+                    <IconButton title="删除 OpenClaw 供应商" onClick={() => void handleDeleteProvider(provider.id)}>
                       <DeleteIcon />
                     </IconButton>
                   </div>

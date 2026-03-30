@@ -90,7 +90,10 @@ export default function ProviderEditorPage({
     };
   }, [providerId]);
 
-  const title = useMemo(() => (isCreateMode ? "新增供应商" : `编辑供应商：${provider.name}`), [isCreateMode, provider.name]);
+  const title = useMemo(
+    () => (isCreateMode ? "新增 OpenClaw 供应商" : `编辑 OpenClaw 供应商：${provider.name}`),
+    [isCreateMode, provider.name],
+  );
 
   function updateModel(index: number, patch: Partial<EditableModel>) {
     setModels((current) =>
@@ -196,7 +199,7 @@ export default function ProviderEditorPage({
         <div className="page-header">
           <div className="panel-header" style={{ marginBottom: 0 }}>
             <h3>{title}</h3>
-            <p>配置供应商基础信息，并在下方维护模型列表。</p>
+            <p>配置 OpenClaw 供应商基础信息，并在下方维护将被同步到节点的模型列表。</p>
           </div>
           <div className="topbar-actions">
             <button type="button" className="secondary-button" onClick={onBack}>
@@ -256,8 +259,8 @@ export default function ProviderEditorPage({
         </div>
 
         <div className="panel-header" style={{ marginTop: 10 }}>
-          <h3>模型列表</h3>
-          <p>模型 ID 用于 API 调用，显示名称用于界面展示。</p>
+          <h3>OpenClaw 模型列表</h3>
+          <p>这里的模型会进入 OpenClaw 模块，供设备分配和节点同步使用。</p>
         </div>
 
         <div className="model-card-list">

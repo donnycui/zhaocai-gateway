@@ -165,6 +165,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Current provider/model endpoints back the OpenClaw module. Gateway, Media,
+  // and Universal will be added as separate namespaces instead of sharing this surface.
   async getProviders(): Promise<Provider[]> {
     const result = await request<{ providers: Provider[] }>("/admin/providers");
     return result.providers;

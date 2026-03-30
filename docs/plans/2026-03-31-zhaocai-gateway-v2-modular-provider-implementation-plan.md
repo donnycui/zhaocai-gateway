@@ -154,7 +154,7 @@ git commit -m "feat: preserve local openclaw config via sidecar"
 - Modify: `web/src/pages/ProviderEditorPage.tsx`
 - Modify: `web/src/lib/api.ts`
 
-- [ ] **Step 1: Rename the current provider/model surface in product copy**
+- [x] **Step 1: Rename the current provider/model surface in product copy**
 
 Make the existing provider management explicitly read as:
 
@@ -164,15 +164,15 @@ Make the existing provider management explicitly read as:
 
 without changing its underlying runtime behavior yet.
 
-- [ ] **Step 2: Keep existing APIs working while clarifying scope**
+- [x] **Step 2: Keep existing APIs working while clarifying scope**
 
 Retain current `/admin/providers` and `/admin/models` behavior, but treat them as the `OpenClaw` namespace in docs and UI.
 
-- [ ] **Step 3: Update the UI labels and empty states**
+- [x] **Step 3: Update the UI labels and empty states**
 
 Ensure current pages no longer imply that one provider list is shared by all future modules.
 
-- [ ] **Step 4: Re-run provider and device API tests**
+- [x] **Step 4: Re-run provider and device API tests**
 
 Run:
 
@@ -182,7 +182,7 @@ pytest tests/test_provider_api.py tests/test_device_api.py tests/test_pairing_ap
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add zhaocai_gateway web tests
