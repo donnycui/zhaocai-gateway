@@ -76,4 +76,36 @@ CREATE TABLE IF NOT EXISTS config_snapshots (
     UNIQUE(device_id, version),
     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS gateway_upstream_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_url TEXT NOT NULL,
+    auth_type TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    protocol TEXT NOT NULL DEFAULT 'openai-compatible',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    health_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+    cooldown_until TEXT,
+    last_checked_at TEXT,
+    last_synced_at TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gateway_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER NOT NULL,
+    upstream_model TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    family TEXT,
+    supports_chat INTEGER NOT NULL DEFAULT 1,
+    supports_responses INTEGER NOT NULL DEFAULT 1,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, upstream_model),
+    FOREIGN KEY(account_id) REFERENCES gateway_upstream_accounts(id) ON DELETE CASCADE
+);
 """

@@ -36,6 +36,36 @@ class Model:
 
 
 @dataclass(frozen=True)
+class GatewayUpstreamAccount:
+    id: int
+    name: str
+    base_url: str
+    auth_type: str
+    api_key_encrypted: str
+    protocol: str
+    enabled: bool
+    health_status: str
+    cooldown_until: str | None
+    last_checked_at: str | None
+    last_synced_at: str | None
+    notes: str
+    synced_models_count: int = 0
+
+
+@dataclass(frozen=True)
+class GatewayModel:
+    id: int
+    account_id: int
+    upstream_model: str
+    display_name: str
+    family: str | None
+    supports_chat: bool
+    supports_responses: bool
+    enabled: bool
+    account_name: str | None = None
+
+
+@dataclass(frozen=True)
 class Device:
     id: int
     name: str

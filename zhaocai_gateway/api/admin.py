@@ -7,6 +7,7 @@ from zhaocai_gateway.db.store import SQLiteStore
 from zhaocai_gateway.services import (
     ConfigCompilerService,
     DeviceService,
+    GatewayAccountService,
     ModelService,
     PairingService,
     ProviderService,
@@ -88,12 +89,22 @@ class DeviceModelBindingUpdate(BaseModel):
     model_ids: list[int] = Field(default_factory=list)
 
 
+class GatewayAccountCreate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    protocol: str = "openai-compatible"
+    notes: str = ""
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
     device_service = DeviceService(store)
     pairing_service = PairingService(store)
     compiler_service = ConfigCompilerService(store)
+    gateway_account_service = GatewayAccountService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
@@ -259,6 +270,54 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     def sync_openrouter_free(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
         return model_service.sync_openrouter_free()
+
+    @router.get("/gateway/accounts")
+    def list_gateway_accounts(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"accounts": gateway_account_service.list()}
+
+    @router.post("/gateway/accounts")
+    def create_gateway_account(
+        payload: GatewayAccountCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "account": gateway_account_service.create(
+                name=payload.name,
+                base_url=payload.base_url,
+                auth_type=payload.auth_type,
+                api_key=payload.api_key,
+                protocol=payload.protocol,
+                notes=payload.notes,
+            )
+        }
+
+    @router.post("/gateway/accounts/{account_id}/test")
+    def test_gateway_account(
+        account_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return gateway_account_service.test_connection(account_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    @router.post("/gateway/accounts/{account_id}/sync-models")
+    def sync_gateway_account_models(
+        account_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return gateway_account_service.sync_models(account_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     @router.get("/devices")
     def list_devices(x_admin_token: str | None = Header(default=None)) -> dict:

@@ -251,7 +251,7 @@ git commit -m "feat: add modular provider center shell"
 - Create: `zhaocai_gateway/services/gateway_accounts.py`
 - Create: `tests/test_gateway_accounts_api.py`
 
-- [ ] **Step 1: Add gateway upstream account and gateway model tables**
+- [x] **Step 1: Add gateway upstream account and gateway model tables**
 
 Introduce:
 
@@ -260,7 +260,7 @@ Introduce:
 
 with fields for auth, health, cooldown, and model discovery.
 
-- [ ] **Step 2: Write failing tests for account CRUD, test, and sync**
+- [x] **Step 2: Write failing tests for account CRUD, test, and sync**
 
 Cover:
 
@@ -269,7 +269,7 @@ Cover:
 - sync `/v1/models`
 - store discovered models
 
-- [ ] **Step 3: Implement service methods and admin routes**
+- [x] **Step 3: Implement service methods and admin routes**
 
 Expose:
 
@@ -278,7 +278,7 @@ Expose:
 - `POST /admin/gateway/accounts/{id}/test`
 - `POST /admin/gateway/accounts/{id}/sync-models`
 
-- [ ] **Step 4: Add Gateway Accounts UI**
+- [x] **Step 4: Add Gateway Accounts UI**
 
 Allow:
 
@@ -287,7 +287,7 @@ Allow:
 - sync models
 - view health state
 
-- [ ] **Step 5: Re-run gateway account tests**
+- [x] **Step 5: Re-run gateway account tests**
 
 Run:
 
@@ -297,7 +297,7 @@ pytest tests/test_gateway_accounts_api.py -v
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web tests

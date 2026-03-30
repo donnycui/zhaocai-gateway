@@ -11,6 +11,8 @@ from zhaocai_gateway.domain.models import (
     AppliedConfigReport,
     ConfigSnapshot,
     Device,
+    GatewayModel,
+    GatewayUpstreamAccount,
     Model,
     PairingToken,
     Provider,
@@ -63,6 +65,41 @@ class SQLiteStore:
             cost_cache_write=row["cost_cache_write"],
             enabled=bool(row["enabled"]),
             provider_name=str(provider_name) if provider_name is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_gateway_upstream_account(row: sqlite3.Row) -> GatewayUpstreamAccount:
+        synced_models_count = row["synced_models_count"] if "synced_models_count" in row.keys() else 0
+        return GatewayUpstreamAccount(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            base_url=str(row["base_url"]),
+            auth_type=str(row["auth_type"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            protocol=str(row["protocol"]),
+            enabled=bool(row["enabled"]),
+            health_status=str(row["health_status"]),
+            cooldown_until=str(row["cooldown_until"]) if row["cooldown_until"] is not None else None,
+            last_checked_at=str(row["last_checked_at"]) if row["last_checked_at"] is not None else None,
+            last_synced_at=str(row["last_synced_at"]) if row["last_synced_at"] is not None else None,
+            notes=str(row["notes"] or ""),
+            synced_models_count=int(synced_models_count or 0),
+        )
+
+    @staticmethod
+    def _row_to_gateway_model(row: sqlite3.Row) -> GatewayModel:
+        account_name = row["account_name"] if "account_name" in row.keys() else None
+        family = row["family"] if "family" in row.keys() else None
+        return GatewayModel(
+            id=int(row["id"]),
+            account_id=int(row["account_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            family=str(family) if family is not None else None,
+            supports_chat=bool(row["supports_chat"]),
+            supports_responses=bool(row["supports_responses"]),
+            enabled=bool(row["enabled"]),
+            account_name=str(account_name) if account_name is not None else None,
         )
 
     def create_provider(
@@ -430,6 +467,229 @@ class SQLiteStore:
             (device_id,),
         ).fetchall()
         return [self._row_to_model(row) for row in rows]
+
+    def create_gateway_upstream_account(
+        self,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        protocol: str,
+        enabled: bool,
+        notes: str,
+    ) -> GatewayUpstreamAccount:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO gateway_upstream_accounts
+            (name, base_url, auth_type, api_key_encrypted, protocol, enabled, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                base_url,
+                auth_type,
+                api_key_encrypted,
+                protocol,
+                int(enabled),
+                notes,
+            ),
+        )
+        self.conn.commit()
+        account = self.get_gateway_upstream_account(int(cursor.lastrowid))
+        if account is None:
+            raise RuntimeError("Failed to create gateway upstream account")
+        return account
+
+    def get_gateway_upstream_account(self, account_id: int) -> GatewayUpstreamAccount | None:
+        row = self.conn.execute(
+            """
+            SELECT gua.*,
+                   (
+                       SELECT COUNT(*)
+                       FROM gateway_models gm
+                       WHERE gm.account_id = gua.id AND gm.enabled = 1
+                   ) AS synced_models_count
+            FROM gateway_upstream_accounts gua
+            WHERE gua.id = ?
+            """,
+            (account_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_upstream_account(row)
+
+    def list_gateway_upstream_accounts(self) -> list[GatewayUpstreamAccount]:
+        rows = self.conn.execute(
+            """
+            SELECT gua.*,
+                   (
+                       SELECT COUNT(*)
+                       FROM gateway_models gm
+                       WHERE gm.account_id = gua.id AND gm.enabled = 1
+                   ) AS synced_models_count
+            FROM gateway_upstream_accounts gua
+            ORDER BY gua.id ASC
+            """
+        ).fetchall()
+        return [self._row_to_gateway_upstream_account(row) for row in rows]
+
+    def update_gateway_upstream_account_status(
+        self,
+        account_id: int,
+        *,
+        health_status: str,
+        last_checked_at: str | None = None,
+        cooldown_until: str | None = None,
+        last_synced_at: str | None = None,
+    ) -> GatewayUpstreamAccount:
+        self.conn.execute(
+            """
+            UPDATE gateway_upstream_accounts
+            SET health_status = ?,
+                last_checked_at = COALESCE(?, last_checked_at),
+                cooldown_until = ?,
+                last_synced_at = COALESCE(?, last_synced_at),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                health_status,
+                last_checked_at,
+                cooldown_until,
+                last_synced_at,
+                account_id,
+            ),
+        )
+        self.conn.commit()
+        account = self.get_gateway_upstream_account(account_id)
+        if account is None:
+            raise RuntimeError("Failed to update gateway upstream account")
+        return account
+
+    def list_gateway_models(self, account_id: int | None = None) -> list[GatewayModel]:
+        params: tuple[Any, ...] = ()
+        where = ""
+        if account_id is not None:
+            where = "WHERE gm.account_id = ?"
+            params = (account_id,)
+
+        rows = self.conn.execute(
+            f"""
+            SELECT gm.*, gua.name AS account_name
+            FROM gateway_models gm
+            JOIN gateway_upstream_accounts gua ON gua.id = gm.account_id
+            {where}
+            ORDER BY gm.id ASC
+            """,
+            params,
+        ).fetchall()
+        return [self._row_to_gateway_model(row) for row in rows]
+
+    def get_gateway_model_by_account_and_upstream(
+        self,
+        account_id: int,
+        upstream_model: str,
+    ) -> GatewayModel | None:
+        row = self.conn.execute(
+            """
+            SELECT gm.*, gua.name AS account_name
+            FROM gateway_models gm
+            JOIN gateway_upstream_accounts gua ON gua.id = gm.account_id
+            WHERE gm.account_id = ? AND gm.upstream_model = ?
+            LIMIT 1
+            """,
+            (account_id, upstream_model),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_model(row)
+
+    def upsert_gateway_model(
+        self,
+        *,
+        account_id: int,
+        upstream_model: str,
+        display_name: str,
+        family: str | None,
+        supports_chat: bool,
+        supports_responses: bool,
+        enabled: bool,
+    ) -> GatewayModel:
+        existing = self.get_gateway_model_by_account_and_upstream(account_id, upstream_model)
+        if existing is None:
+            cursor = self.conn.execute(
+                """
+                INSERT INTO gateway_models
+                (account_id, upstream_model, display_name, family, supports_chat, supports_responses, enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    account_id,
+                    upstream_model,
+                    display_name,
+                    family,
+                    int(supports_chat),
+                    int(supports_responses),
+                    int(enabled),
+                ),
+            )
+            self.conn.commit()
+            model = self.conn.execute(
+                """
+                SELECT gm.*, gua.name AS account_name
+                FROM gateway_models gm
+                JOIN gateway_upstream_accounts gua ON gua.id = gm.account_id
+                WHERE gm.id = ?
+                """,
+                (int(cursor.lastrowid),),
+            ).fetchone()
+            if model is None:
+                raise RuntimeError("Failed to create gateway model")
+            return self._row_to_gateway_model(model)
+
+        self.conn.execute(
+            """
+            UPDATE gateway_models
+            SET display_name = ?,
+                family = ?,
+                supports_chat = ?,
+                supports_responses = ?,
+                enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                display_name,
+                family,
+                int(supports_chat),
+                int(supports_responses),
+                int(enabled),
+                existing.id,
+            ),
+        )
+        self.conn.commit()
+        model = self.get_gateway_model_by_account_and_upstream(account_id, upstream_model)
+        if model is None:
+            raise RuntimeError("Failed to update gateway model")
+        return model
+
+    def disable_missing_gateway_models(self, account_id: int, keep_upstream_models: set[str]) -> None:
+        rows = self.conn.execute(
+            "SELECT id, upstream_model FROM gateway_models WHERE account_id = ?",
+            (account_id,),
+        ).fetchall()
+        for row in rows:
+            if str(row["upstream_model"]) not in keep_upstream_models:
+                self.conn.execute(
+                    """
+                    UPDATE gateway_models
+                    SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (int(row["id"]),),
+                )
+        self.conn.commit()
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))

@@ -40,6 +40,22 @@ export interface Device {
   model_ids: number[];
 }
 
+export interface GatewayUpstreamAccount {
+  id: number;
+  name: string;
+  base_url: string;
+  auth_type: string;
+  api_key_encrypted: string;
+  protocol: string;
+  enabled: boolean;
+  health_status: string;
+  cooldown_until: string | null;
+  last_checked_at: string | null;
+  last_synced_at: string | null;
+  notes: string;
+  synced_models_count: number;
+}
+
 export type ConfigPreview = Record<string, unknown>;
 
 export interface OpenRouterSyncResult {
@@ -308,6 +324,42 @@ export const api = {
   async getDevices(): Promise<Device[]> {
     const result = await request<{ devices: Device[] }>("/admin/devices");
     return result.devices;
+  },
+
+  async getGatewayAccounts(): Promise<GatewayUpstreamAccount[]> {
+    const result = await request<{ accounts: GatewayUpstreamAccount[] }>("/admin/gateway/accounts");
+    return result.accounts;
+  },
+
+  async createGatewayAccount(payload: {
+    name: string;
+    base_url: string;
+    auth_type: string;
+    api_key: string;
+    protocol?: string;
+    notes?: string;
+  }): Promise<GatewayUpstreamAccount> {
+    const result = await request<{ account: GatewayUpstreamAccount }>("/admin/gateway/accounts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.account;
+  },
+
+  async testGatewayAccount(accountId: number): Promise<{ healthy: boolean; models_status: number }> {
+    return request(`/admin/gateway/accounts/${accountId}/test`, {
+      method: "POST",
+    });
+  },
+
+  async syncGatewayAccountModels(accountId: number): Promise<{
+    account_id: number;
+    models_count: number;
+    upserted_count: number;
+  }> {
+    return request(`/admin/gateway/accounts/${accountId}/sync-models`, {
+      method: "POST",
+    });
   },
 
   async createDevice(payload: {
