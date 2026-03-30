@@ -16,8 +16,14 @@ export interface Model {
   upstream_model: string;
   display_name: string;
   capabilities: string[];
+  reasoning: boolean;
+  input_modalities: string[];
   context_window: number | null;
   max_tokens: number | null;
+  cost_input: number | null;
+  cost_output: number | null;
+  cost_cache_read: number | null;
+  cost_cache_write: number | null;
   enabled: boolean;
 }
 

@@ -70,12 +70,12 @@ export default function App() {
         <div className="brand-block">
           <span className="brand-kicker">Zhaocai Gateway</span>
           <h1>v2 控制台</h1>
-          <p>当前后台先聚焦 OpenClaw 资源管理与节点配置同步。</p>
+          <p>当前后台已经拆出资源中心入口，先从 OpenClaw 开始，逐步承接 Gateway、Media 和 Universal。</p>
         </div>
         <nav className="nav">
           {[
             { id: "dashboard", label: "总览" },
-            { id: "providers", label: "OpenClaw" },
+            { id: "providers", label: "资源中心" },
             { id: "devices", label: "设备" },
             { id: "nodes", label: "节点接入" },
           ].map((item) => (

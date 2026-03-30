@@ -202,7 +202,7 @@ git commit -m "refactor: scope current provider admin to openclaw"
 - Create: `web/src/pages/MediaProvidersPage.tsx`
 - Create: `web/src/pages/UniversalTemplatesPage.tsx`
 
-- [ ] **Step 1: Add module tabs or sub-navigation inside the current provider area**
+- [x] **Step 1: Add module tabs or sub-navigation inside the current provider area**
 
 First-phase provider center should expose:
 
@@ -211,15 +211,15 @@ First-phase provider center should expose:
 - `Media`
 - `Universal`
 
-- [ ] **Step 2: Keep OpenClaw as the default active module**
+- [x] **Step 2: Keep OpenClaw as the default active module**
 
 Do not break the current workflow for already-tested OpenClaw users.
 
-- [ ] **Step 3: Add placeholder or minimal index views for Gateway, Media, and Universal**
+- [x] **Step 3: Add placeholder or minimal index views for Gateway, Media, and Universal**
 
 These pages should establish the module boundary even before all CRUD behavior lands.
 
-- [ ] **Step 4: Run a frontend typecheck/build if the environment allows**
+- [x] **Step 4: Run a frontend typecheck/build if the environment allows**
 
 Run:
 
@@ -230,7 +230,7 @@ npm run build
 
 Expected: PASS after dependencies are available
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web

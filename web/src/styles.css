@@ -137,6 +137,48 @@ button,
   gap: 18px;
 }
 
+.module-tab-row {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-tab {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  text-align: left;
+  background: rgba(19, 34, 56, 0.05);
+  color: #24374f;
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.module-tab strong {
+  font-size: 0.98rem;
+}
+
+.module-tab span {
+  color: #5f6f84;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.module-tab:hover {
+  transform: translateY(-1px);
+  background: rgba(19, 34, 56, 0.08);
+}
+
+.module-tab.active {
+  background: linear-gradient(135deg, rgba(19, 34, 56, 0.96), rgba(31, 76, 116, 0.92));
+  box-shadow: 0 16px 30px rgba(19, 34, 56, 0.2);
+}
+
+.module-tab.active strong,
+.module-tab.active span {
+  color: #fff;
+}
+
 .panel,
 .stat-card,
 .device-card {
@@ -298,6 +340,35 @@ button {
 .provider-card-list {
   display: grid;
   gap: 16px;
+}
+
+.placeholder-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.placeholder-card {
+  display: grid;
+  gap: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(255, 255, 255, 0.74);
+  padding: 18px;
+}
+
+.placeholder-card strong {
+  font-size: 1rem;
+}
+
+.placeholder-card span {
+  color: #5f6f84;
+  line-height: 1.6;
 }
 
 .provider-card {
@@ -788,7 +859,9 @@ button {
 @media (max-width: 1024px) {
   .app-shell,
   .two-column,
-  .stats-grid {
+  .stats-grid,
+  .module-tab-row,
+  .placeholder-grid {
     grid-template-columns: 1fr;
   }
 
