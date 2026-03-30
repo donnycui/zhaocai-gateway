@@ -88,7 +88,7 @@
 - Modify: `tests/test_agent_runtime.py`
 - Modify: `tests/test_agent_sync.py`
 
-- [ ] **Step 1: Define the preserve sidecar contract**
+- [x] **Step 1: Define the preserve sidecar contract**
 
 Choose a sidecar path near the existing OpenClaw config, such as:
 
@@ -105,7 +105,7 @@ Document the first schema:
 }
 ```
 
-- [ ] **Step 2: Write failing tests for merge-preserve behavior**
+- [x] **Step 2: Write failing tests for merge-preserve behavior**
 
 Cover:
 
@@ -114,7 +114,7 @@ Cover:
 - old gateway-managed sections are refreshed
 - malformed sidecar does not corrupt the generated `openclaw.json`
 
-- [ ] **Step 3: Implement sidecar-aware merge logic**
+- [x] **Step 3: Implement sidecar-aware merge logic**
 
 Update the writer so it:
 
@@ -124,7 +124,7 @@ Update the writer so it:
 - keeps sidecar-declared providers and models
 - writes a clean standard `openclaw.json` without extra metadata fields
 
-- [ ] **Step 4: Re-run agent tests**
+- [x] **Step 4: Re-run agent tests**
 
 Run:
 
@@ -134,7 +134,7 @@ pytest tests/test_agent_runtime.py tests/test_agent_sync.py -v
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent tests

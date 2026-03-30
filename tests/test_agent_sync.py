@@ -1,5 +1,8 @@
+import json
 from fastapi.testclient import TestClient
 
+from agent.config import AgentConfig
+from agent.sync import sync_once
 from zhaocai_gateway.app import create_app
 
 ADMIN_TOKEN = "test-admin-token"
@@ -190,3 +193,77 @@ def test_post_config_applied():
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+class DummySyncClient:
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.applied_reports: list[tuple[int, str]] = []
+
+    def get_config_meta(self, *, sync_token: str) -> dict:
+        del sync_token
+        return {"version": 2, "etag": '"etag-2"'}
+
+    def get_config(self, *, sync_token: str) -> dict:
+        del sync_token
+        return self.payload
+
+    def report_applied(self, *, sync_token: str, version: int, status: str) -> None:
+        del sync_token
+        self.applied_reports.append((version, status))
+
+
+def test_sync_once_preserves_sidecar_entries(tmp_path):
+    output_path = tmp_path / "openclaw.json"
+    preserve_path = tmp_path / "zhaocai-preserve.json"
+    output_path.write_text(
+        '{"models":{"providers":{"zhipu":{"api":"openai-completions","models":[{"id":"glm-4-plus","name":"GLM 4 Plus"}]},"old":{"api":"openai-completions","models":[{"id":"gpt-4.1","name":"GPT-4.1"}]}}},"agents":{"defaults":{"models":{"zhipu/glm-4-plus":{"alias":"zhipu/glm-4-plus"},"old/gpt-4.1":{"alias":"old/gpt-4.1"}},"model":{"primary":"old/gpt-4.1","fallbacks":[]}}}}',
+        encoding="utf-8",
+    )
+    preserve_path.write_text(
+        '{"preserveProviders":["zhipu"],"preserveModels":["zhipu/glm-4-plus"]}',
+        encoding="utf-8",
+    )
+
+    config = AgentConfig(
+        server_url="https://raspberrypi.tailnet.ts.net",
+        sync_token="sync-token",
+        device_id=8,
+        output_path=str(output_path),
+        preserve_path=str(preserve_path),
+        reload_command="",
+        last_version=1,
+        last_etag='"etag-1"',
+    )
+    client = DummySyncClient(
+        {
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-5.4", "name": "GPT-5.4"}],
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "models": {
+                        "new/gpt-5.4": {"alias": "new/gpt-5.4"},
+                    },
+                    "model": {"primary": "new/gpt-5.4", "fallbacks": []},
+                }
+            },
+        }
+    )
+
+    result = sync_once(config, client)
+
+    merged = json.loads(output_path.read_text(encoding="utf-8"))
+    assert result.changed is True
+    assert "zhipu" in merged["models"]["providers"]
+    assert "new" in merged["models"]["providers"]
+    assert "old" not in merged["models"]["providers"]
+    assert "zhipu/glm-4-plus" in merged["agents"]["defaults"]["models"]
+    assert "new/gpt-5.4" in merged["agents"]["defaults"]["models"]
+    assert merged["agents"]["defaults"]["model"]["primary"] == "new/gpt-5.4"
+    assert client.applied_reports == [(2, "applied")]

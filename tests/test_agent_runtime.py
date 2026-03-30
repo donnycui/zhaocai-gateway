@@ -1,7 +1,14 @@
+import json
 from pathlib import Path
 
 from agent.cli import build_parser
-from agent.config import DEFAULT_RELOAD_COMMAND, AgentConfig, load_agent_config, save_agent_config
+from agent.config import (
+    DEFAULT_RELOAD_COMMAND,
+    AgentConfig,
+    default_preserve_path_for,
+    load_agent_config,
+    save_agent_config,
+)
 from agent.install import (
     collect_doctor_checks,
     detect_service_manager,
@@ -42,6 +49,18 @@ def test_agent_default_reload_command():
     )
 
     assert config.reload_command == DEFAULT_RELOAD_COMMAND
+
+
+def test_agent_default_preserve_path_tracks_output_path(tmp_path: Path):
+    output_path = tmp_path / "openclaw" / "openclaw.json"
+    config = AgentConfig(
+        server_url="https://raspberrypi.tailnet.ts.net",
+        sync_token="sync-token",
+        device_id=1,
+        output_path=str(output_path),
+    )
+
+    assert Path(config.preserve_path) == default_preserve_path_for(output_path)
 
 
 def test_write_openclaw_config_creates_backup(tmp_path: Path):
@@ -86,6 +105,93 @@ def test_write_openclaw_config_merges_into_existing_document(tmp_path: Path):
     assert '"old/gpt-4.1"' not in merged
     assert '"compaction"' in merged
     assert '"primary": "new/gpt-4.1"' in merged
+
+
+def test_write_openclaw_config_preserves_sidecar_providers_and_models(tmp_path: Path):
+    target = tmp_path / "openclaw.json"
+    preserve_path = tmp_path / "zhaocai-preserve.json"
+    target.write_text(
+        '{"channels":{"telegram":{"enabled":true}},"models":{"providers":{"zhipu":{"api":"openai-completions","models":[{"id":"glm-4-plus","name":"GLM 4 Plus"}]},"old":{"api":"openai-completions","models":[{"id":"gpt-4.1","name":"GPT-4.1"}]}}},"agents":{"defaults":{"models":{"zhipu/glm-4-plus":{"alias":"zhipu/glm-4-plus"},"old/gpt-4.1":{"alias":"old/gpt-4.1"}},"model":{"primary":"old/gpt-4.1","fallbacks":[]}}}}',
+        encoding="utf-8",
+    )
+    preserve_path.write_text(
+        '{"preserveProviders":["zhipu"],"preserveModels":["zhipu/glm-4-plus"]}',
+        encoding="utf-8",
+    )
+
+    write_openclaw_config(
+        target,
+        {
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-5.4", "name": "GPT-5.4"}],
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "models": {
+                        "new/gpt-5.4": {"alias": "new/gpt-5.4"},
+                    },
+                    "model": {"primary": "new/gpt-5.4", "fallbacks": []},
+                }
+            },
+        },
+        preserve_path=preserve_path,
+    )
+
+    merged = json.loads(target.read_text(encoding="utf-8"))
+
+    assert merged["channels"]["telegram"]["enabled"] is True
+    assert "zhipu" in merged["models"]["providers"]
+    assert "new" in merged["models"]["providers"]
+    assert "old" not in merged["models"]["providers"]
+    assert "zhipu/glm-4-plus" in merged["agents"]["defaults"]["models"]
+    assert "new/gpt-5.4" in merged["agents"]["defaults"]["models"]
+    assert "old/gpt-4.1" not in merged["agents"]["defaults"]["models"]
+    assert merged["agents"]["defaults"]["model"]["primary"] == "new/gpt-5.4"
+
+
+def test_write_openclaw_config_ignores_invalid_preserve_sidecar(tmp_path: Path):
+    target = tmp_path / "openclaw.json"
+    preserve_path = tmp_path / "zhaocai-preserve.json"
+    target.write_text(
+        '{"models":{"providers":{"old":{"api":"openai-completions","models":[]}}},"agents":{"defaults":{"models":{"old/gpt-4.1":{"alias":"old"}},"model":{"primary":"old/gpt-4.1","fallbacks":[]}}}}',
+        encoding="utf-8",
+    )
+    preserve_path.write_text("{invalid json", encoding="utf-8")
+
+    write_openclaw_config(
+        target,
+        {
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-5.4", "name": "GPT-5.4"}],
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "models": {
+                        "new/gpt-5.4": {"alias": "new/gpt-5.4"},
+                    },
+                    "model": {"primary": "new/gpt-5.4", "fallbacks": []},
+                }
+            },
+        },
+        preserve_path=preserve_path,
+    )
+
+    merged = json.loads(target.read_text(encoding="utf-8"))
+
+    assert "new" in merged["models"]["providers"]
+    assert "old" not in merged["models"]["providers"]
+    assert "new/gpt-5.4" in merged["agents"]["defaults"]["models"]
+    assert "old/gpt-4.1" not in merged["agents"]["defaults"]["models"]
 
 
 def test_agent_cli_has_expected_commands():

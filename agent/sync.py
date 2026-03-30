@@ -25,7 +25,11 @@ def sync_once(config: AgentConfig, client: AgentClient, *, persist_path: str | N
         return SyncResult(changed=False, version=version, etag=etag)
 
     payload = client.get_config(sync_token=config.sync_token)
-    backup_path = write_openclaw_config(config.output_path, payload)
+    backup_path = write_openclaw_config(
+        config.output_path,
+        payload,
+        preserve_path=config.preserve_path,
+    )
     run_reload_command(config.reload_command)
     client.report_applied(sync_token=config.sync_token, version=version, status="applied")
 
