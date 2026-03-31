@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import GatewayAliasesPage from "./GatewayAliasesPage";
+import GatewayClientKeysPage from "./GatewayClientKeysPage";
 import { api, type GatewayUpstreamAccount } from "../lib/api";
 
 const authOptions = [
@@ -148,6 +149,7 @@ export default function GatewayAccountsPage() {
       </div>
 
       <GatewayAliasesPage />
+      <GatewayClientKeysPage />
     </section>
   );
 }

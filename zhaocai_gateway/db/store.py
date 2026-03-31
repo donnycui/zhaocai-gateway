@@ -13,6 +13,7 @@ from zhaocai_gateway.domain.models import (
     Device,
     GatewayAlias,
     GatewayAliasTarget,
+    GatewayClientKey,
     GatewayModel,
     GatewayUpstreamAccount,
     Model,
@@ -135,6 +136,18 @@ class SQLiteStore:
             account_name=str(account_name) if account_name is not None else None,
             model_display_name=str(model_display_name) if model_display_name is not None else None,
             upstream_model=str(upstream_model) if upstream_model is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_gateway_client_key(row: sqlite3.Row) -> GatewayClientKey:
+        return GatewayClientKey(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            api_key_hash=str(row["api_key_hash"]),
+            key_hint=str(row["key_hint"]),
+            enabled=bool(row["enabled"]),
+            notes=str(row["notes"] or ""),
+            last_used_at=str(row["last_used_at"]) if row["last_used_at"] is not None else None,
         )
 
     def create_provider(
@@ -881,6 +894,107 @@ class SQLiteStore:
             )
         self.conn.commit()
         return self.list_gateway_alias_targets(alias_id)
+
+    def create_gateway_client_key(
+        self,
+        *,
+        name: str,
+        api_key_hash: str,
+        key_hint: str,
+        enabled: bool,
+        notes: str,
+    ) -> GatewayClientKey:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO gateway_client_keys
+            (name, api_key_hash, key_hint, enabled, notes)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                api_key_hash,
+                key_hint,
+                int(enabled),
+                notes,
+            ),
+        )
+        self.conn.commit()
+        client_key = self.get_gateway_client_key(int(cursor.lastrowid))
+        if client_key is None:
+            raise RuntimeError("Failed to create gateway client key")
+        return client_key
+
+    def get_gateway_client_key(self, client_key_id: int) -> GatewayClientKey | None:
+        row = self.conn.execute(
+            "SELECT * FROM gateway_client_keys WHERE id = ?",
+            (client_key_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_client_key(row)
+
+    def list_gateway_client_keys(self) -> list[GatewayClientKey]:
+        rows = self.conn.execute(
+            "SELECT * FROM gateway_client_keys ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_gateway_client_key(row) for row in rows]
+
+    def update_gateway_client_key(
+        self,
+        client_key_id: int,
+        *,
+        enabled: bool,
+        notes: str,
+    ) -> GatewayClientKey:
+        self.conn.execute(
+            """
+            UPDATE gateway_client_keys
+            SET enabled = ?,
+                notes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                int(enabled),
+                notes,
+                client_key_id,
+            ),
+        )
+        self.conn.commit()
+        client_key = self.get_gateway_client_key(client_key_id)
+        if client_key is None:
+            raise RuntimeError("Failed to update gateway client key")
+        return client_key
+
+    def get_gateway_client_key_by_hash(self, api_key_hash: str) -> GatewayClientKey | None:
+        row = self.conn.execute(
+            "SELECT * FROM gateway_client_keys WHERE api_key_hash = ? LIMIT 1",
+            (api_key_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_client_key(row)
+
+    def touch_gateway_client_key(self, client_key_id: int, *, last_used_at: str) -> GatewayClientKey:
+        self.conn.execute(
+            """
+            UPDATE gateway_client_keys
+            SET last_used_at = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (last_used_at, client_key_id),
+        )
+        self.conn.commit()
+        client_key = self.get_gateway_client_key(client_key_id)
+        if client_key is None:
+            raise RuntimeError("Failed to touch gateway client key")
+        return client_key
+
+    def has_enabled_gateway_client_keys(self) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM gateway_client_keys WHERE enabled = 1 LIMIT 1",
+        ).fetchone()
+        return row is not None
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))

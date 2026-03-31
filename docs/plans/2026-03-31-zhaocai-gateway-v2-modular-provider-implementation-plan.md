@@ -453,7 +453,7 @@ git commit -m "feat: add gateway alias failover routing"
 - Create: `zhaocai_gateway/services/gateway_client_keys.py`
 - Create: `web/src/pages/GatewayClientKeysPage.tsx`
 
-- [ ] **Step 1: Add client-key storage**
+- [x] **Step 1: Add client-key storage**
 
 Introduce:
 
@@ -461,14 +461,14 @@ Introduce:
 
 with hashed key storage and enabled/disabled state.
 
-- [ ] **Step 2: Decide the first access policy**
+- [x] **Step 2: Decide the first access policy**
 
 The minimal first release can support:
 
 - one dedicated key for `Content-IP-Strategy`
 - optional alias allow-listing later
 
-- [ ] **Step 3: Implement admin APIs and UI**
+- [x] **Step 3: Implement admin APIs and UI**
 
 Expose:
 
@@ -476,11 +476,11 @@ Expose:
 - `POST /admin/gateway/client-keys`
 - `PATCH /admin/gateway/client-keys/{id}`
 
-- [ ] **Step 4: Wire the public request path to require a client key**
+- [x] **Step 4: Wire the public request path to require a client key**
 
 Requests to the Gateway runtime path should authenticate against this module instead of raw upstream account credentials.
 
-- [ ] **Step 5: Manual smoke test**
+- [x] **Step 5: Manual smoke test**
 
 Confirm a consumer can use:
 

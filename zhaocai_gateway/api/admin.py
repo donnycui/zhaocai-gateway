@@ -9,6 +9,7 @@ from zhaocai_gateway.services import (
     DeviceService,
     GatewayAccountService,
     GatewayAliasService,
+    GatewayClientKeyService,
     ModelService,
     PairingService,
     ProviderService,
@@ -129,6 +130,17 @@ class GatewayAliasTargetsUpdate(BaseModel):
     targets: list[GatewayAliasTargetInput] = Field(default_factory=list)
 
 
+class GatewayClientKeyCreate(BaseModel):
+    name: str = Field(min_length=1)
+    api_key: str = ""
+    notes: str = ""
+
+
+class GatewayClientKeyUpdate(BaseModel):
+    enabled: bool = True
+    notes: str = ""
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
@@ -137,6 +149,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     compiler_service = ConfigCompilerService(store)
     gateway_account_service = GatewayAccountService(store)
     gateway_alias_service = GatewayAliasService(store)
+    gateway_client_key_service = GatewayClientKeyService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
@@ -423,6 +436,43 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 )
             }
         except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.get("/gateway/client-keys")
+    def list_gateway_client_keys(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"client_keys": gateway_client_key_service.list()}
+
+    @router.post("/gateway/client-keys")
+    def create_gateway_client_key(
+        payload: GatewayClientKeyCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "client_key": gateway_client_key_service.create(
+                name=payload.name,
+                api_key=payload.api_key,
+                notes=payload.notes,
+            )
+        }
+
+    @router.patch("/gateway/client-keys/{client_key_id}")
+    def update_gateway_client_key(
+        client_key_id: int,
+        payload: GatewayClientKeyUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "client_key": gateway_client_key_service.update(
+                    client_key_id,
+                    enabled=payload.enabled,
+                    notes=payload.notes,
+                )
+            }
+        except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.get("/devices")

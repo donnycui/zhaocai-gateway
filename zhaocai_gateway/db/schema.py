@@ -139,4 +139,16 @@ CREATE TABLE IF NOT EXISTS gateway_alias_targets (
     FOREIGN KEY(account_id) REFERENCES gateway_upstream_accounts(id) ON DELETE CASCADE,
     FOREIGN KEY(model_id) REFERENCES gateway_models(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS gateway_client_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    api_key_hash TEXT NOT NULL UNIQUE,
+    key_hint TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    last_used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """

@@ -94,6 +94,17 @@ export interface GatewayAliasTarget {
   upstream_model?: string;
 }
 
+export interface GatewayClientKey {
+  id: number;
+  name: string;
+  api_key_hash: string;
+  key_hint: string;
+  enabled: boolean;
+  notes: string;
+  last_used_at: string | null;
+  raw_api_key?: string;
+}
+
 export type ConfigPreview = Record<string, unknown>;
 
 export interface OpenRouterSyncResult {
@@ -463,6 +474,37 @@ export const api = {
       body: JSON.stringify({ targets }),
     });
     return result.targets;
+  },
+
+  async getGatewayClientKeys(): Promise<GatewayClientKey[]> {
+    const result = await request<{ client_keys: GatewayClientKey[] }>("/admin/gateway/client-keys");
+    return result.client_keys;
+  },
+
+  async createGatewayClientKey(payload: {
+    name: string;
+    api_key?: string;
+    notes: string;
+  }): Promise<GatewayClientKey> {
+    const result = await request<{ client_key: GatewayClientKey }>("/admin/gateway/client-keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.client_key;
+  },
+
+  async updateGatewayClientKey(
+    clientKeyId: number,
+    payload: {
+      enabled: boolean;
+      notes: string;
+    },
+  ): Promise<GatewayClientKey> {
+    const result = await request<{ client_key: GatewayClientKey }>(`/admin/gateway/client-keys/${clientKeyId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.client_key;
   },
 
   async createDevice(payload: {

@@ -94,6 +94,17 @@ class GatewayAliasTarget:
 
 
 @dataclass(frozen=True)
+class GatewayClientKey:
+    id: int
+    name: str
+    api_key_hash: str
+    key_hint: str
+    enabled: bool
+    notes: str
+    last_used_at: str | None
+
+
+@dataclass(frozen=True)
 class Device:
     id: int
     name: str

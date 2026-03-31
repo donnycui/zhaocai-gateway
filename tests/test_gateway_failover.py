@@ -15,6 +15,20 @@ def admin_headers() -> dict[str, str]:
     return {"X-Admin-Token": ADMIN_TOKEN}
 
 
+def create_client_key(client: TestClient, *, api_key: str = "gateway-test-key") -> str:
+    response = client.post(
+        "/admin/gateway/client-keys",
+        headers=admin_headers(),
+        json={
+            "name": "Content-IP-Strategy",
+            "api_key": api_key,
+            "notes": "runtime access",
+        },
+    )
+    assert response.status_code == 200
+    return response.json()["client_key"]["raw_api_key"]
+
+
 def create_gateway_account(client: TestClient, *, name: str, base_url: str) -> dict:
     response = client.post(
         "/admin/gateway/accounts",
@@ -134,6 +148,7 @@ def prepare_runtime_targets(client: TestClient, monkeypatch) -> tuple[dict, dict
 def test_gateway_failover_on_timeout(monkeypatch):
     client = create_test_client()
     prepare_runtime_targets(client, monkeypatch)
+    runtime_key = create_client_key(client)
 
     calls: list[str] = []
 
@@ -163,6 +178,7 @@ def test_gateway_failover_on_timeout(monkeypatch):
 
     response = client.post(
         "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {runtime_key}"},
         json={
             "model": "signal/deep",
             "messages": [{"role": "user", "content": "hello"}],
@@ -180,6 +196,7 @@ def test_gateway_failover_on_timeout(monkeypatch):
 def test_gateway_failover_on_5xx(monkeypatch):
     client = create_test_client()
     prepare_runtime_targets(client, monkeypatch)
+    runtime_key = create_client_key(client)
 
     calls: list[str] = []
 
@@ -208,6 +225,7 @@ def test_gateway_failover_on_5xx(monkeypatch):
 
     response = client.post(
         "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {runtime_key}"},
         json={
             "model": "signal/deep",
             "messages": [{"role": "user", "content": "hello"}],
@@ -222,6 +240,7 @@ def test_gateway_failover_on_5xx(monkeypatch):
 def test_gateway_failover_on_429(monkeypatch):
     client = create_test_client()
     prepare_runtime_targets(client, monkeypatch)
+    runtime_key = create_client_key(client)
 
     calls: list[str] = []
 
@@ -250,6 +269,7 @@ def test_gateway_failover_on_429(monkeypatch):
 
     response = client.post(
         "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {runtime_key}"},
         json={
             "model": "signal/deep",
             "messages": [{"role": "user", "content": "hello"}],
@@ -264,6 +284,7 @@ def test_gateway_failover_on_429(monkeypatch):
 def test_gateway_does_not_failover_on_400(monkeypatch):
     client = create_test_client()
     prepare_runtime_targets(client, monkeypatch)
+    runtime_key = create_client_key(client)
 
     calls: list[str] = []
 
@@ -284,6 +305,7 @@ def test_gateway_does_not_failover_on_400(monkeypatch):
 
     response = client.post(
         "/v1/chat/completions",
+        headers={"Authorization": f"Bearer {runtime_key}"},
         json={
             "model": "signal/deep",
             "messages": [{"role": "user", "content": "hello"}],
