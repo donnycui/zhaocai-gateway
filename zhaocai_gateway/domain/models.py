@@ -105,6 +105,39 @@ class GatewayClientKey:
 
 
 @dataclass(frozen=True)
+class MediaProvider:
+    id: int
+    name: str
+    base_url: str
+    auth_type: str
+    api_key_encrypted: str
+    enabled: bool
+    notes: str
+
+
+@dataclass(frozen=True)
+class MediaTemplate:
+    id: int
+    provider_id: int
+    model_key: str
+    name: str
+    capability: str
+    template_type: str
+    upstream_model: str
+    ui_group: str
+    ui_label: str
+    ui_description: str
+    ui_badge: str
+    ui_order: int
+    input_schema_json: dict[str, Any]
+    request_template_json: dict[str, Any]
+    response_mapping_json: dict[str, Any]
+    defaults_json: dict[str, Any]
+    enabled: bool
+    provider_name: str | None = None
+
+
+@dataclass(frozen=True)
 class Device:
     id: int
     name: str

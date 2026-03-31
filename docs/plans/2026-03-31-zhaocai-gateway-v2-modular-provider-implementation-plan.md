@@ -490,7 +490,7 @@ Confirm a consumer can use:
 
 without needing upstream-specific secrets.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web
@@ -517,7 +517,7 @@ git commit -m "feat: add gateway client access keys"
 - Create: `tests/test_media_template_api.py`
 - Create: `tests/test_media_catalog.py`
 
-- [ ] **Step 1: Add media-specific tables**
+- [x] **Step 1: Add media-specific tables**
 
 Introduce:
 
@@ -526,7 +526,7 @@ Introduce:
 
 Keep these independent from OpenClaw provider/model tables.
 
-- [ ] **Step 2: Write failing media API tests**
+- [x] **Step 2: Write failing media API tests**
 
 Cover:
 
@@ -535,7 +535,7 @@ Cover:
 - validation endpoint
 - catalog export endpoint
 
-- [ ] **Step 3: Implement admin services and APIs**
+- [x] **Step 3: Implement admin services and APIs**
 
 Expose:
 
@@ -546,7 +546,7 @@ Expose:
 - `POST /admin/media-templates/{id}/validate`
 - `GET /admin/media/catalog`
 
-- [ ] **Step 4: Add Media UI**
+- [x] **Step 4: Add Media UI**
 
 Allow:
 
@@ -555,7 +555,7 @@ Allow:
 - template validation
 - catalog preview
 
-- [ ] **Step 5: Re-run media tests**
+- [x] **Step 5: Re-run media tests**
 
 Run:
 

@@ -105,6 +105,53 @@ export interface GatewayClientKey {
   raw_api_key?: string;
 }
 
+export interface MediaProvider {
+  id: number;
+  name: string;
+  base_url: string;
+  auth_type: string;
+  api_key_encrypted: string;
+  enabled: boolean;
+  notes: string;
+}
+
+export interface MediaTemplate {
+  id: number;
+  provider_id: number;
+  provider_name?: string;
+  model_key: string;
+  name: string;
+  capability: string;
+  template_type: string;
+  upstream_model: string;
+  ui_group: string;
+  ui_label: string;
+  ui_description: string;
+  ui_badge: string;
+  ui_order: number;
+  input_schema_json: Record<string, unknown>;
+  request_template_json: Record<string, unknown>;
+  response_mapping_json: Record<string, unknown>;
+  defaults_json: Record<string, unknown>;
+  enabled: boolean;
+}
+
+export interface MediaCatalogItem {
+  id: number;
+  template_id: number;
+  mode: string;
+  provider: string;
+  template_type: string;
+  model_key: string;
+  upstream_model: string;
+  display_name: string;
+  description: string;
+  badge: string;
+  enabled: boolean;
+  ui_order: number;
+  defaults: Record<string, unknown>;
+}
+
 export type ConfigPreview = Record<string, unknown>;
 
 export interface OpenRouterSyncResult {
@@ -505,6 +552,84 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return result.client_key;
+  },
+
+  async getMediaProviders(): Promise<MediaProvider[]> {
+    const result = await request<{ providers: MediaProvider[] }>("/admin/media/providers");
+    return result.providers;
+  },
+
+  async createMediaProvider(payload: {
+    name: string;
+    base_url: string;
+    auth_type: string;
+    api_key: string;
+    notes: string;
+  }): Promise<MediaProvider> {
+    const result = await request<{ provider: MediaProvider }>("/admin/media/providers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.provider;
+  },
+
+  async getMediaTemplates(): Promise<MediaTemplate[]> {
+    const result = await request<{ templates: MediaTemplate[] }>("/admin/media/templates");
+    return result.templates;
+  },
+
+  async createMediaTemplate(payload: {
+    provider_id: number;
+    model_key: string;
+    name: string;
+    capability: string;
+    template_type: string;
+    upstream_model: string;
+    ui_group: string;
+    ui_label: string;
+    ui_description: string;
+    ui_badge: string;
+    ui_order: number;
+    input_schema_json: Record<string, unknown>;
+    request_template_json: Record<string, unknown>;
+    response_mapping_json: Record<string, unknown>;
+    defaults_json: Record<string, unknown>;
+    enabled: boolean;
+  }): Promise<MediaTemplate> {
+    const result = await request<{ template: MediaTemplate }>("/admin/media/templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.template;
+  },
+
+  async validateMediaTemplate(payload: {
+    provider_id: number;
+    model_key: string;
+    name: string;
+    capability: string;
+    template_type: string;
+    upstream_model: string;
+    ui_group: string;
+    ui_label: string;
+    ui_description: string;
+    ui_badge: string;
+    ui_order: number;
+    input_schema_json: Record<string, unknown>;
+    request_template_json: Record<string, unknown>;
+    response_mapping_json: Record<string, unknown>;
+    defaults_json: Record<string, unknown>;
+    enabled: boolean;
+  }): Promise<{ ok: boolean; message: string; errors: string[]; warnings: string[] }> {
+    return request("/admin/media/templates/validate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getMediaCatalog(): Promise<MediaCatalogItem[]> {
+    const result = await request<{ catalog: MediaCatalogItem[] }>("/admin/media/catalog");
+    return result.catalog;
   },
 
   async createDevice(payload: {

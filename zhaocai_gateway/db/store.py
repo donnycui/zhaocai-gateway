@@ -16,6 +16,8 @@ from zhaocai_gateway.domain.models import (
     GatewayClientKey,
     GatewayModel,
     GatewayUpstreamAccount,
+    MediaProvider,
+    MediaTemplate,
     Model,
     PairingToken,
     Provider,
@@ -148,6 +150,42 @@ class SQLiteStore:
             enabled=bool(row["enabled"]),
             notes=str(row["notes"] or ""),
             last_used_at=str(row["last_used_at"]) if row["last_used_at"] is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_media_provider(row: sqlite3.Row) -> MediaProvider:
+        return MediaProvider(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            base_url=str(row["base_url"]),
+            auth_type=str(row["auth_type"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            enabled=bool(row["enabled"]),
+            notes=str(row["notes"] or ""),
+        )
+
+    @staticmethod
+    def _row_to_media_template(row: sqlite3.Row) -> MediaTemplate:
+        provider_name = row["provider_name"] if "provider_name" in row.keys() else None
+        return MediaTemplate(
+            id=int(row["id"]),
+            provider_id=int(row["provider_id"]),
+            model_key=str(row["model_key"]),
+            name=str(row["name"]),
+            capability=str(row["capability"]),
+            template_type=str(row["template_type"]),
+            upstream_model=str(row["upstream_model"]),
+            ui_group=str(row["ui_group"] or ""),
+            ui_label=str(row["ui_label"] or ""),
+            ui_description=str(row["ui_description"] or ""),
+            ui_badge=str(row["ui_badge"] or ""),
+            ui_order=int(row["ui_order"]),
+            input_schema_json=json.loads(row["input_schema_json"] or "{}"),
+            request_template_json=json.loads(row["request_template_json"] or "{}"),
+            response_mapping_json=json.loads(row["response_mapping_json"] or "{}"),
+            defaults_json=json.loads(row["defaults_json"] or "{}"),
+            enabled=bool(row["enabled"]),
+            provider_name=str(provider_name) if provider_name is not None else None,
         )
 
     def create_provider(
@@ -995,6 +1033,145 @@ class SQLiteStore:
             "SELECT 1 FROM gateway_client_keys WHERE enabled = 1 LIMIT 1",
         ).fetchone()
         return row is not None
+
+    def create_media_provider(
+        self,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        enabled: bool,
+        notes: str,
+    ) -> MediaProvider:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO media_providers
+            (name, base_url, auth_type, api_key_encrypted, enabled, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                base_url,
+                auth_type,
+                api_key_encrypted,
+                int(enabled),
+                notes,
+            ),
+        )
+        self.conn.commit()
+        provider = self.get_media_provider(int(cursor.lastrowid))
+        if provider is None:
+            raise RuntimeError("Failed to create media provider")
+        return provider
+
+    def get_media_provider(self, provider_id: int) -> MediaProvider | None:
+        row = self.conn.execute(
+            "SELECT * FROM media_providers WHERE id = ?",
+            (provider_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_media_provider(row)
+
+    def list_media_providers(self) -> list[MediaProvider]:
+        rows = self.conn.execute(
+            "SELECT * FROM media_providers ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_media_provider(row) for row in rows]
+
+    def create_media_template(
+        self,
+        *,
+        provider_id: int,
+        model_key: str,
+        name: str,
+        capability: str,
+        template_type: str,
+        upstream_model: str,
+        ui_group: str,
+        ui_label: str,
+        ui_description: str,
+        ui_badge: str,
+        ui_order: int,
+        input_schema_json: dict[str, Any],
+        request_template_json: dict[str, Any],
+        response_mapping_json: dict[str, Any],
+        defaults_json: dict[str, Any],
+        enabled: bool,
+    ) -> MediaTemplate:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO media_templates
+            (
+                provider_id,
+                model_key,
+                name,
+                capability,
+                template_type,
+                upstream_model,
+                ui_group,
+                ui_label,
+                ui_description,
+                ui_badge,
+                ui_order,
+                input_schema_json,
+                request_template_json,
+                response_mapping_json,
+                defaults_json,
+                enabled
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                provider_id,
+                model_key,
+                name,
+                capability,
+                template_type,
+                upstream_model,
+                ui_group,
+                ui_label,
+                ui_description,
+                ui_badge,
+                ui_order,
+                json.dumps(input_schema_json, ensure_ascii=False),
+                json.dumps(request_template_json, ensure_ascii=False),
+                json.dumps(response_mapping_json, ensure_ascii=False),
+                json.dumps(defaults_json, ensure_ascii=False),
+                int(enabled),
+            ),
+        )
+        self.conn.commit()
+        template = self.get_media_template(int(cursor.lastrowid))
+        if template is None:
+            raise RuntimeError("Failed to create media template")
+        return template
+
+    def get_media_template(self, template_id: int) -> MediaTemplate | None:
+        row = self.conn.execute(
+            """
+            SELECT mt.*, mp.name AS provider_name
+            FROM media_templates mt
+            JOIN media_providers mp ON mp.id = mt.provider_id
+            WHERE mt.id = ?
+            """,
+            (template_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_media_template(row)
+
+    def list_media_templates(self) -> list[MediaTemplate]:
+        rows = self.conn.execute(
+            """
+            SELECT mt.*, mp.name AS provider_name
+            FROM media_templates mt
+            JOIN media_providers mp ON mp.id = mt.provider_id
+            ORDER BY mt.ui_order ASC, mt.id ASC
+            """
+        ).fetchall()
+        return [self._row_to_media_template(row) for row in rows]
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))

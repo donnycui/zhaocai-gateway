@@ -10,6 +10,9 @@ from zhaocai_gateway.services import (
     GatewayAccountService,
     GatewayAliasService,
     GatewayClientKeyService,
+    MediaCatalogService,
+    MediaProviderService,
+    MediaTemplateService,
     ModelService,
     PairingService,
     ProviderService,
@@ -141,6 +144,33 @@ class GatewayClientKeyUpdate(BaseModel):
     notes: str = ""
 
 
+class MediaProviderCreate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    notes: str = ""
+
+
+class MediaTemplateCreate(BaseModel):
+    provider_id: int
+    model_key: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    capability: str = Field(min_length=1)
+    template_type: str = Field(min_length=1)
+    upstream_model: str = Field(min_length=1)
+    ui_group: str = ""
+    ui_label: str = ""
+    ui_description: str = ""
+    ui_badge: str = ""
+    ui_order: int = 0
+    input_schema_json: dict = Field(default_factory=dict)
+    request_template_json: dict = Field(default_factory=dict)
+    response_mapping_json: dict = Field(default_factory=dict)
+    defaults_json: dict = Field(default_factory=dict)
+    enabled: bool = True
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
@@ -150,6 +180,9 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     gateway_account_service = GatewayAccountService(store)
     gateway_alias_service = GatewayAliasService(store)
     gateway_client_key_service = GatewayClientKeyService(store)
+    media_provider_service = MediaProviderService(store)
+    media_template_service = MediaTemplateService(store)
+    media_catalog_service = MediaCatalogService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
@@ -474,6 +507,75 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             }
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.get("/media/providers")
+    def list_media_providers(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"providers": media_provider_service.list()}
+
+    @router.post("/media/providers")
+    def create_media_provider(
+        payload: MediaProviderCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "provider": media_provider_service.create(
+                name=payload.name,
+                base_url=payload.base_url,
+                auth_type=payload.auth_type,
+                api_key=payload.api_key,
+                notes=payload.notes,
+            )
+        }
+
+    @router.get("/media/templates")
+    def list_media_templates(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"templates": media_template_service.list()}
+
+    @router.post("/media/templates")
+    def create_media_template(
+        payload: MediaTemplateCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "template": media_template_service.create(
+                    provider_id=payload.provider_id,
+                    model_key=payload.model_key,
+                    name=payload.name,
+                    capability=payload.capability,
+                    template_type=payload.template_type,
+                    upstream_model=payload.upstream_model,
+                    ui_group=payload.ui_group,
+                    ui_label=payload.ui_label,
+                    ui_description=payload.ui_description,
+                    ui_badge=payload.ui_badge,
+                    ui_order=payload.ui_order,
+                    input_schema_json=payload.input_schema_json,
+                    request_template_json=payload.request_template_json,
+                    response_mapping_json=payload.response_mapping_json,
+                    defaults_json=payload.defaults_json,
+                    enabled=payload.enabled,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.post("/media/templates/validate")
+    def validate_media_template(
+        payload: MediaTemplateCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return media_template_service.validate_payload(payload.model_dump())
+
+    @router.get("/media/catalog")
+    def get_media_catalog(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"catalog": media_catalog_service.export()}
 
     @router.get("/devices")
     def list_devices(x_admin_token: str | None = Header(default=None)) -> dict:

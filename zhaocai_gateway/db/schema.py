@@ -151,4 +151,39 @@ CREATE TABLE IF NOT EXISTS gateway_client_keys (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS media_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_url TEXT NOT NULL,
+    auth_type TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS media_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL,
+    model_key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    template_type TEXT NOT NULL,
+    upstream_model TEXT NOT NULL,
+    ui_group TEXT NOT NULL DEFAULT '',
+    ui_label TEXT NOT NULL DEFAULT '',
+    ui_description TEXT NOT NULL DEFAULT '',
+    ui_badge TEXT NOT NULL DEFAULT '',
+    ui_order INTEGER NOT NULL DEFAULT 0,
+    input_schema_json TEXT NOT NULL DEFAULT '{}',
+    request_template_json TEXT NOT NULL DEFAULT '{}',
+    response_mapping_json TEXT NOT NULL DEFAULT '{}',
+    defaults_json TEXT NOT NULL DEFAULT '{}',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(provider_id) REFERENCES media_providers(id) ON DELETE CASCADE
+);
 """
