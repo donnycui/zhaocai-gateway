@@ -56,6 +56,40 @@ def _load_preserve_rules(preserve_path: str | Path | None) -> tuple[set[str], se
     return preserve_providers, preserve_models
 
 
+def _normalize_preserve_payload(payload: object) -> tuple[list[str], list[str]] | None:
+    if not isinstance(payload, dict):
+        return None
+    providers = sorted(_normalize_preserve_list(payload.get("preserveProviders")))
+    models = sorted(_normalize_preserve_list(payload.get("preserveModels")))
+    return providers, models
+
+
+def write_preserve_sidecar(
+    preserve_path: str | Path | None,
+    payload: dict[str, object] | None,
+) -> None:
+    if preserve_path is None:
+        return
+    normalized = _normalize_preserve_payload(payload)
+    if normalized is None:
+        return
+
+    providers, models = normalized
+    target_path = Path(preserve_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(
+        json.dumps(
+            {
+                "preserveProviders": providers,
+                "preserveModels": models,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _select_preserved_entries(entries: object, preserve_keys: set[str]) -> dict:
     if not isinstance(entries, dict):
         return {}

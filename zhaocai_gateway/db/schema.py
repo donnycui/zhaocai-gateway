@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen_at TEXT,
     sync_token_hash TEXT NOT NULL DEFAULT '',
     current_config_version INTEGER NOT NULL DEFAULT 0,
+    preserve_providers_json TEXT NOT NULL DEFAULT '[]',
+    preserve_models_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

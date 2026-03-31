@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from agent.client import AgentClient
 from agent.config import AgentConfig, save_agent_config
-from agent.openclaw_writer import run_reload_command, write_openclaw_config
+from agent.openclaw_writer import run_reload_command, write_openclaw_config, write_preserve_sidecar
 
 
 @dataclass
@@ -25,6 +25,10 @@ def sync_once(config: AgentConfig, client: AgentClient, *, persist_path: str | N
         return SyncResult(changed=False, version=version, etag=etag)
 
     payload = client.get_config(sync_token=config.sync_token)
+    preserve_payload = None
+    if isinstance(payload, dict):
+        preserve_payload = payload.pop("_zhaocai", None)
+    write_preserve_sidecar(config.preserve_path, preserve_payload)
     backup_path = write_openclaw_config(
         config.output_path,
         payload,

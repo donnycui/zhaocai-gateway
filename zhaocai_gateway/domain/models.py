@@ -173,6 +173,8 @@ class Device:
     last_seen_at: str | None
     sync_token_hash: str
     current_config_version: int
+    preserve_providers: list[str]
+    preserve_models: list[str]
 
 
 @dataclass(frozen=True)

@@ -267,3 +267,54 @@ def test_sync_once_preserves_sidecar_entries(tmp_path):
     assert "new/gpt-5.4" in merged["agents"]["defaults"]["models"]
     assert merged["agents"]["defaults"]["model"]["primary"] == "new/gpt-5.4"
     assert client.applied_reports == [(2, "applied")]
+
+
+def test_sync_once_writes_preserve_sidecar_from_payload(tmp_path):
+    output_path = tmp_path / "openclaw.json"
+    preserve_path = tmp_path / "zhaocai-preserve.json"
+
+    config = AgentConfig(
+        server_url="https://raspberrypi.tailnet.ts.net",
+        sync_token="sync-token",
+        device_id=9,
+        output_path=str(output_path),
+        preserve_path=str(preserve_path),
+        reload_command="",
+        last_version=1,
+        last_etag='"etag-1"',
+    )
+    client = DummySyncClient(
+        {
+            "_zhaocai": {
+                "preserveProviders": ["zhipu"],
+                "preserveModels": ["zhipu/glm-4-plus"],
+            },
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-5.4", "name": "GPT-5.4"}],
+                    }
+                }
+            },
+            "agents": {
+                "defaults": {
+                    "models": {
+                        "new/gpt-5.4": {"alias": "new/gpt-5.4"},
+                    },
+                    "model": {"primary": "new/gpt-5.4", "fallbacks": []},
+                }
+            },
+        }
+    )
+
+    result = sync_once(config, client)
+
+    assert result.changed is True
+    preserve_payload = json.loads(preserve_path.read_text(encoding="utf-8"))
+    openclaw_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert preserve_payload == {
+        "preserveProviders": ["zhipu"],
+        "preserveModels": ["zhipu/glm-4-plus"],
+    }
+    assert "_zhaocai" not in openclaw_payload

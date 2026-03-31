@@ -45,10 +45,24 @@ class SQLiteStore:
         self._ensure_model_column("cost_output", "ALTER TABLE models ADD COLUMN cost_output REAL")
         self._ensure_model_column("cost_cache_read", "ALTER TABLE models ADD COLUMN cost_cache_read REAL")
         self._ensure_model_column("cost_cache_write", "ALTER TABLE models ADD COLUMN cost_cache_write REAL")
+        self._ensure_device_column(
+            "preserve_providers_json",
+            "ALTER TABLE devices ADD COLUMN preserve_providers_json TEXT NOT NULL DEFAULT '[]'",
+        )
+        self._ensure_device_column(
+            "preserve_models_json",
+            "ALTER TABLE devices ADD COLUMN preserve_models_json TEXT NOT NULL DEFAULT '[]'",
+        )
         self.conn.commit()
 
     def _ensure_model_column(self, column: str, ddl: str) -> None:
         columns = [row[1] for row in self.conn.execute("PRAGMA table_info(models)").fetchall()]
+        if column not in columns:
+            self.conn.execute(ddl)
+            self.conn.commit()
+
+    def _ensure_device_column(self, column: str, ddl: str) -> None:
+        columns = [row[1] for row in self.conn.execute("PRAGMA table_info(devices)").fetchall()]
         if column not in columns:
             self.conn.execute(ddl)
             self.conn.commit()
@@ -1354,6 +1368,8 @@ class SQLiteStore:
             last_seen_at=row["last_seen_at"],
             sync_token_hash=str(row["sync_token_hash"]),
             current_config_version=int(row["current_config_version"]),
+            preserve_providers=json.loads(row["preserve_providers_json"] or "[]"),
+            preserve_models=json.loads(row["preserve_models_json"] or "[]"),
         )
 
     def list_devices(self) -> list[Device]:
@@ -1371,9 +1387,37 @@ class SQLiteStore:
                 last_seen_at=row["last_seen_at"],
                 sync_token_hash=str(row["sync_token_hash"]),
                 current_config_version=int(row["current_config_version"]),
+                preserve_providers=json.loads(row["preserve_providers_json"] or "[]"),
+                preserve_models=json.loads(row["preserve_models_json"] or "[]"),
             )
             for row in rows
         ]
+
+    def update_device_preserve_config(
+        self,
+        device_id: int,
+        *,
+        preserve_providers: list[str],
+        preserve_models: list[str],
+    ) -> Device:
+        self.conn.execute(
+            """
+            UPDATE devices
+            SET preserve_providers_json = ?,
+                preserve_models_json = ?
+            WHERE id = ?
+            """,
+            (
+                json.dumps(preserve_providers, ensure_ascii=False),
+                json.dumps(preserve_models, ensure_ascii=False),
+                device_id,
+            ),
+        )
+        self.conn.commit()
+        device = self.get_device(device_id)
+        if device is None:
+            raise RuntimeError("Failed to update device preserve config")
+        return device
 
     def set_device_model_bindings(self, *, device_id: int, model_ids: list[int]) -> None:
         self.conn.execute(
@@ -1599,6 +1643,8 @@ class SQLiteStore:
             last_seen_at=row["last_seen_at"],
             sync_token_hash=str(row["sync_token_hash"]),
             current_config_version=int(row["current_config_version"]),
+            preserve_providers=json.loads(row["preserve_providers_json"] or "[]"),
+            preserve_models=json.loads(row["preserve_models_json"] or "[]"),
         )
 
     def record_applied_config(

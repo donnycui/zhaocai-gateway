@@ -95,6 +95,11 @@ class DeviceModelBindingUpdate(BaseModel):
     model_ids: list[int] = Field(default_factory=list)
 
 
+class DevicePreserveConfigUpdate(BaseModel):
+    preserve_providers: list[str] = Field(default_factory=list)
+    preserve_models: list[str] = Field(default_factory=list)
+
+
 class GatewayAccountCreate(BaseModel):
     name: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
@@ -706,6 +711,21 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             "device": device_service.assign_models(
                 device_id=device_id,
                 model_ids=payload.model_ids,
+            )
+        }
+
+    @router.put("/devices/{device_id}/preserve-config")
+    def update_device_preserve_config(
+        device_id: int,
+        payload: DevicePreserveConfigUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "device": device_service.update_preserve_config(
+                device_id=device_id,
+                preserve_providers=payload.preserve_providers,
+                preserve_models=payload.preserve_models,
             )
         }
 

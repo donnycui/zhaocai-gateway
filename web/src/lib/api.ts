@@ -38,6 +38,8 @@ export interface Device {
   sync_token_hash: string;
   current_config_version: number;
   model_ids: number[];
+  preserve_providers: string[];
+  preserve_models: string[];
 }
 
 export interface GatewayUpstreamAccount {
@@ -723,6 +725,18 @@ export const api = {
         body: JSON.stringify({ model_ids }),
       },
     );
+    return result.device;
+  },
+
+  async updateDevicePreserveConfig(
+    deviceId: number,
+    preserve_providers: string[],
+    preserve_models: string[],
+  ): Promise<Device> {
+    const result = await request<{ device: Device }>(`/admin/devices/${deviceId}/preserve-config`, {
+      method: "PUT",
+      body: JSON.stringify({ preserve_providers, preserve_models }),
+    });
     return result.device;
   },
 

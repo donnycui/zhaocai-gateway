@@ -121,6 +121,34 @@ def test_list_devices():
     payload = response.json()
     assert len(payload["devices"]) == 1
     assert payload["devices"][0]["name"] == "raspberrypi"
+    assert payload["devices"][0]["preserve_providers"] == []
+    assert payload["devices"][0]["preserve_models"] == []
+
+
+def test_update_device_preserve_config():
+    client = create_test_client()
+    device = client.post(
+        "/admin/devices",
+        headers=admin_headers(),
+        json={
+            "name": "preserve-worker",
+            "device_type": "vps",
+        },
+    ).json()["device"]
+
+    response = client.put(
+        f"/admin/devices/{device['id']}/preserve-config",
+        headers=admin_headers(),
+        json={
+            "preserve_providers": ["zhipu", "custom-local"],
+            "preserve_models": ["zhipu/glm-4-plus", "custom-local/dev-model"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()["device"]
+    assert payload["preserve_providers"] == ["zhipu", "custom-local"]
+    assert payload["preserve_models"] == ["zhipu/glm-4-plus", "custom-local/dev-model"]
 
 
 def test_get_device_config_preview():
@@ -174,3 +202,5 @@ def test_get_device_config_preview():
     assert "device" not in payload
     assert payload["models"]["providers"]["openrouter"]["models"][0]["id"] == "gpt-4.1-mini"
     assert payload["agents"]["defaults"]["model"]["primary"] == "openrouter/gpt-4.1-mini"
+    assert payload["_zhaocai"]["preserveProviders"] == []
+    assert payload["_zhaocai"]["preserveModels"] == []

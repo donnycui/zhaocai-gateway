@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, type ConfigPreview, type Device, type Model } from "../lib/api";
 
@@ -22,6 +22,9 @@ export default function DevicesPage({
     [devices, selectedDeviceId],
   );
   const selectedModelIds = new Set(selectedDevice?.model_ids ?? []);
+  const [preserveProvidersText, setPreserveProvidersText] = useState("");
+  const [preserveModelsText, setPreserveModelsText] = useState("");
+  const [preserveMessage, setPreserveMessage] = useState("");
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const providerGroups = useMemo(() => {
     const groups = new Map<string, Model[]>();
@@ -51,6 +54,16 @@ export default function DevicesPage({
     setPreview(nextPreview);
   }
 
+  function syncPreserveInputs(device: Device | null) {
+    setPreserveProvidersText((device?.preserve_providers ?? []).join("\n"));
+    setPreserveModelsText((device?.preserve_models ?? []).join("\n"));
+    setPreserveMessage("");
+  }
+
+  useEffect(() => {
+    syncPreserveInputs(selectedDevice);
+  }, [selectedDevice]);
+
   function toggleProviderGroup(providerName: string) {
     setExpandedProviders((current) => ({
       ...current,
@@ -65,7 +78,23 @@ export default function DevicesPage({
     if (selectedDeviceId === deviceId) {
       setSelectedDeviceId(null);
       setPreview(null);
+      syncPreserveInputs(null);
     }
+    await onRefresh();
+  }
+
+  async function handleSavePreserveConfig() {
+    if (!selectedDevice) return;
+    const preserve_providers = preserveProvidersText
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const preserve_models = preserveModelsText
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    await api.updateDevicePreserveConfig(selectedDevice.id, preserve_providers, preserve_models);
+    setPreserveMessage("保留配置已保存，下次 agent 同步时会写入节点上的 zhaocai-preserve.json。");
     await onRefresh();
   }
 
@@ -91,6 +120,7 @@ export default function DevicesPage({
                   onClick={() => {
                     setSelectedDeviceId(device.id);
                     setPreview(null);
+                    syncPreserveInputs(device);
                   }}
                 >
                   <strong>{device.name}</strong>
@@ -154,6 +184,45 @@ export default function DevicesPage({
               <div className="empty-state">当前没有可分配的模型。</div>
             ) : null}
           </div>
+        </div>
+
+        <div className="panel form-panel">
+          <div className="panel-header">
+            <h3>本地保留配置</h3>
+            <p>这里管理设备级的保留列表。保存后，agent 会把这些值写入节点上的 `~/.openclaw/zhaocai-preserve.json`。</p>
+          </div>
+          <label>
+            <span>Preserve Providers（每行一个 provider 名称）</span>
+            <textarea
+              value={preserveProvidersText}
+              disabled={!selectedDevice}
+              onChange={(event) => setPreserveProvidersText(event.target.value)}
+              placeholder={"zhipu\ncustom-local"}
+            />
+          </label>
+          <label>
+            <span>Preserve Models（每行一个 provider/model）</span>
+            <textarea
+              value={preserveModelsText}
+              disabled={!selectedDevice}
+              onChange={(event) => setPreserveModelsText(event.target.value)}
+              placeholder={"zhipu/glm-4-plus\ncustom-local/dev-model"}
+            />
+          </label>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!selectedDevice}
+              onClick={() => syncPreserveInputs(selectedDevice)}
+            >
+              读取当前值
+            </button>
+            <button type="button" disabled={!selectedDevice} onClick={() => void handleSavePreserveConfig()}>
+              保存保留配置
+            </button>
+          </div>
+          {preserveMessage ? <p className="inline-message">{preserveMessage}</p> : null}
         </div>
 
         <div className="panel">

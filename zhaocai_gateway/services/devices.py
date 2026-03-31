@@ -43,6 +43,20 @@ class DeviceService:
             return None
         return self._serialize(device)
 
+    def update_preserve_config(
+        self,
+        *,
+        device_id: int,
+        preserve_providers: list[str],
+        preserve_models: list[str],
+    ) -> dict:
+        device = self.store.update_device_preserve_config(
+            device_id,
+            preserve_providers=preserve_providers,
+            preserve_models=preserve_models,
+        )
+        return self._serialize(device)
+
     def delete(self, device_id: int) -> None:
         self.store.delete_device(device_id)
 

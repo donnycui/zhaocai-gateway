@@ -69,6 +69,10 @@ class ConfigCompilerService:
                     "models": catalog_entries,
                 }
             },
+            "_zhaocai": {
+                "preserveProviders": device.preserve_providers,
+                "preserveModels": device.preserve_models,
+            },
         }
 
         if payload["agents"]["defaults"]["model"] is None:
