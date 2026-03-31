@@ -108,4 +108,35 @@ CREATE TABLE IF NOT EXISTS gateway_models (
     UNIQUE(account_id, upstream_model),
     FOREIGN KEY(account_id) REFERENCES gateway_upstream_accounts(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS gateway_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alias_key TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    alias_type TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    visibility TEXT NOT NULL DEFAULT 'project',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS gateway_alias_targets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alias_id INTEGER NOT NULL,
+    account_id INTEGER NOT NULL,
+    model_id INTEGER NOT NULL,
+    priority INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    fallback_on_timeout INTEGER NOT NULL DEFAULT 1,
+    fallback_on_5xx INTEGER NOT NULL DEFAULT 1,
+    fallback_on_429 INTEGER NOT NULL DEFAULT 1,
+    cooldown_seconds INTEGER NOT NULL DEFAULT 120,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alias_id, account_id, model_id),
+    FOREIGN KEY(alias_id) REFERENCES gateway_aliases(id) ON DELETE CASCADE,
+    FOREIGN KEY(account_id) REFERENCES gateway_upstream_accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY(model_id) REFERENCES gateway_models(id) ON DELETE CASCADE
+);
 """

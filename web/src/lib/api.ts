@@ -56,6 +56,44 @@ export interface GatewayUpstreamAccount {
   synced_models_count: number;
 }
 
+export interface GatewayModel {
+  id: number;
+  account_id: number;
+  upstream_model: string;
+  display_name: string;
+  family: string | null;
+  supports_chat: boolean;
+  supports_responses: boolean;
+  enabled: boolean;
+  account_name?: string;
+}
+
+export interface GatewayAlias {
+  id: number;
+  alias_key: string;
+  display_name: string;
+  alias_type: string;
+  enabled: boolean;
+  visibility: string;
+  notes: string;
+}
+
+export interface GatewayAliasTarget {
+  id: number;
+  alias_id: number;
+  account_id: number;
+  model_id: number;
+  priority: number;
+  enabled: boolean;
+  fallback_on_timeout: boolean;
+  fallback_on_5xx: boolean;
+  fallback_on_429: boolean;
+  cooldown_seconds: number;
+  account_name?: string;
+  model_display_name?: string;
+  upstream_model?: string;
+}
+
 export type ConfigPreview = Record<string, unknown>;
 
 export interface OpenRouterSyncResult {
@@ -331,6 +369,11 @@ export const api = {
     return result.accounts;
   },
 
+  async getGatewayModels(): Promise<GatewayModel[]> {
+    const result = await request<{ models: GatewayModel[] }>("/admin/gateway/models");
+    return result.models;
+  },
+
   async createGatewayAccount(payload: {
     name: string;
     base_url: string;
@@ -360,6 +403,66 @@ export const api = {
     return request(`/admin/gateway/accounts/${accountId}/sync-models`, {
       method: "POST",
     });
+  },
+
+  async getGatewayAliases(): Promise<GatewayAlias[]> {
+    const result = await request<{ aliases: GatewayAlias[] }>("/admin/gateway/aliases");
+    return result.aliases;
+  },
+
+  async createGatewayAlias(payload: {
+    alias_key: string;
+    display_name: string;
+    alias_type: string;
+    visibility: string;
+    notes: string;
+  }): Promise<GatewayAlias> {
+    const result = await request<{ alias: GatewayAlias }>("/admin/gateway/aliases", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.alias;
+  },
+
+  async updateGatewayAlias(
+    aliasId: number,
+    payload: {
+      display_name: string;
+      enabled: boolean;
+      visibility: string;
+      notes: string;
+    },
+  ): Promise<GatewayAlias> {
+    const result = await request<{ alias: GatewayAlias }>(`/admin/gateway/aliases/${aliasId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.alias;
+  },
+
+  async getGatewayAliasTargets(aliasId: number): Promise<GatewayAliasTarget[]> {
+    const result = await request<{ targets: GatewayAliasTarget[] }>(`/admin/gateway/aliases/${aliasId}/targets`);
+    return result.targets;
+  },
+
+  async replaceGatewayAliasTargets(
+    aliasId: number,
+    targets: Array<{
+      account_id: number;
+      model_id: number;
+      priority: number;
+      enabled: boolean;
+      fallback_on_timeout: boolean;
+      fallback_on_5xx: boolean;
+      fallback_on_429: boolean;
+      cooldown_seconds: number;
+    }>,
+  ): Promise<GatewayAliasTarget[]> {
+    const result = await request<{ targets: GatewayAliasTarget[] }>(`/admin/gateway/aliases/${aliasId}/targets`, {
+      method: "PUT",
+      body: JSON.stringify({ targets }),
+    });
+    return result.targets;
   },
 
   async createDevice(payload: {

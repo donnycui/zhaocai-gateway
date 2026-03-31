@@ -8,6 +8,7 @@ from zhaocai_gateway.services import (
     ConfigCompilerService,
     DeviceService,
     GatewayAccountService,
+    GatewayAliasService,
     ModelService,
     PairingService,
     ProviderService,
@@ -98,6 +99,36 @@ class GatewayAccountCreate(BaseModel):
     notes: str = ""
 
 
+class GatewayAliasCreate(BaseModel):
+    alias_key: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    alias_type: str = Field(min_length=1)
+    visibility: str = "project"
+    notes: str = ""
+
+
+class GatewayAliasUpdate(BaseModel):
+    display_name: str = Field(min_length=1)
+    enabled: bool = True
+    visibility: str = "project"
+    notes: str = ""
+
+
+class GatewayAliasTargetInput(BaseModel):
+    account_id: int
+    model_id: int
+    priority: int
+    enabled: bool = True
+    fallback_on_timeout: bool = True
+    fallback_on_5xx: bool = True
+    fallback_on_429: bool = True
+    cooldown_seconds: int = 120
+
+
+class GatewayAliasTargetsUpdate(BaseModel):
+    targets: list[GatewayAliasTargetInput] = Field(default_factory=list)
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
@@ -105,6 +136,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     pairing_service = PairingService(store)
     compiler_service = ConfigCompilerService(store)
     gateway_account_service = GatewayAccountService(store)
+    gateway_alias_service = GatewayAliasService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
@@ -276,6 +308,11 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"accounts": gateway_account_service.list()}
 
+    @router.get("/gateway/models")
+    def list_gateway_models(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"models": gateway_alias_service.list_models()}
+
     @router.post("/gateway/accounts")
     def create_gateway_account(
         payload: GatewayAccountCreate,
@@ -318,6 +355,75 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    @router.get("/gateway/aliases")
+    def list_gateway_aliases(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"aliases": gateway_alias_service.list_aliases()}
+
+    @router.post("/gateway/aliases")
+    def create_gateway_alias(
+        payload: GatewayAliasCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "alias": gateway_alias_service.create_alias(
+                alias_key=payload.alias_key,
+                display_name=payload.display_name,
+                alias_type=payload.alias_type,
+                visibility=payload.visibility,
+                notes=payload.notes,
+            )
+        }
+
+    @router.patch("/gateway/aliases/{alias_id}")
+    def update_gateway_alias(
+        alias_id: int,
+        payload: GatewayAliasUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "alias": gateway_alias_service.update_alias(
+                    alias_id,
+                    display_name=payload.display_name,
+                    enabled=payload.enabled,
+                    visibility=payload.visibility,
+                    notes=payload.notes,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.get("/gateway/aliases/{alias_id}/targets")
+    def list_gateway_alias_targets(
+        alias_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {"targets": gateway_alias_service.list_targets(alias_id)}
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.put("/gateway/aliases/{alias_id}/targets")
+    def replace_gateway_alias_targets(
+        alias_id: int,
+        payload: GatewayAliasTargetsUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "targets": gateway_alias_service.replace_targets(
+                    alias_id,
+                    targets=[item.model_dump() for item in payload.targets],
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.get("/devices")
     def list_devices(x_admin_token: str | None = Header(default=None)) -> dict:

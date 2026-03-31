@@ -66,6 +66,34 @@ class GatewayModel:
 
 
 @dataclass(frozen=True)
+class GatewayAlias:
+    id: int
+    alias_key: str
+    display_name: str
+    alias_type: str
+    enabled: bool
+    visibility: str
+    notes: str
+
+
+@dataclass(frozen=True)
+class GatewayAliasTarget:
+    id: int
+    alias_id: int
+    account_id: int
+    model_id: int
+    priority: int
+    enabled: bool
+    fallback_on_timeout: bool
+    fallback_on_5xx: bool
+    fallback_on_429: bool
+    cooldown_seconds: int
+    account_name: str | None = None
+    model_display_name: str | None = None
+    upstream_model: str | None = None
+
+
+@dataclass(frozen=True)
 class Device:
     id: int
     name: str

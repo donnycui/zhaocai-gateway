@@ -319,7 +319,7 @@ git commit -m "feat: add gateway upstream account management"
 - Create: `web/src/pages/GatewayAliasesPage.tsx`
 - Create: `tests/test_gateway_alias_api.py`
 
-- [ ] **Step 1: Add alias and alias-target tables**
+- [x] **Step 1: Add alias and alias-target tables**
 
 Introduce:
 
@@ -328,7 +328,7 @@ Introduce:
 
 with priority ordering and per-target fallback flags.
 
-- [ ] **Step 2: Write failing alias CRUD and mapping tests**
+- [x] **Step 2: Write failing alias CRUD and mapping tests**
 
 Cover:
 
@@ -337,7 +337,7 @@ Cover:
 - disable alias
 - reorder targets
 
-- [ ] **Step 3: Implement alias services and routes**
+- [x] **Step 3: Implement alias services and routes**
 
 Expose:
 
@@ -347,7 +347,7 @@ Expose:
 - `GET /admin/gateway/aliases/{id}/targets`
 - `PUT /admin/gateway/aliases/{id}/targets`
 
-- [ ] **Step 4: Add Gateway Aliases UI**
+- [x] **Step 4: Add Gateway Aliases UI**
 
 Make it possible to:
 
@@ -355,7 +355,7 @@ Make it possible to:
 - attach multiple real targets
 - inspect ordering and failover policy
 
-- [ ] **Step 5: Re-run alias tests**
+- [x] **Step 5: Re-run alias tests**
 
 Run:
 
@@ -365,7 +365,7 @@ pytest tests/test_gateway_alias_api.py -v
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web tests

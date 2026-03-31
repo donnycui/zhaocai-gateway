@@ -11,6 +11,8 @@ from zhaocai_gateway.domain.models import (
     AppliedConfigReport,
     ConfigSnapshot,
     Device,
+    GatewayAlias,
+    GatewayAliasTarget,
     GatewayModel,
     GatewayUpstreamAccount,
     Model,
@@ -100,6 +102,39 @@ class SQLiteStore:
             supports_responses=bool(row["supports_responses"]),
             enabled=bool(row["enabled"]),
             account_name=str(account_name) if account_name is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_gateway_alias(row: sqlite3.Row) -> GatewayAlias:
+        return GatewayAlias(
+            id=int(row["id"]),
+            alias_key=str(row["alias_key"]),
+            display_name=str(row["display_name"]),
+            alias_type=str(row["alias_type"]),
+            enabled=bool(row["enabled"]),
+            visibility=str(row["visibility"]),
+            notes=str(row["notes"] or ""),
+        )
+
+    @staticmethod
+    def _row_to_gateway_alias_target(row: sqlite3.Row) -> GatewayAliasTarget:
+        account_name = row["account_name"] if "account_name" in row.keys() else None
+        model_display_name = row["model_display_name"] if "model_display_name" in row.keys() else None
+        upstream_model = row["upstream_model"] if "upstream_model" in row.keys() else None
+        return GatewayAliasTarget(
+            id=int(row["id"]),
+            alias_id=int(row["alias_id"]),
+            account_id=int(row["account_id"]),
+            model_id=int(row["model_id"]),
+            priority=int(row["priority"]),
+            enabled=bool(row["enabled"]),
+            fallback_on_timeout=bool(row["fallback_on_timeout"]),
+            fallback_on_5xx=bool(row["fallback_on_5xx"]),
+            fallback_on_429=bool(row["fallback_on_429"]),
+            cooldown_seconds=int(row["cooldown_seconds"]),
+            account_name=str(account_name) if account_name is not None else None,
+            model_display_name=str(model_display_name) if model_display_name is not None else None,
+            upstream_model=str(upstream_model) if upstream_model is not None else None,
         )
 
     def create_provider(
@@ -690,6 +725,138 @@ class SQLiteStore:
                     (int(row["id"]),),
                 )
         self.conn.commit()
+
+    def create_gateway_alias(
+        self,
+        *,
+        alias_key: str,
+        display_name: str,
+        alias_type: str,
+        enabled: bool,
+        visibility: str,
+        notes: str,
+    ) -> GatewayAlias:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO gateway_aliases
+            (alias_key, display_name, alias_type, enabled, visibility, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                alias_key,
+                display_name,
+                alias_type,
+                int(enabled),
+                visibility,
+                notes,
+            ),
+        )
+        self.conn.commit()
+        alias = self.get_gateway_alias(int(cursor.lastrowid))
+        if alias is None:
+            raise RuntimeError("Failed to create gateway alias")
+        return alias
+
+    def get_gateway_alias(self, alias_id: int) -> GatewayAlias | None:
+        row = self.conn.execute(
+            "SELECT * FROM gateway_aliases WHERE id = ?",
+            (alias_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_alias(row)
+
+    def list_gateway_aliases(self) -> list[GatewayAlias]:
+        rows = self.conn.execute(
+            "SELECT * FROM gateway_aliases ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_gateway_alias(row) for row in rows]
+
+    def update_gateway_alias(
+        self,
+        alias_id: int,
+        *,
+        display_name: str,
+        enabled: bool,
+        visibility: str,
+        notes: str,
+    ) -> GatewayAlias:
+        self.conn.execute(
+            """
+            UPDATE gateway_aliases
+            SET display_name = ?,
+                enabled = ?,
+                visibility = ?,
+                notes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                display_name,
+                int(enabled),
+                visibility,
+                notes,
+                alias_id,
+            ),
+        )
+        self.conn.commit()
+        alias = self.get_gateway_alias(alias_id)
+        if alias is None:
+            raise RuntimeError("Failed to update gateway alias")
+        return alias
+
+    def list_gateway_alias_targets(self, alias_id: int) -> list[GatewayAliasTarget]:
+        rows = self.conn.execute(
+            """
+            SELECT gat.*, gua.name AS account_name, gm.display_name AS model_display_name, gm.upstream_model
+            FROM gateway_alias_targets gat
+            JOIN gateway_upstream_accounts gua ON gua.id = gat.account_id
+            JOIN gateway_models gm ON gm.id = gat.model_id
+            WHERE gat.alias_id = ?
+            ORDER BY gat.priority ASC, gat.id ASC
+            """,
+            (alias_id,),
+        ).fetchall()
+        return [self._row_to_gateway_alias_target(row) for row in rows]
+
+    def replace_gateway_alias_targets(
+        self,
+        alias_id: int,
+        *,
+        targets: list[dict[str, Any]],
+    ) -> list[GatewayAliasTarget]:
+        self.conn.execute("DELETE FROM gateway_alias_targets WHERE alias_id = ?", (alias_id,))
+        for target in targets:
+            self.conn.execute(
+                """
+                INSERT INTO gateway_alias_targets
+                (
+                    alias_id,
+                    account_id,
+                    model_id,
+                    priority,
+                    enabled,
+                    fallback_on_timeout,
+                    fallback_on_5xx,
+                    fallback_on_429,
+                    cooldown_seconds
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    alias_id,
+                    int(target["account_id"]),
+                    int(target["model_id"]),
+                    int(target["priority"]),
+                    int(bool(target["enabled"])),
+                    int(bool(target["fallback_on_timeout"])),
+                    int(bool(target["fallback_on_5xx"])),
+                    int(bool(target["fallback_on_429"])),
+                    int(target["cooldown_seconds"]),
+                ),
+            )
+        self.conn.commit()
+        return self.list_gateway_alias_targets(alias_id)
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))
