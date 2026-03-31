@@ -648,7 +648,7 @@ git commit -m "feat: add universal provider template pool"
 - Modify: `.env.example`
 - Modify: `docs/plans/2026-03-31-zhaocai-gateway-v2-modular-provider-design.md` only if needed
 
-- [ ] **Step 1: Update README module overview**
+- [x] **Step 1: Update README module overview**
 
 Clarify the four-module architecture:
 
@@ -657,11 +657,11 @@ Clarify the four-module architecture:
 - `Media`
 - `Universal`
 
-- [ ] **Step 2: Document OpenClaw preserve-sidecar behavior**
+- [x] **Step 2: Document OpenClaw preserve-sidecar behavior**
 
 Explain where the sidecar lives and how operators use it.
 
-- [ ] **Step 3: Document Gateway consumer integration**
+- [x] **Step 3: Document Gateway consumer integration**
 
 Explain how a project such as `Content-IP-Strategy` should connect using:
 
@@ -669,7 +669,7 @@ Explain how a project such as `Content-IP-Strategy` should connect using:
 - one gateway `apiKey`
 - stable aliases instead of raw upstream models
 
-- [ ] **Step 4: Record verification status**
+- [x] **Step 4: Record verification status**
 
 At minimum, note:
 
@@ -677,7 +677,7 @@ At minimum, note:
 - what needs Raspberry Pi or real upstream validation
 - what still needs manual Cloudflare/public entry verification
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add README.md .env.example docs

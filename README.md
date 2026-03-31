@@ -17,16 +17,31 @@
 
 同时，仓库里仍保留了旧版 `gateway.py` / `control_plane/` 运行时，作为 legacy 兼容层存在。
 
+## 当前模块结构
+
+当前后台已经拆成四个资源模块：
+
+- `OpenClaw`
+  - 管理节点同步、设备配对、模型分配和 `openclaw.json` 下发
+- `Gateway`
+  - 管理统一对外模型供给、上游账号、稳定别名、failover 和项目接入 key
+- `Media`
+  - 管理 `zhaocai-media` 使用的独立 Provider 与媒体模板
+- `Universal`
+  - 只做模板池，可导入到其他模块，但导入后各模块独立管理
+
+当前 Web 资源中心已经能看到这四个模块，其中 `OpenClaw`、`Gateway`、`Media`、`Universal` 都有最小可用实现。
+
 ## 当前已完成能力
 
 ### v2.0 phase 1 scaffold
 
-- Provider 管理
+- OpenClaw Provider 管理
   - `GET /admin/providers`
   - `POST /admin/providers`
   - `POST /admin/providers/validate`
 
-- Model 管理
+- OpenClaw Model 管理
   - `GET /admin/models`
   - `POST /admin/models`
 
@@ -51,7 +66,7 @@
 
 - Web UI
   - Dashboard
-  - Providers
+  - Resource Center
   - Devices
   - Nodes
 
@@ -59,6 +74,55 @@
   - `register`
   - `sync-once`
   - `run`
+
+### Gateway module
+
+- Gateway Upstream Accounts
+  - `GET /admin/gateway/accounts`
+  - `POST /admin/gateway/accounts`
+  - `POST /admin/gateway/accounts/{id}/test`
+  - `POST /admin/gateway/accounts/{id}/sync-models`
+
+- Gateway Aliases
+  - `GET /admin/gateway/aliases`
+  - `POST /admin/gateway/aliases`
+  - `PATCH /admin/gateway/aliases/{id}`
+  - `GET /admin/gateway/aliases/{id}/targets`
+  - `PUT /admin/gateway/aliases/{id}/targets`
+
+- Gateway Client Keys
+  - `GET /admin/gateway/client-keys`
+  - `POST /admin/gateway/client-keys`
+  - `PATCH /admin/gateway/client-keys/{id}`
+
+- Gateway Runtime
+  - `POST /v1/chat/completions`
+  - `POST /v1/responses`
+  - alias-based upstream routing
+  - timeout / network / `5xx` / `429` failover
+
+### Media module
+
+- Media Providers
+  - `GET /admin/media/providers`
+  - `POST /admin/media/providers`
+
+- Media Templates
+  - `GET /admin/media/templates`
+  - `POST /admin/media/templates`
+  - `POST /admin/media/templates/validate`
+
+- Media Catalog
+  - `GET /admin/media/catalog`
+
+### Universal template pool
+
+- Universal Templates
+  - `GET /admin/universal/templates`
+  - `POST /admin/universal/templates`
+  - `POST /admin/universal/templates/{id}/import/openclaw`
+  - `POST /admin/universal/templates/{id}/import/gateway`
+  - `POST /admin/universal/templates/{id}/import/media`
 
 ### 旧版 runtime 仍可用
 
@@ -392,6 +456,25 @@ sync updated version=3 etag="..."
 backup=/Users/yourname/.openclaw/openclaw.json.bak
 ```
 
+如果你希望保留某些本地 provider / model，不想被同步覆盖，可以额外创建：
+
+- `~/.openclaw/zhaocai-preserve.json`
+
+示例：
+
+```json
+{
+  "preserveProviders": ["zhipu", "custom-local"],
+  "preserveModels": ["zhipu/glm-4-plus", "custom-local/dev-model"]
+}
+```
+
+当前 `node-agent` 会：
+
+- 保留 sidecar 中声明的 provider / model
+- 刷新网关托管的模型区块
+- 不在 `openclaw.json` 本体中写入额外自定义字段
+
 ## Repo Layout
 
 ### v2.0 phase 1
@@ -438,6 +521,34 @@ POST   /admin/devices
 PUT    /admin/devices/{id}/models
 GET    /admin/devices/{id}/config-preview
 POST   /admin/devices/{id}/pairing-token
+
+GET    /admin/gateway/accounts
+POST   /admin/gateway/accounts
+POST   /admin/gateway/accounts/{id}/test
+POST   /admin/gateway/accounts/{id}/sync-models
+
+GET    /admin/gateway/aliases
+POST   /admin/gateway/aliases
+PATCH  /admin/gateway/aliases/{id}
+GET    /admin/gateway/aliases/{id}/targets
+PUT    /admin/gateway/aliases/{id}/targets
+
+GET    /admin/gateway/client-keys
+POST   /admin/gateway/client-keys
+PATCH  /admin/gateway/client-keys/{id}
+
+GET    /admin/media/providers
+POST   /admin/media/providers
+GET    /admin/media/templates
+POST   /admin/media/templates
+POST   /admin/media/templates/validate
+GET    /admin/media/catalog
+
+GET    /admin/universal/templates
+POST   /admin/universal/templates
+POST   /admin/universal/templates/{id}/import/openclaw
+POST   /admin/universal/templates/{id}/import/gateway
+POST   /admin/universal/templates/{id}/import/media
 ```
 
 ### Agent
@@ -470,6 +581,40 @@ POST   /agent/v1/config/applied
 
 如果后面开启混合模式，再单独评估哪些模型需要走中心转发。
 
+## Gateway Consumer Integration
+
+对于 `Content-IP-Strategy` 这类项目，推荐接入方式已经收敛为：
+
+- 一个 `baseUrl`
+- 一个 `Gateway client key`
+- 一组稳定 alias
+
+项目侧不再直接管理：
+
+- 上游 provider 连接
+- 真实 API key
+- 真实 base URL
+- 真实模型切换策略
+
+推荐做法是让项目只保存：
+
+- `SIGNAL_SCORING -> signal/deep`
+- `DRAFT_GENERATION -> draft/deep`
+- `TOPIC_GENERATION -> balanced`
+
+然后由 `zhaocai-gateway-v2` 在内部决定：
+
+- `signal/deep` 当前映射到哪个真实模型
+- 这个别名下面挂了哪些上游 target
+- 某个上游超时、`5xx` 或 `429` 时如何自动切到下一个 target
+
+当前 Gateway runtime 支持：
+
+- `Authorization: Bearer <gateway-client-key>`
+- `x-api-key: <gateway-client-key>`
+
+并要求先在后台创建启用中的 `Gateway client key`。
+
 ## 当前验证状态
 
 当前分支已经通过：
@@ -488,10 +633,34 @@ POST   /agent/v1/config/applied
 
 ```bash
 cd web
+npm run typecheck
 npm run build
 ```
+
+另外，当前分支已经额外通过以下验证：
+
+```bash
+.venv/bin/python -m pytest tests/test_gateway_accounts_api.py \
+  tests/test_gateway_alias_api.py \
+  tests/test_gateway_failover.py \
+  tests/test_gateway_client_keys_api.py \
+  tests/test_media_template_api.py \
+  tests/test_media_catalog.py \
+  tests/test_universal_templates_api.py -v
+```
+
+并完成过一次项目接入烟测，验证了：
+
+- 创建 Gateway Upstream Account
+- 同步真实模型
+- 创建 alias 与 target
+- 创建 Gateway client key
+- 通过 `Authorization: Bearer <gateway-client-key>` 调 `/v1/chat/completions`
+- alias 最终被解析为真实上游模型
 
 ## 设计与计划文档
 
 - [v2 设计文档](docs/plans/2026-03-25-zhaocai-gateway-v2-design.md)
 - [v2 实现计划](docs/plans/2026-03-25-zhaocai-gateway-v2-implementation-plan.md)
+- [模块化 Provider 设计](docs/plans/2026-03-31-zhaocai-gateway-v2-modular-provider-design.md)
+- [模块化 Provider 实施计划](docs/plans/2026-03-31-zhaocai-gateway-v2-modular-provider-implementation-plan.md)
