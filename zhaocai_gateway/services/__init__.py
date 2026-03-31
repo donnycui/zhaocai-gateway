@@ -9,6 +9,7 @@ from zhaocai_gateway.services.media_templates import MediaTemplateService
 from zhaocai_gateway.services.models import ModelService
 from zhaocai_gateway.services.pairing import PairingService
 from zhaocai_gateway.services.providers import ProviderService
+from zhaocai_gateway.services.universal_templates import UniversalTemplateService
 
 __all__ = [
     "ConfigCompilerService",
@@ -22,4 +23,5 @@ __all__ = [
     "ModelService",
     "PairingService",
     "ProviderService",
+    "UniversalTemplateService",
 ]

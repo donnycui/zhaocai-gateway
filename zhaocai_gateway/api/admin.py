@@ -16,6 +16,7 @@ from zhaocai_gateway.services import (
     ModelService,
     PairingService,
     ProviderService,
+    UniversalTemplateService,
 )
 
 
@@ -171,6 +172,27 @@ class MediaTemplateCreate(BaseModel):
     enabled: bool = True
 
 
+class UniversalTemplateModelCreate(BaseModel):
+    upstream_model: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    capabilities: list[str] = Field(default_factory=lambda: ["text"])
+    reasoning: bool = False
+    input_modalities: list[str] = Field(default_factory=lambda: ["text"])
+    context_window: int | None = None
+    max_tokens: int | None = None
+    enabled: bool = True
+
+
+class UniversalTemplateCreate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    protocol: str = "openai-compatible"
+    notes: str = ""
+    models: list[UniversalTemplateModelCreate] = Field(default_factory=list)
+
+
 def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     provider_service = ProviderService(store)
     model_service = ModelService(store)
@@ -183,6 +205,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     media_provider_service = MediaProviderService(store)
     media_template_service = MediaTemplateService(store)
     media_catalog_service = MediaCatalogService(store)
+    universal_template_service = UniversalTemplateService(store)
     router = APIRouter(prefix="/admin", tags=["admin"])
 
     def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
@@ -576,6 +599,62 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     def get_media_catalog(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
         return {"catalog": media_catalog_service.export()}
+
+    @router.get("/universal/templates")
+    def list_universal_templates(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"templates": universal_template_service.list()}
+
+    @router.post("/universal/templates")
+    def create_universal_template(
+        payload: UniversalTemplateCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "template": universal_template_service.create(
+                name=payload.name,
+                base_url=payload.base_url,
+                auth_type=payload.auth_type,
+                api_key=payload.api_key,
+                protocol=payload.protocol,
+                notes=payload.notes,
+                models=[item.model_dump() for item in payload.models],
+            )
+        }
+
+    @router.post("/universal/templates/{template_id}/import/openclaw")
+    def import_universal_template_to_openclaw(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return universal_template_service.import_to_openclaw(template_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.post("/universal/templates/{template_id}/import/gateway")
+    def import_universal_template_to_gateway(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return universal_template_service.import_to_gateway(template_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.post("/universal/templates/{template_id}/import/media")
+    def import_universal_template_to_media(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return universal_template_service.import_to_media(template_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.get("/devices")
     def list_devices(x_admin_token: str | None = Header(default=None)) -> dict:

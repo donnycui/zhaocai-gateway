@@ -152,6 +152,30 @@ export interface MediaCatalogItem {
   defaults: Record<string, unknown>;
 }
 
+export interface UniversalProviderTemplateModel {
+  id: number;
+  template_id: number;
+  upstream_model: string;
+  display_name: string;
+  capabilities: string[];
+  reasoning: boolean;
+  input_modalities: string[];
+  context_window: number | null;
+  max_tokens: number | null;
+  enabled: boolean;
+}
+
+export interface UniversalProviderTemplate {
+  id: number;
+  name: string;
+  base_url: string;
+  auth_type: string;
+  api_key_encrypted: string;
+  protocol: string;
+  notes: string;
+  models: UniversalProviderTemplateModel[];
+}
+
 export type ConfigPreview = Record<string, unknown>;
 
 export interface OpenRouterSyncResult {
@@ -630,6 +654,45 @@ export const api = {
   async getMediaCatalog(): Promise<MediaCatalogItem[]> {
     const result = await request<{ catalog: MediaCatalogItem[] }>("/admin/media/catalog");
     return result.catalog;
+  },
+
+  async getUniversalTemplates(): Promise<UniversalProviderTemplate[]> {
+    const result = await request<{ templates: UniversalProviderTemplate[] }>("/admin/universal/templates");
+    return result.templates;
+  },
+
+  async createUniversalTemplate(payload: {
+    name: string;
+    base_url: string;
+    auth_type: string;
+    api_key: string;
+    protocol: string;
+    notes: string;
+    models: Array<{
+      upstream_model: string;
+      display_name: string;
+      capabilities: string[];
+      reasoning: boolean;
+      input_modalities: string[];
+      context_window: number | null;
+      max_tokens: number | null;
+      enabled: boolean;
+    }>;
+  }): Promise<UniversalProviderTemplate> {
+    const result = await request<{ template: UniversalProviderTemplate }>("/admin/universal/templates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.template;
+  },
+
+  async importUniversalTemplate(
+    templateId: number,
+    target: "openclaw" | "gateway" | "media",
+  ): Promise<Record<string, unknown>> {
+    return request(`/admin/universal/templates/${templateId}/import/${target}`, {
+      method: "POST",
+    });
   },
 
   async createDevice(payload: {

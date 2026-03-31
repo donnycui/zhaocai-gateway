@@ -186,4 +186,32 @@ CREATE TABLE IF NOT EXISTS media_templates (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(provider_id) REFERENCES media_providers(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS universal_provider_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_url TEXT NOT NULL,
+    auth_type TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    protocol TEXT NOT NULL DEFAULT 'openai-compatible',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS universal_provider_template_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL,
+    upstream_model TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    reasoning INTEGER NOT NULL DEFAULT 0,
+    input_modalities TEXT NOT NULL DEFAULT '["text"]',
+    context_window INTEGER,
+    max_tokens INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(template_id) REFERENCES universal_provider_templates(id) ON DELETE CASCADE
+);
 """

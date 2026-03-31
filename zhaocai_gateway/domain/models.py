@@ -138,6 +138,31 @@ class MediaTemplate:
 
 
 @dataclass(frozen=True)
+class UniversalProviderTemplate:
+    id: int
+    name: str
+    base_url: str
+    auth_type: str
+    api_key_encrypted: str
+    protocol: str
+    notes: str
+
+
+@dataclass(frozen=True)
+class UniversalProviderTemplateModel:
+    id: int
+    template_id: int
+    upstream_model: str
+    display_name: str
+    capabilities: list[str]
+    reasoning: bool
+    input_modalities: list[str]
+    context_window: int | None
+    max_tokens: int | None
+    enabled: bool
+
+
+@dataclass(frozen=True)
 class Device:
     id: int
     name: str

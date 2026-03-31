@@ -565,7 +565,7 @@ pytest tests/test_media_template_api.py tests/test_media_catalog.py -v
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web tests
@@ -587,14 +587,14 @@ git commit -m "feat: add media provider and template module"
 - Create: `web/src/pages/UniversalTemplatesPage.tsx`
 - Create: `tests/test_universal_templates_api.py`
 
-- [ ] **Step 1: Add Universal template tables**
+- [x] **Step 1: Add Universal template tables**
 
 Introduce:
 
 - `universal_provider_templates`
 - `universal_provider_template_models`
 
-- [ ] **Step 2: Write failing import tests**
+- [x] **Step 2: Write failing import tests**
 
 Cover:
 
@@ -603,7 +603,7 @@ Cover:
 - import Universal template into Media
 - imported records become independent copies
 
-- [ ] **Step 3: Implement import services and endpoints**
+- [x] **Step 3: Implement import services and endpoints**
 
 Expose:
 
@@ -613,7 +613,7 @@ Expose:
 - `POST /admin/universal/templates/{id}/import/gateway`
 - `POST /admin/universal/templates/{id}/import/media`
 
-- [ ] **Step 4: Add Universal UI**
+- [x] **Step 4: Add Universal UI**
 
 Allow operators to:
 
@@ -621,7 +621,7 @@ Allow operators to:
 - import them into a chosen module
 - see where they have been imported
 
-- [ ] **Step 5: Re-run Universal tests**
+- [x] **Step 5: Re-run Universal tests**
 
 Run:
 

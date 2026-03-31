@@ -21,6 +21,8 @@ from zhaocai_gateway.domain.models import (
     Model,
     PairingToken,
     Provider,
+    UniversalProviderTemplate,
+    UniversalProviderTemplateModel,
 )
 
 
@@ -186,6 +188,33 @@ class SQLiteStore:
             defaults_json=json.loads(row["defaults_json"] or "{}"),
             enabled=bool(row["enabled"]),
             provider_name=str(provider_name) if provider_name is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_universal_provider_template(row: sqlite3.Row) -> UniversalProviderTemplate:
+        return UniversalProviderTemplate(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            base_url=str(row["base_url"]),
+            auth_type=str(row["auth_type"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            protocol=str(row["protocol"]),
+            notes=str(row["notes"] or ""),
+        )
+
+    @staticmethod
+    def _row_to_universal_provider_template_model(row: sqlite3.Row) -> UniversalProviderTemplateModel:
+        return UniversalProviderTemplateModel(
+            id=int(row["id"]),
+            template_id=int(row["template_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            capabilities=json.loads(row["capabilities"] or "[]"),
+            reasoning=bool(row["reasoning"]),
+            input_modalities=json.loads(row["input_modalities"] or '["text"]'),
+            context_window=row["context_window"],
+            max_tokens=row["max_tokens"],
+            enabled=bool(row["enabled"]),
         )
 
     def create_provider(
@@ -1172,6 +1201,114 @@ class SQLiteStore:
             """
         ).fetchall()
         return [self._row_to_media_template(row) for row in rows]
+
+    def create_universal_provider_template(
+        self,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        protocol: str,
+        notes: str,
+    ) -> UniversalProviderTemplate:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO universal_provider_templates
+            (name, base_url, auth_type, api_key_encrypted, protocol, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                base_url,
+                auth_type,
+                api_key_encrypted,
+                protocol,
+                notes,
+            ),
+        )
+        self.conn.commit()
+        template = self.get_universal_provider_template(int(cursor.lastrowid))
+        if template is None:
+            raise RuntimeError("Failed to create universal provider template")
+        return template
+
+    def get_universal_provider_template(self, template_id: int) -> UniversalProviderTemplate | None:
+        row = self.conn.execute(
+            "SELECT * FROM universal_provider_templates WHERE id = ?",
+            (template_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_universal_provider_template(row)
+
+    def list_universal_provider_templates(self) -> list[UniversalProviderTemplate]:
+        rows = self.conn.execute(
+            "SELECT * FROM universal_provider_templates ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_universal_provider_template(row) for row in rows]
+
+    def create_universal_provider_template_model(
+        self,
+        *,
+        template_id: int,
+        upstream_model: str,
+        display_name: str,
+        capabilities: list[str],
+        reasoning: bool,
+        input_modalities: list[str],
+        context_window: int | None,
+        max_tokens: int | None,
+        enabled: bool,
+    ) -> UniversalProviderTemplateModel:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO universal_provider_template_models
+            (
+                template_id,
+                upstream_model,
+                display_name,
+                capabilities,
+                reasoning,
+                input_modalities,
+                context_window,
+                max_tokens,
+                enabled
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                template_id,
+                upstream_model,
+                display_name,
+                json.dumps(capabilities, ensure_ascii=False),
+                int(reasoning),
+                json.dumps(input_modalities, ensure_ascii=False),
+                context_window,
+                max_tokens,
+                int(enabled),
+            ),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM universal_provider_template_models WHERE id = ?",
+            (int(cursor.lastrowid),),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create universal provider template model")
+        return self._row_to_universal_provider_template_model(row)
+
+    def list_universal_provider_template_models(self, template_id: int) -> list[UniversalProviderTemplateModel]:
+        rows = self.conn.execute(
+            """
+            SELECT *
+            FROM universal_provider_template_models
+            WHERE template_id = ?
+            ORDER BY id ASC
+            """,
+            (template_id,),
+        ).fetchall()
+        return [self._row_to_universal_provider_template_model(row) for row in rows]
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))

@@ -1,25 +1,148 @@
+import { useEffect, useState } from "react";
+
+import { api, type UniversalProviderTemplate } from "../lib/api";
+
 export default function UniversalTemplatesPage() {
+  const [templates, setTemplates] = useState<UniversalProviderTemplate[]>([]);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    base_url: "",
+    auth_type: "bearer",
+    api_key: "",
+    protocol: "openai-compatible",
+    notes: "",
+    upstream_model: "",
+    display_name: "",
+  });
+
+  async function loadTemplates() {
+    setTemplates(await api.getUniversalTemplates());
+  }
+
+  useEffect(() => {
+    void loadTemplates();
+  }, []);
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault();
+    await api.createUniversalTemplate({
+      name: form.name,
+      base_url: form.base_url,
+      auth_type: form.auth_type,
+      api_key: form.api_key,
+      protocol: form.protocol,
+      notes: form.notes,
+      models: [
+        {
+          upstream_model: form.upstream_model,
+          display_name: form.display_name,
+          capabilities: ["text"],
+          reasoning: false,
+          input_modalities: ["text"],
+          context_window: null,
+          max_tokens: null,
+          enabled: true,
+        },
+      ],
+    });
+    setForm({
+      name: "",
+      base_url: "",
+      auth_type: "bearer",
+      api_key: "",
+      protocol: "openai-compatible",
+      notes: "",
+      upstream_model: "",
+      display_name: "",
+    });
+    setMessage("Universal 模板已创建。");
+    await loadTemplates();
+  }
+
+  async function handleImport(templateId: number, target: "openclaw" | "gateway" | "media") {
+    await api.importUniversalTemplate(templateId, target);
+    const targetLabel = target === "openclaw" ? "OpenClaw" : target === "gateway" ? "Gateway" : "Media";
+    setMessage(`模板已导入到 ${targetLabel}。`);
+  }
+
   return (
     <section className="page">
-      <div className="panel placeholder-panel">
+      <form className="panel form-panel" onSubmit={handleCreate}>
         <div className="panel-header" style={{ marginBottom: 0 }}>
           <h3>Universal 模板池</h3>
-          <p>这里不会直接参与运行时，而是作为可复用的模板池，导入到 OpenClaw、Gateway 或 Media 后再各自独立管理。</p>
+          <p>这里不直接参与运行时，而是作为可复用模板池，导入到 OpenClaw、Gateway 或 Media 后再各自独立管理。</p>
         </div>
-        <div className="placeholder-grid">
-          <article className="placeholder-card">
-            <strong>Template Pool</strong>
-            <span>维护常见供应商模板，减少重复录入。</span>
-          </article>
-          <article className="placeholder-card">
-            <strong>Import to OpenClaw</strong>
-            <span>导入后作为 OpenClaw 独立供应商使用，不与原模板联动。</span>
-          </article>
-          <article className="placeholder-card">
-            <strong>Import to Gateway / Media</strong>
-            <span>同一份模板可以派生到其他模块，但运行时始终保持各管各的。</span>
-          </article>
+        <div className="editor-grid">
+          <label>
+            <span>模板名称</span>
+            <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+          </label>
+          <label>
+            <span>Base URL</span>
+            <input value={form.base_url} onChange={(event) => setForm((current) => ({ ...current, base_url: event.target.value }))} />
+          </label>
+          <label>
+            <span>鉴权方式</span>
+            <select value={form.auth_type} onChange={(event) => setForm((current) => ({ ...current, auth_type: event.target.value }))}>
+              <option value="bearer">Bearer</option>
+              <option value="x-api-key">X-API-Key</option>
+              <option value="none">无鉴权</option>
+            </select>
+          </label>
+          <label>
+            <span>API Key</span>
+            <input value={form.api_key} onChange={(event) => setForm((current) => ({ ...current, api_key: event.target.value }))} />
+          </label>
+          <label>
+            <span>示例模型 ID</span>
+            <input value={form.upstream_model} onChange={(event) => setForm((current) => ({ ...current, upstream_model: event.target.value }))} />
+          </label>
+          <label>
+            <span>示例模型显示名</span>
+            <input value={form.display_name} onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} />
+          </label>
         </div>
+        <label>
+          <span>备注</span>
+          <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+        </label>
+        <div className="topbar-actions">
+          <button type="submit">新增模板</button>
+        </div>
+        {message ? <p className="inline-message">{message}</p> : null}
+      </form>
+
+      <div className="panel placeholder-panel">
+        <div className="panel-header" style={{ marginBottom: 0 }}>
+          <h3>当前模板</h3>
+          <p>导入后目标模块拿到的是独立副本，不会反向修改这里的模板。</p>
+        </div>
+        {templates.length === 0 ? (
+          <div className="empty-state">还没有任何 Universal 模板。</div>
+        ) : (
+          <div className="placeholder-grid">
+            {templates.map((template) => (
+              <article key={template.id} className="placeholder-card">
+                <strong>{template.name}</strong>
+                <span>{template.base_url}</span>
+                <span>鉴权：{template.auth_type}</span>
+                <span>模型数：{template.models.length}</span>
+                <div className="topbar-actions">
+                  <button type="button" className="secondary-button" onClick={() => void handleImport(template.id, "openclaw")}>
+                    导入到 OpenClaw
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleImport(template.id, "gateway")}>
+                    导入到 Gateway
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleImport(template.id, "media")}>
+                    导入到 Media
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
