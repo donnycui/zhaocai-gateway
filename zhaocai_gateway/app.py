@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from zhaocai_gateway.api import create_admin_router, create_agent_router
+from zhaocai_gateway.api import create_admin_router, create_agent_router, create_runtime_router
 from zhaocai_gateway.config import load_runtime_config, load_server_config
 from zhaocai_gateway.db.store import SQLiteStore
 
@@ -61,6 +61,7 @@ def create_app(
     app.state.store = store
     app.include_router(create_admin_router(store, admin_token=admin_token))
     app.include_router(create_agent_router(store))
+    app.include_router(create_runtime_router(store))
 
     resolved_static_dir = Path(static_dir).resolve() if static_dir is not None else None
     has_static_index = bool(

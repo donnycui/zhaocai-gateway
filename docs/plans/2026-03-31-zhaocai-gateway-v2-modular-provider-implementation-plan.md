@@ -384,7 +384,7 @@ git commit -m "feat: add gateway aliases and target mappings"
 - Modify: `zhaocai_gateway/services/gateway_aliases.py`
 - Create: `tests/test_gateway_failover.py`
 
-- [ ] **Step 1: Define the first failover policy**
+- [x] **Step 1: Define the first failover policy**
 
 Fallback should occur for:
 
@@ -396,7 +396,7 @@ Fallback should occur for:
 
 Do not automatically fail over for obvious caller-caused `4xx`.
 
-- [ ] **Step 2: Write failing runtime tests**
+- [x] **Step 2: Write failing runtime tests**
 
 Cover:
 
@@ -405,7 +405,7 @@ Cover:
 - primary target `429` -> secondary target succeeds
 - primary target `400` -> error returned, no failover
 
-- [ ] **Step 3: Implement ordered target selection and cooldown**
+- [x] **Step 3: Implement ordered target selection and cooldown**
 
 For each alias:
 
@@ -414,7 +414,7 @@ For each alias:
 - cool down temporarily unhealthy targets
 - continue to the next eligible target
 
-- [ ] **Step 4: Add health inspection UI or admin diagnostics**
+- [x] **Step 4: Add health inspection UI or admin diagnostics**
 
 Make current alias target status visible enough for debugging:
 
@@ -422,7 +422,7 @@ Make current alias target status visible enough for debugging:
 - recent failures
 - cooldown state
 
-- [ ] **Step 5: Re-run failover tests**
+- [x] **Step 5: Re-run failover tests**
 
 Run:
 
@@ -432,7 +432,7 @@ pytest tests/test_gateway_failover.py -v
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web tests gateway.py

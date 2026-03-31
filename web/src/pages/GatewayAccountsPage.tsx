@@ -132,6 +132,7 @@ export default function GatewayAccountsPage() {
                 <span>协议：{account.protocol}</span>
                 <span>健康状态：{healthLabels[account.health_status] ?? account.health_status}</span>
                 <span>已同步模型：{account.synced_models_count}</span>
+                {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
                     测试连接

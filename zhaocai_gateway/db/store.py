@@ -640,6 +640,21 @@ class SQLiteStore:
             return None
         return self._row_to_gateway_model(row)
 
+    def get_gateway_model(self, model_id: int) -> GatewayModel | None:
+        row = self.conn.execute(
+            """
+            SELECT gm.*, gua.name AS account_name
+            FROM gateway_models gm
+            JOIN gateway_upstream_accounts gua ON gua.id = gm.account_id
+            WHERE gm.id = ?
+            LIMIT 1
+            """,
+            (model_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_model(row)
+
     def upsert_gateway_model(
         self,
         *,
@@ -761,6 +776,15 @@ class SQLiteStore:
         row = self.conn.execute(
             "SELECT * FROM gateway_aliases WHERE id = ?",
             (alias_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_gateway_alias(row)
+
+    def get_gateway_alias_by_key(self, alias_key: str) -> GatewayAlias | None:
+        row = self.conn.execute(
+            "SELECT * FROM gateway_aliases WHERE alias_key = ? LIMIT 1",
+            (alias_key,),
         ).fetchone()
         if row is None:
             return None
