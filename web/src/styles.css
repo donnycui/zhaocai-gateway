@@ -36,8 +36,7 @@ textarea {
 .sidebar {
   padding: 32px 22px;
   border-right: 1px solid rgba(19, 34, 56, 0.08);
-  background: rgba(255, 252, 245, 0.78);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 252, 245, 0.94);
 }
 
 .brand-block h1 {
@@ -90,11 +89,10 @@ button,
   text-align: left;
   background: rgba(19, 34, 56, 0.04);
   color: #24374f;
-  transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .nav-button:hover {
-  transform: translateX(2px);
   background: rgba(19, 34, 56, 0.08);
 }
 
@@ -151,7 +149,7 @@ button,
   text-align: left;
   background: rgba(19, 34, 56, 0.05);
   color: #24374f;
-  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  transition: background 120ms ease, box-shadow 120ms ease;
 }
 
 .module-tab strong {
@@ -165,13 +163,12 @@ button,
 }
 
 .module-tab:hover {
-  transform: translateY(-1px);
   background: rgba(19, 34, 56, 0.08);
 }
 
 .module-tab.active {
   background: linear-gradient(135deg, rgba(19, 34, 56, 0.96), rgba(31, 76, 116, 0.92));
-  box-shadow: 0 16px 30px rgba(19, 34, 56, 0.2);
+  box-shadow: 0 10px 22px rgba(19, 34, 56, 0.14);
 }
 
 .module-tab.active strong,
@@ -183,10 +180,9 @@ button,
 .stat-card,
 .device-card {
   border: 1px solid rgba(19, 34, 56, 0.08);
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.94);
   border-radius: 20px;
-  box-shadow: 0 14px 40px rgba(34, 55, 79, 0.08);
+  box-shadow: 0 8px 20px rgba(34, 55, 79, 0.06);
 }
 
 .panel {
@@ -378,13 +374,12 @@ button {
   padding: 18px 20px;
   display: grid;
   gap: 14px;
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .provider-card:hover {
   border-color: rgba(18, 121, 185, 0.32);
-  box-shadow: 0 18px 38px rgba(34, 55, 79, 0.12);
-  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(34, 55, 79, 0.08);
 }
 
 .provider-card-main {
@@ -449,31 +444,8 @@ button {
   justify-content: flex-end;
   width: 180px;
   gap: 10px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(10px);
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.provider-card:hover .provider-meta-block {
-  transform: translateX(-10px);
-}
-
-.provider-card:hover .provider-card-actions {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0);
-}
-
-.provider-meta-block,
-.provider-url,
-.provider-info strong {
-  transition: transform 180ms ease;
-}
-
-.provider-card:hover .provider-info,
-.provider-card:hover .provider-protocol-badge {
-  transform: translateX(-8px);
 }
 
 .device-card {
@@ -879,17 +851,8 @@ button {
   }
 
   .provider-card-actions {
-    opacity: 1;
-    pointer-events: auto;
     justify-content: flex-start;
     flex-wrap: wrap;
-    transform: none;
-  }
-
-  .provider-card:hover .provider-meta-block,
-  .provider-card:hover .provider-info,
-  .provider-card:hover .provider-protocol-badge {
-    transform: none;
   }
 
   .editor-grid,
@@ -900,5 +863,23 @@ button {
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid rgba(19, 34, 56, 0.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-button,
+  .module-tab,
+  .provider-card,
+  .provider-card-actions,
+  .icon-button,
+  button,
+  .secondary-button {
+    transition: none;
+  }
+
+  .nav-button:hover,
+  .module-tab:hover,
+  .provider-card:hover {
+    transform: none;
   }
 }
