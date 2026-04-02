@@ -38,6 +38,14 @@ class ProviderValidate(BaseModel):
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
 
+class ProviderDiscover(BaseModel):
+    base_url: str = Field(min_length=1)
+    provider_type: str = Field(min_length=1)
+    auth_scheme: str = Field(min_length=1)
+    api_key: str = ""
+    extra_headers: dict[str, str] = Field(default_factory=dict)
+
+
 class ProviderUpdate(BaseModel):
     name: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
@@ -297,6 +305,25 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             base_url=payload.base_url,
             auth_scheme=payload.auth_scheme,
         )
+
+    @router.post("/providers/discover-models")
+    def discover_provider_models(
+        payload: ProviderDiscover,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return provider_service.discover_models(
+                base_url=payload.base_url,
+                provider_type=payload.provider_type,
+                auth_scheme=payload.auth_scheme,
+                api_key=payload.api_key,
+                extra_headers=payload.extra_headers,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     @router.post("/providers/{provider_id}/test")
     def test_provider(

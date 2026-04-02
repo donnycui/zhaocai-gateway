@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -94,6 +95,63 @@ class ProviderService:
             "message": "OpenClaw provider input looks valid" if ok and auth_ok else "Invalid OpenClaw provider input",
         }
 
+    def discover_models(
+        self,
+        *,
+        base_url: str,
+        provider_type: str,
+        auth_scheme: str,
+        api_key: str,
+        extra_headers: dict[str, str],
+    ) -> dict:
+        validation = self.validate(base_url=base_url, auth_scheme=auth_scheme)
+        if not validation["ok"]:
+            raise ValueError(validation["message"])
+
+        try:
+            response = httpx.request(
+                "GET",
+                self._build_models_url(base_url),
+                headers=self._build_headers(
+                    auth_scheme=auth_scheme,
+                    api_key=api_key,
+                    extra_headers=extra_headers,
+                    provider_type=provider_type,
+                ),
+                timeout=20.0,
+            )
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Unable to fetch models from upstream: {exc}") from exc
+
+        if not response.is_success:
+            raise RuntimeError(self._extract_error_message(response))
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError("The upstream /models endpoint did not return valid JSON") from exc
+
+        items = self._extract_model_items(payload)
+        if items is None:
+            raise RuntimeError("The upstream /models endpoint returned an unsupported payload")
+
+        normalized_models: list[dict[str, Any]] = []
+        seen_model_ids: set[str] = set()
+        for item in items:
+            normalized = self._normalize_discovered_model(item)
+            if normalized is None:
+                continue
+            model_id = normalized["upstream_model"]
+            if model_id in seen_model_ids:
+                continue
+            seen_model_ids.add(model_id)
+            normalized_models.append(normalized)
+
+        return {
+            "models": normalized_models,
+            "count": len(normalized_models),
+        }
+
     def test_connectivity(self, provider_id: int) -> dict:
         provider = self.store.get_provider(provider_id)
         if provider is None:
@@ -179,6 +237,13 @@ class ProviderService:
         return f"{normalized_base}{path}"
 
     @staticmethod
+    def _build_models_url(base_url: str) -> str:
+        normalized_base = base_url.strip().rstrip("/")
+        if normalized_base.endswith("/models"):
+            return normalized_base
+        return f"{normalized_base}/models"
+
+    @staticmethod
     def _build_payload(*, provider_type: str, model_id: str) -> dict:
         normalized = (provider_type or "openai-completions").strip().lower()
         if normalized == "openai-responses":
@@ -225,6 +290,136 @@ class ProviderService:
         if normalized_provider in {"anthropic", "anthropic-messages"}:
             headers.setdefault("anthropic-version", "2023-06-01")
         return headers
+
+    @classmethod
+    def _extract_model_items(cls, payload: Any) -> list[dict[str, Any]] | None:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if not isinstance(payload, dict):
+            return None
+
+        for key in ("data", "models", "items", "results"):
+            candidate = payload.get(key)
+            if isinstance(candidate, list):
+                return [item for item in candidate if isinstance(item, dict)]
+        return None
+
+    @classmethod
+    def _normalize_discovered_model(cls, item: dict[str, Any]) -> dict[str, Any] | None:
+        raw_model_id = item.get("id") or item.get("model") or item.get("name")
+        if not isinstance(raw_model_id, str) or not raw_model_id.strip():
+            return None
+
+        model_id = raw_model_id.strip()
+        raw_display_name = item.get("display_name") or item.get("name") or model_id
+        display_name = raw_display_name.strip() if isinstance(raw_display_name, str) else model_id
+        input_modalities = cls._extract_input_modalities(item)
+        reasoning = cls._extract_reasoning_flag(item, model_id, display_name)
+        capabilities = ["text"]
+        if "image" in input_modalities and "multimodal" not in capabilities:
+            capabilities.append("multimodal")
+        if "audio" in input_modalities and "audio" not in capabilities:
+            capabilities.append("audio")
+        if reasoning and "reasoning" not in capabilities:
+            capabilities.append("reasoning")
+
+        pricing = item.get("pricing") if isinstance(item.get("pricing"), dict) else {}
+
+        return {
+            "upstream_model": model_id,
+            "display_name": display_name,
+            "capabilities": capabilities,
+            "reasoning": reasoning,
+            "input_modalities": input_modalities,
+            "context_window": cls._safe_int(item.get("context_window") or item.get("context_length")),
+            "max_tokens": cls._safe_int(item.get("max_tokens") or item.get("max_output_tokens")),
+            "cost_input": cls._safe_float(pricing.get("prompt") or pricing.get("input") or item.get("cost_input")),
+            "cost_output": cls._safe_float(pricing.get("completion") or pricing.get("output") or item.get("cost_output")),
+            "cost_cache_read": cls._safe_float(
+                pricing.get("cache_read") or pricing.get("cached_input") or item.get("cost_cache_read")
+            ),
+            "cost_cache_write": cls._safe_float(
+                pricing.get("cache_write") or item.get("cost_cache_write")
+            ),
+        }
+
+    @classmethod
+    def _extract_input_modalities(cls, item: dict[str, Any]) -> list[str]:
+        raw_candidates: list[Any] = [
+            item.get("input_modalities"),
+            item.get("modalities"),
+            item.get("input"),
+        ]
+        architecture = item.get("architecture")
+        if isinstance(architecture, dict):
+            raw_candidates.append(architecture.get("input_modalities"))
+
+        modalities: list[str] = []
+        for candidate in raw_candidates:
+            if isinstance(candidate, str):
+                modalities.extend(part.strip().lower() for part in candidate.split(",") if part.strip())
+            elif isinstance(candidate, list):
+                modalities.extend(
+                    str(part).strip().lower()
+                    for part in candidate
+                    if isinstance(part, str) and part.strip()
+                )
+
+        unique_modalities: list[str] = []
+        for modality in modalities:
+            if modality not in unique_modalities:
+                unique_modalities.append(modality)
+
+        if unique_modalities:
+            return unique_modalities
+
+        if cls._looks_multimodal(item):
+            return ["text", "image"]
+        return ["text"]
+
+    @staticmethod
+    def _looks_multimodal(item: dict[str, Any]) -> bool:
+        for key in ("supports_vision", "vision", "multimodal"):
+            value = item.get(key)
+            if isinstance(value, bool) and value:
+                return True
+        return False
+
+    @staticmethod
+    def _extract_reasoning_flag(item: dict[str, Any], model_id: str, display_name: str) -> bool:
+        for key in ("reasoning", "supports_reasoning", "reasoning_enabled"):
+            value = item.get(key)
+            if isinstance(value, bool):
+                return value
+
+        lowered = f"{model_id} {display_name}".lower()
+        reasoning_markers = (
+            "reason",
+            "thinking",
+            "r1",
+            "o1",
+            "o3",
+            "o4-mini",
+        )
+        return any(marker in lowered for marker in reasoning_markers)
+
+    @staticmethod
+    def _safe_int(value: Any) -> int | None:
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _safe_float(value: Any) -> float | None:
+        if value in (None, ""):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _extract_error_message(response: httpx.Response) -> str:

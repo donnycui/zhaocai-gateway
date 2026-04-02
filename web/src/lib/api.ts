@@ -203,6 +203,20 @@ export interface ProviderTestReport {
   results: ProviderTestItem[];
 }
 
+export interface DiscoveredProviderModel {
+  upstream_model: string;
+  display_name: string;
+  capabilities: string[];
+  reasoning: boolean;
+  input_modalities: string[];
+  context_window: number | null;
+  max_tokens: number | null;
+  cost_input: number | null;
+  cost_output: number | null;
+  cost_cache_read: number | null;
+  cost_cache_write: number | null;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const ADMIN_TOKEN_STORAGE_KEY = "zhaocai-admin-token";
 
@@ -375,6 +389,19 @@ export const api = {
     extra_headers: Record<string, string>;
   }): Promise<{ ok: boolean; message: string }> {
     return request("/admin/providers/validate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async discoverProviderModels(payload: {
+    base_url: string;
+    provider_type: string;
+    auth_scheme: string;
+    api_key: string;
+    extra_headers: Record<string, string>;
+  }): Promise<{ models: DiscoveredProviderModel[]; count: number }> {
+    return request("/admin/providers/discover-models", {
       method: "POST",
       body: JSON.stringify(payload),
     });

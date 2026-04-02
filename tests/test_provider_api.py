@@ -58,6 +58,107 @@ def test_validate_provider_input():
     assert response.json()["ok"] is True
 
 
+def test_discover_provider_models_normalizes_upstream_payload(monkeypatch):
+    client = create_test_client()
+    calls: list[dict] = []
+
+    class DummyResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "context_length": 400000,
+                        "max_output_tokens": 16000,
+                        "architecture": {"input_modalities": ["text", "image"]},
+                        "pricing": {"prompt": "1.25", "completion": "10.00"},
+                    },
+                    {
+                        "id": "anthropic/claude-opus-4-1",
+                        "name": "Claude Opus 4.1",
+                    },
+                ]
+            }
+
+    def fake_request(method: str, url: str, headers: dict, timeout: float) -> DummyResponse:
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        "/admin/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://example.com/v1",
+            "provider_type": "openai-responses",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {"X-Test": "1"},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == "https://example.com/v1/models"
+    assert calls[0]["headers"]["Authorization"] == "Bearer sk-test"
+    assert calls[0]["headers"]["X-Test"] == "1"
+    assert calls[0]["timeout"] == 20.0
+
+    first = payload["models"][0]
+    assert first["upstream_model"] == "openai/gpt-5"
+    assert first["display_name"] == "GPT-5"
+    assert first["input_modalities"] == ["text", "image"]
+    assert "multimodal" in first["capabilities"]
+    assert first["context_window"] == 400000
+    assert first["max_tokens"] == 16000
+    assert first["cost_input"] == 1.25
+    assert first["cost_output"] == 10.0
+
+
+def test_discover_provider_models_surfaces_upstream_errors(monkeypatch):
+    client = create_test_client()
+
+    class DummyResponse:
+        status_code = 401
+        is_success = False
+        text = ""
+
+        def json(self) -> dict:
+            return {"error": {"message": "Invalid upstream key"}}
+
+    monkeypatch.setattr(httpx, "request", lambda method, url, headers, timeout: DummyResponse())
+
+    response = client.post(
+        "/admin/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://example.com/v1",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "bad-key",
+            "extra_headers": {},
+        },
+    )
+
+    assert response.status_code == 502
+    assert "Invalid upstream key" in response.json()["detail"]
+
+
 @pytest.mark.parametrize(
     ("provider_type", "auth_scheme", "expected_suffix", "expected_header"),
     [

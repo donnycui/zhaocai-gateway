@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
-import { api, type Model, type Provider } from "../lib/api";
+import { api, type DiscoveredProviderModel, type Model } from "../lib/api";
 
 type ProviderProtocol =
   | "openai-completions"
@@ -27,10 +27,26 @@ interface EditableModel {
   cost_cache_write: string;
 }
 
+interface DiscoverGroup {
+  label: string;
+  models: DiscoveredProviderModel[];
+}
+
 const protocolOptions: Array<{ value: ProviderProtocol; label: string }> = [
   { value: "openai-completions", label: "OpenAI Completions" },
   { value: "openai-responses", label: "OpenAI Responses" },
   { value: "anthropic-messages", label: "Anthropic Messages" },
+];
+
+const avatarToneClasses = [
+  "tone-coral",
+  "tone-sky",
+  "tone-mint",
+  "tone-amber",
+  "tone-plum",
+  "tone-rose",
+  "tone-indigo",
+  "tone-lime",
 ];
 
 function toEditableModel(model?: Model): EditableModel {
@@ -47,6 +63,80 @@ function toEditableModel(model?: Model): EditableModel {
     cost_cache_read: model?.cost_cache_read?.toString() ?? "",
     cost_cache_write: model?.cost_cache_write?.toString() ?? "",
   };
+}
+
+function toEditableModelFromDiscoveredModel(model: DiscoveredProviderModel): EditableModel {
+  return {
+    upstream_model: model.upstream_model,
+    display_name: model.display_name,
+    reasoning: model.reasoning,
+    input_modalities: model.input_modalities.length > 0 ? model.input_modalities : ["text"],
+    context_window: model.context_window?.toString() ?? "",
+    max_tokens: model.max_tokens?.toString() ?? "",
+    cost_input: model.cost_input?.toString() ?? "",
+    cost_output: model.cost_output?.toString() ?? "",
+    cost_cache_read: model.cost_cache_read?.toString() ?? "",
+    cost_cache_write: model.cost_cache_write?.toString() ?? "",
+  };
+}
+
+function normalizeModelKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isBlankEditableModel(model: EditableModel): boolean {
+  return !model.id && !model.upstream_model.trim() && !model.display_name.trim();
+}
+
+function getProviderAuthScheme(providerType: ProviderProtocol): string {
+  return providerType === "anthropic-messages" ? "x-api-key" : "bearer";
+}
+
+function buildModelCapabilities(model: EditableModel): string[] {
+  const capabilities = ["text"];
+  if (model.input_modalities.includes("image")) {
+    capabilities.push("multimodal");
+  }
+  if (model.input_modalities.includes("audio")) {
+    capabilities.push("audio");
+  }
+  if (model.reasoning) {
+    capabilities.push("reasoning");
+  }
+  return capabilities;
+}
+
+function buildModelGroupLabel(model: DiscoveredProviderModel): string {
+  const source = (model.display_name || model.upstream_model).toLowerCase();
+  const tail = source.split("/").pop() ?? source;
+  const tokens = tail.split(/[-_:]/).filter(Boolean);
+  if (tokens.length === 0) {
+    return "other";
+  }
+
+  if (tokens[0] === "claude" && tokens[1]) {
+    return `claude-${tokens[1]}`;
+  }
+  if (tokens[0] === "gpt" && tokens[1]) {
+    return `gpt-${tokens[1]}`;
+  }
+  if (tokens[0] === "gemini" && tokens[1]) {
+    return `gemini-${tokens[1]}`;
+  }
+  if (tokens[0] === "qwen" && tokens[1]) {
+    return `qwen-${tokens[1]}`;
+  }
+  if (tokens[0] === "deepseek" && tokens[1]) {
+    return `deepseek-${tokens[1]}`;
+  }
+  return tokens.slice(0, Math.min(tokens.length, 2)).join("-");
+}
+
+function buildModelAvatarLabel(model: DiscoveredProviderModel): string {
+  const source = model.display_name || model.upstream_model;
+  const tail = source.split("/").pop() ?? source;
+  const compact = tail.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return compact.slice(0, 2) || "ML";
 }
 
 export default function ProviderEditorPage({
@@ -66,24 +156,48 @@ export default function ProviderEditorPage({
     enabled: true,
   });
   const [models, setModels] = useState<EditableModel[]>([toEditableModel()]);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverMessage, setDiscoverMessage] = useState("");
+  const [discoverMessageTone, setDiscoverMessageTone] = useState<"success" | "error">("success");
+  const [discoverSearch, setDiscoverSearch] = useState("");
+  const [discoveredModels, setDiscoveredModels] = useState<DiscoveredProviderModel[]>([]);
+  const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
-      if (providerId == null) return;
+      if (providerId == null) {
+        return;
+      }
+
       setLoading(true);
-      const payload = await api.getProvider(providerId);
-      if (cancelled) return;
-      setProvider({
-        name: payload.provider.name,
-        base_url: payload.provider.base_url,
-        provider_type: (payload.provider.provider_type as ProviderProtocol) ?? "openai-completions",
-        api_key: payload.provider.api_key_encrypted,
-        enabled: payload.provider.enabled,
-      });
-      setModels(payload.models.length > 0 ? payload.models.map((model) => toEditableModel(model)) : [toEditableModel()]);
-      setLoading(false);
+      try {
+        const payload = await api.getProvider(providerId);
+        if (cancelled) {
+          return;
+        }
+        setProvider({
+          name: payload.provider.name,
+          base_url: payload.provider.base_url,
+          provider_type: (payload.provider.provider_type as ProviderProtocol) ?? "openai-completions",
+          api_key: payload.provider.api_key_encrypted,
+          enabled: payload.provider.enabled,
+        });
+        setModels(payload.models.length > 0 ? payload.models.map((model) => toEditableModel(model)) : [toEditableModel()]);
+      } catch (error) {
+        if (!cancelled) {
+          setMessageTone("error");
+          setMessage(error instanceof Error ? error.message : "加载供应商失败。");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     }
+
     void load();
     return () => {
       cancelled = true;
@@ -94,6 +208,40 @@ export default function ProviderEditorPage({
     () => (isCreateMode ? "新增 OpenClaw 供应商" : `编辑 OpenClaw 供应商：${provider.name}`),
     [isCreateMode, provider.name],
   );
+
+  const existingModelKeys = useMemo(
+    () =>
+      new Set(
+        models
+          .map((model) => normalizeModelKey(model.upstream_model))
+          .filter((modelId) => modelId.length > 0),
+      ),
+    [models],
+  );
+
+  const deferredDiscoverSearch = useDeferredValue(discoverSearch.trim().toLowerCase());
+
+  const groupedDiscoveredModels = useMemo<DiscoverGroup[]>(() => {
+    const filtered = discoveredModels.filter((model) => {
+      if (!deferredDiscoverSearch) {
+        return true;
+      }
+      const haystack = `${model.upstream_model} ${model.display_name} ${buildModelGroupLabel(model)}`.toLowerCase();
+      return haystack.includes(deferredDiscoverSearch);
+    });
+
+    const groups = new Map<string, DiscoveredProviderModel[]>();
+    filtered.forEach((model) => {
+      const groupLabel = buildModelGroupLabel(model);
+      const currentGroup = groups.get(groupLabel) ?? [];
+      currentGroup.push(model);
+      groups.set(groupLabel, currentGroup);
+    });
+
+    return Array.from(groups.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([label, groupModels]) => ({ label, models: groupModels }));
+  }, [deferredDiscoverSearch, discoveredModels]);
 
   function updateModel(index: number, patch: Partial<EditableModel>) {
     setModels((current) =>
@@ -115,7 +263,7 @@ export default function ProviderEditorPage({
     event.preventDefault();
     setMessage("");
     setLoading(true);
-    const authScheme = provider.provider_type === "anthropic-messages" ? "x-api-key" : "bearer";
+    const authScheme = getProviderAuthScheme(provider.provider_type);
 
     try {
       let activeProviderId = providerId;
@@ -153,7 +301,7 @@ export default function ProviderEditorPage({
         const payload = {
           upstream_model: model.upstream_model.trim(),
           display_name: model.display_name.trim(),
-          capabilities: ["text"],
+          capabilities: buildModelCapabilities(model),
           reasoning: model.reasoning,
           input_modalities: model.input_modalities,
           context_window: model.context_window ? Number(model.context_window) : null,
@@ -193,23 +341,133 @@ export default function ProviderEditorPage({
     }
   }
 
+  async function fetchDiscoveredModels() {
+    setDiscoverOpen(true);
+    setDiscoverLoading(true);
+    setDiscoverMessage("");
+    setDiscoverMessageTone("success");
+
+    if (!provider.base_url.trim()) {
+      setDiscoveredModels([]);
+      setSelectedDiscoveredIds([]);
+      setDiscoverMessageTone("error");
+      setDiscoverMessage("请先填写 API 地址，再获取模型列表。");
+      setDiscoverLoading(false);
+      return;
+    }
+
+    try {
+      const result = await api.discoverProviderModels({
+        base_url: provider.base_url.trim(),
+        provider_type: provider.provider_type,
+        auth_scheme: getProviderAuthScheme(provider.provider_type),
+        api_key: provider.api_key.trim(),
+        extra_headers: {},
+      });
+      setDiscoveredModels(result.models);
+      setSelectedDiscoveredIds(
+        result.models
+          .filter((model) => !existingModelKeys.has(normalizeModelKey(model.upstream_model)))
+          .map((model) => model.upstream_model),
+      );
+      setDiscoverMessageTone("success");
+      setDiscoverMessage(
+        result.count > 0
+          ? `已拉取 ${result.count} 个模型，请选择后导入。`
+          : "上游返回了空模型列表。",
+      );
+    } catch (error) {
+      setDiscoveredModels([]);
+      setSelectedDiscoveredIds([]);
+      setDiscoverMessageTone("error");
+      setDiscoverMessage(error instanceof Error ? error.message : "拉取模型列表失败。");
+    } finally {
+      setDiscoverLoading(false);
+    }
+  }
+
+  function toggleDiscoveredModel(modelId: string) {
+    setSelectedDiscoveredIds((current) =>
+      current.includes(modelId)
+        ? current.filter((item) => item !== modelId)
+        : [...current, modelId],
+    );
+  }
+
+  function handleSelectVisibleDiscoveredModels() {
+    const visibleIds = groupedDiscoveredModels
+      .flatMap((group) => group.models)
+      .map((model) => model.upstream_model)
+      .filter((modelId) => !existingModelKeys.has(normalizeModelKey(modelId)));
+    setSelectedDiscoveredIds((current) => Array.from(new Set([...current, ...visibleIds])));
+  }
+
+  function handleClearDiscoveredSelection() {
+    setSelectedDiscoveredIds([]);
+  }
+
+  function handleImportSelectedDiscoveredModels() {
+    const selectedIds = new Set(selectedDiscoveredIds);
+    const selectedModels = discoveredModels.filter((model) => selectedIds.has(model.upstream_model));
+    if (selectedModels.length === 0) {
+      setDiscoverMessageTone("error");
+      setDiscoverMessage("请先选择至少一个模型。");
+      return;
+    }
+
+    const nextModels = models.length === 1 && isBlankEditableModel(models[0]) ? [] : [...models];
+    const nextKeys = new Set(
+      nextModels
+        .map((model) => normalizeModelKey(model.upstream_model))
+        .filter((modelId) => modelId.length > 0),
+    );
+
+    let imported = 0;
+    let skipped = 0;
+    selectedModels.forEach((model) => {
+      const normalizedModelId = normalizeModelKey(model.upstream_model);
+      if (nextKeys.has(normalizedModelId)) {
+        skipped += 1;
+        return;
+      }
+      nextModels.push(toEditableModelFromDiscoveredModel(model));
+      nextKeys.add(normalizedModelId);
+      imported += 1;
+    });
+
+    setModels(nextModels.length > 0 ? nextModels : [toEditableModel()]);
+    setDiscoverOpen(false);
+    setDiscoverSearch("");
+    setMessageTone(imported > 0 ? "success" : "error");
+    if (imported > 0) {
+      setMessage(
+        skipped > 0
+          ? `已导入 ${imported} 个模型，跳过 ${skipped} 个重复项。`
+          : `已导入 ${imported} 个模型。`,
+      );
+      return;
+    }
+    setMessage("所选模型已存在，未导入新模型。");
+  }
+
   return (
     <section className="page">
       <form className="panel form-panel" onSubmit={handleSave}>
         <div className="page-header">
           <div className="panel-header" style={{ marginBottom: 0 }}>
             <h3>{title}</h3>
-            <p>配置 OpenClaw 供应商基础信息，并在下方维护将被同步到节点的模型列表。</p>
+            <p>配置 OpenClaw 供应商基础信息，并维护将同步到节点上的模型列表。</p>
           </div>
           <div className="topbar-actions">
             <button type="button" className="secondary-button" onClick={onBack}>
               返回
             </button>
             <button type="submit" disabled={loading}>
-              {loading ? "加载中" : "保存"}
+              {loading ? "处理中..." : "保存"}
             </button>
           </div>
         </div>
+
         {message ? (
           <p className={messageTone === "success" ? "inline-message" : "error-inline-message"}>
             {message}
@@ -260,7 +518,16 @@ export default function ProviderEditorPage({
 
         <div className="panel-header" style={{ marginTop: 10 }}>
           <h3>OpenClaw 模型列表</h3>
-          <p>这里的模型会进入 OpenClaw 模块，供设备分配和节点同步使用。</p>
+          <p>可手动维护模型，也可以直接从当前上游拉取后批量导入。</p>
+        </div>
+
+        <div className="model-toolbar">
+          <button type="button" className="secondary-button" onClick={() => void fetchDiscoveredModels()}>
+            获取模型列表
+          </button>
+          <button type="button" className="secondary-button" onClick={addModel}>
+            添加模型
+          </button>
         </div>
 
         <div className="model-card-list">
@@ -296,9 +563,7 @@ export default function ProviderEditorPage({
                   <div className="option-card">
                     <div className="option-card-header">
                       <span>推理模式</span>
-                      <span className="option-card-hint">
-                        {model.reasoning ? "开启" : "关闭"}
-                      </span>
+                      <span className="option-card-hint">{model.reasoning ? "开启" : "关闭"}</span>
                     </div>
                     <label className={`toggle-control compact-toggle ${model.reasoning ? "selected" : ""}`}>
                       <input
@@ -399,14 +664,124 @@ export default function ProviderEditorPage({
             </div>
           ))}
         </div>
-
-        <div className="topbar-actions">
-          <button type="button" className="secondary-button" onClick={addModel}>
-            添加模型
-          </button>
-        </div>
-
       </form>
+
+      {discoverOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setDiscoverOpen(false)}>
+          <div
+            className="modal-panel model-discovery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="provider-model-discovery-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <h3 id="provider-model-discovery-title">获取模型列表</h3>
+                <p>从当前供应商的 `/models` 拉取模型后，选择要导入到 OpenClaw 的条目。</p>
+              </div>
+              <button type="button" className="secondary-button" onClick={() => setDiscoverOpen(false)}>
+                关闭
+              </button>
+            </div>
+
+            <div className="model-picker-toolbar">
+              <input
+                placeholder="搜索模型 ID 或名称"
+                value={discoverSearch}
+                onChange={(event) => setDiscoverSearch(event.target.value)}
+              />
+              <div className="topbar-actions">
+                <button type="button" className="secondary-button" onClick={handleSelectVisibleDiscoveredModels}>
+                  全选可见
+                </button>
+                <button type="button" className="secondary-button" onClick={handleClearDiscoveredSelection}>
+                  清空选择
+                </button>
+                <button type="button" className="secondary-button" onClick={() => void fetchDiscoveredModels()}>
+                  {discoverLoading ? "刷新中..." : "刷新"}
+                </button>
+              </div>
+            </div>
+
+            {discoverMessage ? (
+              <p className={discoverMessageTone === "success" ? "inline-message" : "error-inline-message"}>
+                {discoverMessage}
+              </p>
+            ) : null}
+
+            <div className="model-discovery-summary">
+              <span>已发现 {discoveredModels.length} 个模型</span>
+              <span>已选择 {selectedDiscoveredIds.length} 个</span>
+            </div>
+
+            <div className="model-picker-groups">
+              {groupedDiscoveredModels.length === 0 ? (
+                <div className="empty-state">{discoverLoading ? "正在拉取模型列表..." : "没有可显示的模型。"}</div>
+              ) : (
+                groupedDiscoveredModels.map((group, groupIndex) => (
+                  <section key={group.label} className="model-picker-group">
+                    <div className="model-picker-group-header">
+                      <div>
+                        <strong>{group.label}</strong>
+                        <span>{group.models.length} 个模型</span>
+                      </div>
+                    </div>
+                    <div className="model-picker-group-list">
+                      {group.models.map((model, modelIndex) => {
+                        const normalizedModelId = normalizeModelKey(model.upstream_model);
+                        const alreadyImported = existingModelKeys.has(normalizedModelId);
+                        const toneClass =
+                          avatarToneClasses[(groupIndex + modelIndex) % avatarToneClasses.length];
+                        return (
+                          <label
+                            key={model.upstream_model}
+                            className={`model-picker-row ${alreadyImported ? "is-disabled" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedDiscoveredIds.includes(model.upstream_model)}
+                              disabled={alreadyImported}
+                              onChange={() => toggleDiscoveredModel(model.upstream_model)}
+                            />
+                            <div className={`model-picker-icon ${toneClass}`}>
+                              {buildModelAvatarLabel(model)}
+                            </div>
+                            <div className="model-picker-row-main">
+                              <strong>{model.display_name}</strong>
+                              <span>{model.upstream_model}</span>
+                            </div>
+                            <div className="model-picker-row-tags">
+                              {model.reasoning ? <span className="mini-pill">推理</span> : null}
+                              {model.input_modalities.includes("image") ? (
+                                <span className="mini-pill mini-pill-accent">图像</span>
+                              ) : null}
+                              {alreadyImported ? <span className="mini-pill mini-pill-muted">已在列表</span> : null}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="secondary-button" onClick={() => setDiscoverOpen(false)}>
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleImportSelectedDiscoveredModels}
+                disabled={discoverLoading || selectedDiscoveredIds.length === 0}
+              >
+                导入选中模型
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -15,6 +15,17 @@ interface ProvidersPageProps {
 
 type ProviderModule = "openclaw" | "gateway" | "media" | "universal";
 
+const avatarToneClasses = [
+  "tone-coral",
+  "tone-sky",
+  "tone-mint",
+  "tone-amber",
+  "tone-plum",
+  "tone-rose",
+  "tone-indigo",
+  "tone-lime",
+];
+
 const protocolLabels: Record<string, string> = {
   "openai-completions": "OpenAI Completions",
   "openai-responses": "OpenAI Responses",
@@ -241,10 +252,12 @@ export default function ProvidersPage({
           {providers.length === 0 ? (
             <div className="empty-state">还没有任何 OpenClaw 供应商。</div>
           ) : (
-            providers.map((provider) => (
+            providers.map((provider, index) => (
               <article key={provider.id} className="provider-card">
                 <div className="provider-card-main">
-                  <div className="provider-avatar">{provider.name.slice(0, 2).toUpperCase()}</div>
+                  <div className={`provider-avatar ${avatarToneClasses[index % avatarToneClasses.length]}`}>
+                    {provider.name.slice(0, 2).toUpperCase()}
+                  </div>
 
                   <div className="provider-info">
                     <strong>{provider.name}</strong>
