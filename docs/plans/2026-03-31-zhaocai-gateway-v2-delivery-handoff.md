@@ -1,108 +1,124 @@
 # Zhaocai Gateway v2 Delivery Handoff
 
-**Date:** 2026-03-31  
+**Date:** 2026-04-02  
 **Branch:** `codex/zhaocai-gateway-v2-scaffold`
 
-## 1. 当前做到哪里
+## 1. Current State
 
-当前 `zhaocai-gateway-v2` 已经从单一的 OpenClaw 控制面，推进成四模块结构：
+`zhaocai-gateway-v2` has been expanded from a single OpenClaw-oriented control plane into four modules:
 
 - `OpenClaw`
 - `Gateway`
 - `Media`
 - `Universal`
 
-当前已经落地并提交的能力如下：
+The branch is already pushed to GitHub, deployed to the Raspberry Pi, and running in service-managed mode.
 
 ### OpenClaw
 
-- 现有 Provider / Model / Device / Pairing / Agent Sync 主线保留
-- 当前这条线已经明确收口为 `OpenClaw` 模块
-- `node-agent` 已支持保留 sidecar：
+- Existing `Provider / Model / Device / Pairing / Agent Sync` flows remain in place.
+- The existing provider/model surface is now explicitly treated as the `OpenClaw` module.
+- `node-agent` supports the preserve sidecar:
   - `~/.openclaw/zhaocai-preserve.json`
-- sidecar 中声明的 provider / model 不会被同步覆盖
+- Preserve entries declared in that sidecar are not deleted during sync.
+- Operators can now edit device-level preserve config directly in the `Devices` page:
+  - `preserve_providers`
+  - `preserve_models`
+- The control plane sends those values to the node on the next sync and the agent writes the sidecar file.
+- `openclaw.json` itself remains standard and does not keep custom metadata.
 
 ### Gateway
 
-- 已支持 `Gateway Upstream Accounts`
-- 已支持从上游 `/models` 同步真实模型
-- 已支持 `Gateway Aliases`
-- 已支持 `Gateway Alias Targets`
-- 已支持按 priority 的 failover
-- 已支持 `Gateway Client Keys`
-- 已支持运行时：
+- Supports `Gateway Upstream Accounts`
+- Syncs real upstream models from `/v1/models`
+- Supports `Gateway Aliases`
+- Supports `Gateway Alias Targets`
+- Supports priority-based failover
+- Supports `Gateway Client Keys`
+- Exposes runtime endpoints:
   - `POST /v1/chat/completions`
   - `POST /v1/responses`
 
-当前 failover 规则：
+Current failover policy:
 
-- timeout 切换
-- network error 切换
-- `5xx` 切换
-- `429` 切换
-- 明显 `4xx` 不切换
+- fail over on timeout
+- fail over on network error
+- fail over on `5xx`
+- fail over on `429`
+- do not fail over on obvious caller-caused `4xx`
 
 ### Media
 
-- 已支持 `Media Providers`
-- 已支持 `Media Templates`
-- 已支持 `POST /admin/media/templates/validate`
-- 已支持 `GET /admin/media/catalog`
-- 已有基础 UI，可录入 provider、template 并预览 catalog
+- Supports `Media Providers`
+- Supports `Media Templates`
+- Supports `POST /admin/media/templates/validate`
+- Supports `GET /admin/media/catalog`
+- Has a minimal working admin UI for provider entry, template editing, and catalog preview
 
 ### Universal
 
-- 已支持 `Universal Provider Templates`
-- 已支持导入到：
+- Supports `Universal Provider Templates`
+- Can import templates into:
   - `OpenClaw`
   - `Gateway`
   - `Media`
-- 导入后是独立副本，不会回写模板池
+- Imported records are independent copies and do not write back into the template pool
 
-## 2. 树莓派部署状态
+### Frontend UX Follow-Up
 
-树莓派地址：
+- A follow-up performance pass has already been applied to the admin UI
+- Heavy `backdrop-filter`, large shadows, and expensive hover motion were reduced
+- Goal: smoother scrolling on Raspberry Pi and lower-powered clients
+
+## 2. Raspberry Pi Deployment
+
+Host:
 
 - `cuijunpeng@192.168.1.26`
 
-当前部署目录：
+Deploy directory:
 
 - `/home/cuijunpeng/zhaocai-gateway-v2`
 
-当前 systemd 服务：
+systemd service:
 
 - `zhaocai-gateway.service`
 
-已经确认：
+As of **2026-04-02**, the following has been confirmed:
 
-- 服务成功切回 systemd 托管
-- 不再由手工 Python 进程占用 `8000`
-- 当前部署已更新到本轮最新代码
-- `web/dist` 已在树莓派重新构建
+- the service is managed by `systemd`
+- the previous hand-started Python process conflict on port `8000` has been removed
+- the Raspberry Pi is running the latest code from this branch
+- `web/dist` has been rebuilt on the Raspberry Pi
+- the latest frontend assets are in place
 
-已做过的 smoke check：
+Smoke checks already performed:
 
 - `GET /health`
 - `GET /admin/gateway/accounts`
 - `GET /admin/media/catalog`
 - `GET /admin/universal/templates`
+- `GET /admin/devices`
 
-结果：
+Observed result:
 
-- 服务正常
-- 新模块路由可访问
+- service healthy
+- module routes reachable
+- device payloads now include:
+  - `preserve_providers`
+  - `preserve_models`
 
-## 3. GitHub 状态
+## 3. GitHub Status
 
-远程仓库：
+Remote repository:
 
 - `https://github.com/donnycui/zhaocai-gateway`
 
-当前工作分支已经推送：
+Pushed branch:
 
 - `origin/codex/zhaocai-gateway-v2-scaffold`
 
-这轮主要提交顺序：
+Key commits in delivery order:
 
 - `d33eee9` `docs: add modular provider design for v2`
 - `4b4bc24` `docs: add modular provider implementation plan`
@@ -116,10 +132,13 @@
 - `7ad6ed2` `feat: add media provider and template module`
 - `92dac50` `feat: add universal provider template pool`
 - `fd04a02` `docs: update v2 modular provider rollout guidance`
+- `e6c0998` `docs: add v2 delivery handoff summary`
+- `bb9c15c` `perf: reduce expensive frontend visual effects`
+- `42bae5a` `feat: manage device preserve config from ui`
 
-## 4. 已验证内容
+## 4. Verification Completed
 
-已跑过的后端测试：
+Backend tests that have been run:
 
 - `tests/test_agent_runtime.py`
 - `tests/test_agent_sync.py`
@@ -134,90 +153,90 @@
 - `tests/test_media_catalog.py`
 - `tests/test_universal_templates_api.py`
 
-已跑过的前端验证：
+Frontend verification that has been run:
 
 - `npm run typecheck`
 - `npm run build`
 
-已做过的功能烟测：
+Functional smoke checks already performed:
 
-- 创建 Gateway upstream account
-- 同步 gateway models
-- 创建 alias
-- 给 alias 绑定 target
-- 创建 gateway client key
-- 通过 `Authorization: Bearer <gateway-client-key>` 调 `/v1/chat/completions`
-- alias 被正确解析到真实模型
+- create a Gateway upstream account
+- sync gateway models
+- create an alias
+- bind targets to an alias
+- create a gateway client key
+- call `/v1/chat/completions` with `Authorization: Bearer <gateway-client-key>`
+- verify alias resolution to the expected real model
+- save preserve config in the `Devices` UI
+- verify agent sync writes `~/.openclaw/zhaocai-preserve.json`
 
-## 5. Content-IP-Strategy 下一步
+## 5. Content-IP-Strategy Next Step
 
-本地仓库已经准备好：
+Local repository is already prepared at:
 
-- [Content-IP-Strategy](D:/github_mintstudio/Content-IP-Strategy)
+- `D:\github_mintstudio\Content-IP-Strategy`
 
-建议下一步目标：
+Recommended migration target:
 
-把 `Content-IP-Strategy` 切到：
+- one gateway `baseUrl`
+- one gateway `client key`
+- business capability routing to stable aliases
 
-- 一个 gateway `baseUrl`
-- 一个 gateway `client key`
-- 业务能力绑定稳定 alias
+The project should stop being the source of truth for:
 
-而不是继续让它自己管理：
+- real provider connections
+- real upstream API keys
+- real upstream base URLs
+- real-model switching and fallback
 
-- 真实 provider 连接
-- 真实 API key
-- 真实 base URL
-- 真实模型切换与 fallback
-
-建议能力绑定方式：
+Suggested first alias mapping style:
 
 - `signal_scoring -> signal/deep`
 - `draft_generation -> draft/deep`
 - `topic_generation -> balanced`
 
-然后由 `zhaocai-gateway-v2` 内部决定：
+`zhaocai-gateway-v2` should remain responsible for:
 
-- alias 当前映射到哪个真实模型
-- 这个 alias 下有哪些 target
-- 某个 target 出错时如何切换
+- which real model an alias currently points to
+- which targets are available under that alias
+- how failover proceeds when a target fails
 
-## 6. 剩余事项
+## 6. Remaining Work
 
-这轮代码已经把四模块最小闭环做出来了，但还有这些后续工作值得单开：
+The four-module minimum loop is in place, but these areas remain good follow-up candidates.
 
-### 运行与发布
+### Operations and Release
 
-- 给树莓派补更正式的升级脚本，而不是手动 zip 部署
-- 如果需要，增加一个简单的部署校验脚本
-- 评估是否要把当前分支合并回 `main`
+- add a more formal upgrade script for the Raspberry Pi instead of manual zip deployment
+- optionally add a lightweight deployment verification script
+- evaluate whether and when to merge this branch back into `main`
 
 ### Gateway
 
-- 给 `Gateway Client Keys` 增加更细粒度的 alias allow-list
-- 增加更清晰的 health / cooldown / failure event 列表页
-- 如果要对外正式使用，补 usage logging 与更完整的鉴权审计
+- add finer-grained alias allow-lists to `Gateway Client Keys`
+- add a clearer health / cooldown / failure-event page
+- add usage logging and stronger auth auditing if the gateway is exposed more broadly
 
 ### Media
 
-- 现在的 `Media Templates` UI 还是最小闭环
-- 后面可增加更好的 JSON 编辑器、模板预览和 catalog 字段编辑
+- the current `Media Templates` UI is still the minimum working loop
+- later work can add a better JSON editor, richer template preview, and catalog field editing
 
 ### Universal
 
-- 现在支持最小导入流
-- 后面可以继续补模板模型列表的编辑体验、导入记录、模板复制
+- the minimum import flow is in place
+- later work can improve template-model editing, import history, and template duplication
 
 ### Content-IP-Strategy
 
-- 现在还没有切到新的 gateway client key + alias 模式
-- 这部分建议单开线程、单独实施和验证
+- it has not yet been cut over to the new gateway client key + alias mode
+- that work should happen in a separate thread with focused implementation and verification
 
-## 7. 建议阅读顺序
+## 7. Recommended Reading Order
 
-如果是新接手的人，建议按这个顺序读：
+For a new maintainer, read in this order:
 
-1. [README.md](D:/github_mintstudio/zhaocai-gateway/README.md)
-2. [2026-03-31-zhaocai-gateway-v2-modular-provider-design.md](D:/github_mintstudio/zhaocai-gateway/docs/plans/2026-03-31-zhaocai-gateway-v2-modular-provider-design.md)
-3. [2026-03-31-zhaocai-gateway-v2-modular-provider-implementation-plan.md](D:/github_mintstudio/zhaocai-gateway/docs/plans/2026-03-31-zhaocai-gateway-v2-modular-provider-implementation-plan.md)
-4. 本文件
+1. [README.md](../../README.md)
+2. [2026-03-31-zhaocai-gateway-v2-modular-provider-design.md](./2026-03-31-zhaocai-gateway-v2-modular-provider-design.md)
+3. [2026-03-31-zhaocai-gateway-v2-modular-provider-implementation-plan.md](./2026-03-31-zhaocai-gateway-v2-modular-provider-implementation-plan.md)
+4. this handoff file

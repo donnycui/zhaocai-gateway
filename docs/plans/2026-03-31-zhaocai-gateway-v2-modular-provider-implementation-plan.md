@@ -631,7 +631,7 @@ pytest tests/test_universal_templates_api.py -v
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add zhaocai_gateway web tests
@@ -707,3 +707,8 @@ git commit -m "docs: update v2 modular provider rollout guidance"
 - After Task 7, `Content-IP-Strategy` can start migrating to a single gateway `baseUrl + apiKey`.
 - After Task 8, `zhaocai-media` can begin moving toward template-driven provider control.
 - After Task 9, operators gain efficiency via reusable templates without reintroducing shared mutable runtime state.
+
+## Post-Plan Follow-Ups
+
+- [x] Added device-level preserve-config editing in the `Devices` UI, so operators can manage `preserve_providers` and `preserve_models` without manually editing the node sidecar first.
+- [x] Reduced expensive frontend visual effects in the admin UI to improve scroll performance on Raspberry Pi and lower-powered clients.

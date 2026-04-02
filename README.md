@@ -456,9 +456,13 @@ sync updated version=3 etag="..."
 backup=/Users/yourname/.openclaw/openclaw.json.bak
 ```
 
-如果你希望保留某些本地 provider / model，不想被同步覆盖，可以额外创建：
+如果你希望保留某些本地 provider / model，不想被同步覆盖，优先推荐直接在后台 `Devices` 页面编辑该设备的 preserve 配置。
 
 - `~/.openclaw/zhaocai-preserve.json`
+
+控制面保存后，agent 会在下次同步时自动写入这个文件。
+
+如果你需要在节点上应急手动处理，也可以直接编辑它。
 
 示例：
 
