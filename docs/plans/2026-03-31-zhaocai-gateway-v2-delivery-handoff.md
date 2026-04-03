@@ -1,6 +1,6 @@
 # Zhaocai Gateway v2 Delivery Handoff
 
-**Date:** 2026-04-02  
+**Date:** 2026-04-03  
 **Branch:** `codex/zhaocai-gateway-v2-scaffold`
 
 ## 1. Current State
@@ -18,6 +18,11 @@ The branch is already pushed to GitHub, deployed to the Raspberry Pi, and runnin
 
 - Existing `Provider / Model / Device / Pairing / Agent Sync` flows remain in place.
 - The existing provider/model surface is now explicitly treated as the `OpenClaw` module.
+- The OpenClaw provider editor now supports upstream model discovery:
+  - operators can click a fetch-model-list action in the provider editor
+  - the control plane calls the upstream `/models` endpoint using the current form values
+  - models are shown in a selection modal and imported into the local editor only after confirmation
+  - duplicate `upstream_model` entries are skipped rather than overwritten
 - `node-agent` supports the preserve sidecar:
   - `~/.openclaw/zhaocai-preserve.json`
 - Preserve entries declared in that sidecar are not deleted during sync.
@@ -69,6 +74,8 @@ Current failover policy:
 - A follow-up performance pass has already been applied to the admin UI
 - Heavy `backdrop-filter`, large shadows, and expensive hover motion were reduced
 - Goal: smoother scrolling on Raspberry Pi and lower-powered clients
+- The resource-center OpenClaw cards now use rotating accent colors for provider avatars
+- The provider model-discovery modal uses the same avatar palette so adjacent model rows are easier to scan
 
 ## 2. Raspberry Pi Deployment
 
@@ -84,13 +91,14 @@ systemd service:
 
 - `zhaocai-gateway.service`
 
-As of **2026-04-02**, the following has been confirmed:
+As of **2026-04-03**, the following has been confirmed:
 
 - the service is managed by `systemd`
 - the previous hand-started Python process conflict on port `8000` has been removed
 - the Raspberry Pi is running the latest code from this branch
 - `web/dist` has been rebuilt on the Raspberry Pi
 - the latest frontend assets are in place
+- the provider model-discovery UI has been deployed to the Raspberry Pi
 
 Smoke checks already performed:
 
@@ -99,6 +107,7 @@ Smoke checks already performed:
 - `GET /admin/media/catalog`
 - `GET /admin/universal/templates`
 - `GET /admin/devices`
+- `GET /admin/providers`
 
 Observed result:
 
@@ -135,6 +144,8 @@ Key commits in delivery order:
 - `e6c0998` `docs: add v2 delivery handoff summary`
 - `bb9c15c` `perf: reduce expensive frontend visual effects`
 - `42bae5a` `feat: manage device preserve config from ui`
+- `5f9fd80` `docs: refresh v2 handoff status`
+- `7e60bb9` `feat: add provider model discovery picker`
 
 ## 4. Verification Completed
 
@@ -169,6 +180,8 @@ Functional smoke checks already performed:
 - verify alias resolution to the expected real model
 - save preserve config in the `Devices` UI
 - verify agent sync writes `~/.openclaw/zhaocai-preserve.json`
+- open an OpenClaw provider in the editor and fetch the upstream model list
+- verify the selection modal imports only newly selected models into the local edit form
 
 ## 5. Content-IP-Strategy Next Step
 
