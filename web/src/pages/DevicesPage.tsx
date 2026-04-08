@@ -21,7 +21,11 @@ export default function DevicesPage({
     () => devices.find((device) => device.id === selectedDeviceId) ?? null,
     [devices, selectedDeviceId],
   );
-  const selectedModelIds = new Set(selectedDevice?.model_ids ?? []);
+  const [draftModelIds, setDraftModelIds] = useState<number[]>(selectedDevice?.model_ids ?? []);
+  const [modelAssignmentDirty, setModelAssignmentDirty] = useState(false);
+  const [modelAssignmentMessage, setModelAssignmentMessage] = useState("");
+  const [savingModelAssignments, setSavingModelAssignments] = useState(false);
+  const selectedModelIds = new Set(draftModelIds);
   const [preserveProvidersText, setPreserveProvidersText] = useState("");
   const [preserveModelsText, setPreserveModelsText] = useState("");
   const [preserveMessage, setPreserveMessage] = useState("");
@@ -37,15 +41,19 @@ export default function DevicesPage({
     return Array.from(groups.entries());
   }, [models]);
 
-  async function toggleModel(modelId: number) {
+  function toggleModel(modelId: number) {
     if (!selectedDevice) return;
-    if (selectedModelIds.has(modelId)) {
-      selectedModelIds.delete(modelId);
-    } else {
-      selectedModelIds.add(modelId);
-    }
-    await api.assignDeviceModels(selectedDevice.id, Array.from(selectedModelIds));
-    await onRefresh();
+    setDraftModelIds((current) => {
+      const next = new Set(current);
+      if (next.has(modelId)) {
+        next.delete(modelId);
+      } else {
+        next.add(modelId);
+      }
+      return Array.from(next);
+    });
+    setModelAssignmentDirty(true);
+    setModelAssignmentMessage("");
   }
 
   async function loadPreview() {
@@ -62,6 +70,12 @@ export default function DevicesPage({
 
   useEffect(() => {
     syncPreserveInputs(selectedDevice);
+  }, [selectedDevice]);
+
+  useEffect(() => {
+    setDraftModelIds(selectedDevice?.model_ids ?? []);
+    setModelAssignmentDirty(false);
+    setModelAssignmentMessage("");
   }, [selectedDevice]);
 
   function toggleProviderGroup(providerName: string) {
@@ -96,6 +110,25 @@ export default function DevicesPage({
     await api.updateDevicePreserveConfig(selectedDevice.id, preserve_providers, preserve_models);
     setPreserveMessage("保留配置已保存，下次 agent 同步时会写入节点上的 zhaocai-preserve.json。");
     await onRefresh();
+  }
+
+  async function handleSaveModelAssignments() {
+    if (!selectedDevice) return;
+    setSavingModelAssignments(true);
+    try {
+      await api.assignDeviceModels(selectedDevice.id, draftModelIds);
+      setModelAssignmentDirty(false);
+      setModelAssignmentMessage("模型分配已保存。");
+      await onRefresh();
+    } finally {
+      setSavingModelAssignments(false);
+    }
+  }
+
+  function handleResetModelAssignments() {
+    setDraftModelIds(selectedDevice?.model_ids ?? []);
+    setModelAssignmentDirty(false);
+    setModelAssignmentMessage("");
   }
 
   return (
@@ -146,6 +179,24 @@ export default function DevicesPage({
             <h3>设备模型分配</h3>
             <p>{selectedDevice ? `正在编辑：${selectedDevice.name}` : "请先选择一台设备。"}</p>
           </div>
+          <div className="topbar-actions" style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!selectedDevice || !modelAssignmentDirty}
+              onClick={handleResetModelAssignments}
+            >
+              恢复当前值
+            </button>
+            <button
+              type="button"
+              disabled={!selectedDevice || !modelAssignmentDirty || savingModelAssignments}
+              onClick={() => void handleSaveModelAssignments()}
+            >
+              {savingModelAssignments ? "保存中" : "保存模型分配"}
+            </button>
+          </div>
+          {modelAssignmentMessage ? <p className="inline-message">{modelAssignmentMessage}</p> : null}
           <div className="checkbox-grid">
             {providerGroups.map(([providerName, providerModels]) => {
               const expanded = expandedProviders[providerName] ?? false;
@@ -167,7 +218,7 @@ export default function DevicesPage({
                             type="checkbox"
                             checked={selectedModelIds.has(model.id)}
                             disabled={!selectedDevice}
-                            onChange={() => void toggleModel(model.id)}
+                            onChange={() => toggleModel(model.id)}
                           />
                           <div>
                             <strong>{model.display_name}</strong>

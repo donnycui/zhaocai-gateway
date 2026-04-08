@@ -194,6 +194,33 @@ def test_write_openclaw_config_ignores_invalid_preserve_sidecar(tmp_path: Path):
     assert "old/gpt-4.1" not in merged["agents"]["defaults"]["models"]
 
 
+def test_write_openclaw_config_removes_root_zhaocai_marker(tmp_path: Path):
+    target = tmp_path / "openclaw.json"
+    target.write_text(
+        '{"_zhaocai":{"preserveProviders":[],"preserveModels":[]},"models":{"providers":{"old":{"api":"openai-completions","models":[]}}}}',
+        encoding="utf-8",
+    )
+
+    write_openclaw_config(
+        target,
+        {
+            "models": {
+                "providers": {
+                    "new": {
+                        "api": "openai-completions",
+                        "models": [{"id": "gpt-5.4", "name": "GPT-5.4"}],
+                    }
+                }
+            }
+        },
+    )
+
+    merged = json.loads(target.read_text(encoding="utf-8"))
+
+    assert "_zhaocai" not in merged
+    assert "new" in merged["models"]["providers"]
+
+
 def test_agent_cli_has_expected_commands():
     parser = build_parser()
     subparsers = parser._subparsers._actions[1].choices

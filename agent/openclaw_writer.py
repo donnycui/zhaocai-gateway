@@ -110,6 +110,7 @@ def _replace_model_sections(
         return source
 
     merged = _deep_merge(target, source)
+    merged.pop("_zhaocai", None)
     preserve_providers, preserve_models = _load_preserve_rules(preserve_path)
 
     source_models = source.get("models")
@@ -182,6 +183,8 @@ def write_openclaw_config(
                 )
         except Exception:
             merged_payload = payload
+    if isinstance(merged_payload, dict):
+        merged_payload.pop("_zhaocai", None)
 
     with tempfile.NamedTemporaryFile(
         "w",
