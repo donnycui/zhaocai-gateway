@@ -130,6 +130,61 @@ def test_discover_provider_models_normalizes_upstream_payload(monkeypatch):
     assert first["cost_output"] == 10.0
 
 
+def test_discover_provider_models_falls_back_to_v1_models(monkeypatch):
+    client = create_test_client()
+    calls: list[str] = []
+
+    class MissingResponse:
+        status_code = 404
+        is_success = False
+        text = ""
+
+        def json(self) -> dict:
+            return {"error": {"message": "Not found"}}
+
+    class SuccessResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": "gpt-5.4",
+                        "name": "GPT-5.4",
+                        "owned_by": "openai",
+                    }
+                ]
+            }
+
+    def fake_request(method: str, url: str, headers: dict, timeout: float):
+        calls.append(url)
+        if url.endswith("/models") and not url.endswith("/v1/models"):
+            return MissingResponse()
+        return SuccessResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        "/admin/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://example.com",
+            "provider_type": "openai-responses",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert calls == ["https://example.com/models", "https://example.com/v1/models"]
+    assert payload["models"][0]["owner"] == "openai"
+
+
 def test_discover_provider_models_surfaces_upstream_errors(monkeypatch):
     client = create_test_client()
 

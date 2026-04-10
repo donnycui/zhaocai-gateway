@@ -108,32 +108,51 @@ class ProviderService:
         if not validation["ok"]:
             raise ValueError(validation["message"])
 
-        try:
-            response = httpx.request(
-                "GET",
-                self._build_models_url(base_url),
-                headers=self._build_headers(
-                    auth_scheme=auth_scheme,
-                    api_key=api_key,
-                    extra_headers=extra_headers,
-                    provider_type=provider_type,
-                ),
-                timeout=20.0,
-            )
-        except httpx.HTTPError as exc:
-            raise RuntimeError(f"Unable to fetch models from upstream: {exc}") from exc
+        headers = self._build_headers(
+            auth_scheme=auth_scheme,
+            api_key=api_key,
+            extra_headers=extra_headers,
+            provider_type=provider_type,
+        )
 
-        if not response.is_success:
-            raise RuntimeError(self._extract_error_message(response))
+        payload = None
+        last_error_message = "The upstream /models endpoint returned an unsupported payload"
+        for models_url in self._candidate_models_urls(base_url):
+            try:
+                response = httpx.request(
+                    "GET",
+                    models_url,
+                    headers=headers,
+                    timeout=20.0,
+                )
+            except httpx.HTTPError as exc:
+                last_error_message = f"Unable to fetch models from upstream: {exc}"
+                continue
 
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise RuntimeError("The upstream /models endpoint did not return valid JSON") from exc
+            if not response.is_success:
+                last_error_message = self._extract_error_message(response)
+                continue
+
+            try:
+                candidate_payload = response.json()
+            except ValueError:
+                last_error_message = "The upstream /models endpoint did not return valid JSON"
+                continue
+
+            items = self._extract_model_items(candidate_payload)
+            if items is None:
+                last_error_message = "The upstream /models endpoint returned an unsupported payload"
+                continue
+
+            payload = candidate_payload
+            break
+
+        if payload is None:
+            raise RuntimeError(last_error_message)
 
         items = self._extract_model_items(payload)
         if items is None:
-            raise RuntimeError("The upstream /models endpoint returned an unsupported payload")
+            raise RuntimeError(last_error_message)
 
         normalized_models: list[dict[str, Any]] = []
         seen_model_ids: set[str] = set()
@@ -243,6 +262,19 @@ class ProviderService:
             return normalized_base
         return f"{normalized_base}/models"
 
+    @classmethod
+    def _candidate_models_urls(cls, base_url: str) -> list[str]:
+        normalized_base = base_url.strip().rstrip("/")
+        candidates = [
+            cls._build_models_url(normalized_base),
+            f"{normalized_base}/v1/models",
+        ]
+        unique: list[str] = []
+        for candidate in candidates:
+            if candidate not in unique:
+                unique.append(candidate)
+        return unique
+
     @staticmethod
     def _build_payload(*, provider_type: str, model_id: str) -> dict:
         normalized = (provider_type or "openai-completions").strip().lower()
@@ -328,6 +360,7 @@ class ProviderService:
         return {
             "upstream_model": model_id,
             "display_name": display_name,
+            "owner": str(item.get("owned_by") or item.get("provider") or "").strip(),
             "capabilities": capabilities,
             "reasoning": reasoning,
             "input_modalities": input_modalities,

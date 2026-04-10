@@ -206,6 +206,7 @@ export interface ProviderTestReport {
 export interface DiscoveredProviderModel {
   upstream_model: string;
   display_name: string;
+  owner?: string;
   capabilities: string[];
   reasoning: boolean;
   input_modalities: string[];

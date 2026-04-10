@@ -909,6 +909,11 @@ button {
   padding: 24px;
 }
 
+.model-discovery-modal {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  height: min(860px, calc(100vh - 48px));
+}
+
 .modal-header,
 .modal-footer {
   display: flex;
@@ -947,8 +952,11 @@ button {
 }
 
 .model-picker-groups {
+  min-height: 0;
+  max-height: 100%;
   overflow: auto;
   display: grid;
+  align-content: start;
   gap: 16px;
   padding-right: 6px;
 }
@@ -961,25 +969,64 @@ button {
 }
 
 .model-picker-group-header {
+  width: 100%;
+  min-height: 64px;
   padding: 14px 16px;
   border-bottom: 1px solid rgba(19, 34, 56, 0.06);
   background: rgba(19, 34, 56, 0.04);
-}
-
-.model-picker-group-header div {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  gap: 12px;
+  color: #132238;
+  line-height: 1.25;
+  text-align: left;
 }
 
-.model-picker-group-header span {
+.model-picker-group-header:hover {
+  background: rgba(19, 34, 56, 0.07);
+}
+
+.model-picker-group-labels {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.model-picker-group-labels strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #132238;
+}
+
+.model-picker-group-count {
   color: #5f6f84;
   font-size: 0.88rem;
 }
 
+.model-picker-group-toggle-button {
+  border: 0;
+  border-radius: 12px;
+  background: rgba(19, 34, 56, 0.06);
+  color: #5f6f84;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  flex-shrink: 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.model-picker-group-toggle-button:hover {
+  background: rgba(19, 34, 56, 0.1);
+}
+
 .model-picker-group-list {
   display: grid;
+  max-height: 360px;
+  overflow: auto;
 }
 
 .model-picker-row {

@@ -107,29 +107,27 @@ function buildModelCapabilities(model: EditableModel): string[] {
 }
 
 function buildModelGroupLabel(model: DiscoveredProviderModel): string {
-  const source = (model.display_name || model.upstream_model).toLowerCase();
-  const tail = source.split("/").pop() ?? source;
-  const tokens = tail.split(/[-_:]/).filter(Boolean);
-  if (tokens.length === 0) {
-    return "other";
+  if (model.owner?.trim()) {
+    return model.owner.trim();
   }
 
-  if (tokens[0] === "claude" && tokens[1]) {
-    return `claude-${tokens[1]}`;
+  const source = model.upstream_model.trim().toLowerCase();
+  const segments = source.split("/").filter(Boolean);
+
+  if (segments.length >= 2) {
+    const leading = segments[0];
+    if (["pro", "free", "paid", "premium"].includes(leading)) {
+      return segments[1];
+    }
+    return leading;
   }
-  if (tokens[0] === "gpt" && tokens[1]) {
-    return `gpt-${tokens[1]}`;
+
+  const fallback = (model.display_name || model.upstream_model).toLowerCase();
+  const tokens = fallback.split(/[-_:]/).filter(Boolean);
+  if (tokens[0]?.startsWith("glm")) {
+    return "bigmodel";
   }
-  if (tokens[0] === "gemini" && tokens[1]) {
-    return `gemini-${tokens[1]}`;
-  }
-  if (tokens[0] === "qwen" && tokens[1]) {
-    return `qwen-${tokens[1]}`;
-  }
-  if (tokens[0] === "deepseek" && tokens[1]) {
-    return `deepseek-${tokens[1]}`;
-  }
-  return tokens.slice(0, Math.min(tokens.length, 2)).join("-");
+  return tokens[0] || "other";
 }
 
 function buildModelAvatarLabel(model: DiscoveredProviderModel): string {
@@ -163,6 +161,7 @@ export default function ProviderEditorPage({
   const [discoverSearch, setDiscoverSearch] = useState("");
   const [discoveredModels, setDiscoveredModels] = useState<DiscoveredProviderModel[]>([]);
   const [selectedDiscoveredIds, setSelectedDiscoveredIds] = useState<string[]>([]);
+  const [expandedDiscoverGroups, setExpandedDiscoverGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -365,11 +364,12 @@ export default function ProviderEditorPage({
         extra_headers: {},
       });
       setDiscoveredModels(result.models);
-      setSelectedDiscoveredIds(
-        result.models
-          .filter((model) => !existingModelKeys.has(normalizeModelKey(model.upstream_model)))
-          .map((model) => model.upstream_model),
-      );
+      setSelectedDiscoveredIds([]);
+      const nextExpanded: Record<string, boolean> = {};
+      result.models.forEach((model) => {
+        nextExpanded[buildModelGroupLabel(model)] = false;
+      });
+      setExpandedDiscoverGroups(nextExpanded);
       setDiscoverMessageTone("success");
       setDiscoverMessage(
         result.count > 0
@@ -404,6 +404,13 @@ export default function ProviderEditorPage({
 
   function handleClearDiscoveredSelection() {
     setSelectedDiscoveredIds([]);
+  }
+
+  function toggleDiscoveredGroup(groupLabel: string) {
+    setExpandedDiscoverGroups((current) => ({
+      ...current,
+      [groupLabel]: !current[groupLabel],
+    }));
   }
 
   function handleImportSelectedDiscoveredModels() {
@@ -722,46 +729,55 @@ export default function ProviderEditorPage({
                 groupedDiscoveredModels.map((group, groupIndex) => (
                   <section key={group.label} className="model-picker-group">
                     <div className="model-picker-group-header">
-                      <div>
+                      <div className="model-picker-group-labels">
                         <strong>{group.label}</strong>
-                        <span>{group.models.length} 个模型</span>
+                        <span className="model-picker-group-count">{group.models.length} 个模型</span>
                       </div>
+                      <button
+                        type="button"
+                        className="model-picker-group-toggle-button"
+                        onClick={() => toggleDiscoveredGroup(group.label)}
+                      >
+                        {expandedDiscoverGroups[group.label] ? "收起" : "展开"}
+                      </button>
                     </div>
-                    <div className="model-picker-group-list">
-                      {group.models.map((model, modelIndex) => {
-                        const normalizedModelId = normalizeModelKey(model.upstream_model);
-                        const alreadyImported = existingModelKeys.has(normalizedModelId);
-                        const toneClass =
-                          avatarToneClasses[(groupIndex + modelIndex) % avatarToneClasses.length];
-                        return (
-                          <label
-                            key={model.upstream_model}
-                            className={`model-picker-row ${alreadyImported ? "is-disabled" : ""}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedDiscoveredIds.includes(model.upstream_model)}
-                              disabled={alreadyImported}
-                              onChange={() => toggleDiscoveredModel(model.upstream_model)}
-                            />
-                            <div className={`model-picker-icon ${toneClass}`}>
-                              {buildModelAvatarLabel(model)}
-                            </div>
-                            <div className="model-picker-row-main">
-                              <strong>{model.display_name}</strong>
-                              <span>{model.upstream_model}</span>
-                            </div>
-                            <div className="model-picker-row-tags">
-                              {model.reasoning ? <span className="mini-pill">推理</span> : null}
-                              {model.input_modalities.includes("image") ? (
-                                <span className="mini-pill mini-pill-accent">图像</span>
-                              ) : null}
-                              {alreadyImported ? <span className="mini-pill mini-pill-muted">已在列表</span> : null}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    {expandedDiscoverGroups[group.label] ? (
+                      <div className="model-picker-group-list">
+                        {group.models.map((model, modelIndex) => {
+                          const normalizedModelId = normalizeModelKey(model.upstream_model);
+                          const alreadyImported = existingModelKeys.has(normalizedModelId);
+                          const toneClass =
+                            avatarToneClasses[(groupIndex + modelIndex) % avatarToneClasses.length];
+                          return (
+                            <label
+                              key={model.upstream_model}
+                              className={`model-picker-row ${alreadyImported ? "is-disabled" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedDiscoveredIds.includes(model.upstream_model)}
+                                disabled={alreadyImported}
+                                onChange={() => toggleDiscoveredModel(model.upstream_model)}
+                              />
+                              <div className={`model-picker-icon ${toneClass}`}>
+                                {buildModelAvatarLabel(model)}
+                              </div>
+                              <div className="model-picker-row-main">
+                                <strong>{model.display_name}</strong>
+                                <span>{model.upstream_model}</span>
+                              </div>
+                              <div className="model-picker-row-tags">
+                                {model.reasoning ? <span className="mini-pill">推理</span> : null}
+                                {model.input_modalities.includes("image") ? (
+                                  <span className="mini-pill mini-pill-accent">图像</span>
+                                ) : null}
+                                {alreadyImported ? <span className="mini-pill mini-pill-muted">已在列表</span> : null}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </section>
                 ))
               )}
