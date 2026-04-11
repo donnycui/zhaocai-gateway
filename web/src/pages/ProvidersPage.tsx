@@ -210,9 +210,9 @@ export default function ProvidersPage({
             <h3>OpenClaw 供应商</h3>
             <p>当前页面管理的是 OpenClaw 模块的上游供应商与模型，Gateway 和 Media 会拆到独立模块。</p>
           </div>
-          <div className="topbar-actions">
+          <div className="topbar-actions provider-page-actions">
             <button className="secondary-button" onClick={() => void handleSyncOpenRouterFree()}>
-              同步 OpenRouter 免费模型到 OpenClaw
+              同步 OpenRouter 免费模型
             </button>
             <button onClick={onCreate}>新增 OpenClaw 供应商</button>
           </div>
