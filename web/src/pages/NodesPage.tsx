@@ -52,7 +52,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     }
 
     const server = "https://raspberrypi.tailnet.ts.net";
-    const registerStep = `.venv/bin/python -m agent.cli register \\\n+  --server ${server} \\\n+  --token ${pairingInfo.pairingToken}`;
+    const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken}`;
 
     const baseSetup = [
       "git clone https://github.com/donnycui/zhaocai-gateway.git",
