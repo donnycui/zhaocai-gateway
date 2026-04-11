@@ -16,6 +16,8 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
   });
   const [pairingInfo, setPairingInfo] = useState<{
     deviceName: string;
+    deviceType: string;
+    platform: string;
     pairingToken: string;
     expiresAt: string;
   } | null>(null);
@@ -37,14 +39,56 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     const token = await api.issuePairingToken(device.id);
     setPairingInfo({
       deviceName: device.name,
+      deviceType: device.device_type,
+      platform: device.platform,
       pairingToken: token.pairing_token,
       expiresAt: token.expires_at,
     });
   }
 
-  const installCommand = pairingInfo
-    ? `zhaocai-agent register --server https://raspberrypi.tailnet.ts.net --token ${pairingInfo.pairingToken}`
-    : "先为设备签发一次性 pairing token，安装命令会自动生成。";
+  const installCommand = useMemo(() => {
+    if (!pairingInfo) {
+      return "先为设备签发一次性 pairing token，安装命令会自动生成。";
+    }
+
+    const server = "https://raspberrypi.tailnet.ts.net";
+    const registerStep = `.venv/bin/python -m agent.cli register \\\n+  --server ${server} \\\n+  --token ${pairingInfo.pairingToken}`;
+
+    const baseSetup = [
+      "git clone https://github.com/donnycui/zhaocai-gateway.git",
+      "cd zhaocai-gateway",
+      "python3 -m venv .venv",
+      ".venv/bin/pip install -r requirements.txt",
+      registerStep,
+      ".venv/bin/python -m agent.cli sync-once",
+    ];
+
+    const platform = pairingInfo.platform.toLowerCase();
+    const deviceType = pairingInfo.deviceType.toLowerCase();
+    const isLinux =
+      platform.includes("linux") ||
+      deviceType.includes("vps") ||
+      deviceType.includes("linux") ||
+      deviceType.includes("raspberry");
+
+    if (isLinux) {
+      return [
+        ...baseSetup,
+        ".venv/bin/python -m agent.cli doctor --service-manager systemd",
+        ".venv/bin/python -m agent.cli install --service-manager systemd",
+        "systemctl --user daemon-reload",
+        "systemctl --user enable --now zhaocai-agent.service",
+      ].join("\n");
+    }
+
+    return [
+      ...baseSetup,
+      ".venv/bin/python -m agent.cli doctor",
+      ".venv/bin/python -m agent.cli install",
+      "launchctl unload ~/Library/LaunchAgents/com.zhaocai.agent.plist >/dev/null 2>&1 || true",
+      "launchctl load ~/Library/LaunchAgents/com.zhaocai.agent.plist",
+    ].join("\n");
+  }, [pairingInfo]);
 
   return (
     <section className="page two-column">
