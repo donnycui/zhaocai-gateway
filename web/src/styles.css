@@ -890,16 +890,17 @@ button {
   inset: 0;
   background: rgba(13, 20, 34, 0.36);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px;
+  overflow: auto;
   z-index: 50;
 }
 
 .modal-panel {
   width: min(1080px, 100%);
   max-height: calc(100vh - 48px);
-  overflow: hidden;
+  overflow: auto;
   border-radius: 24px;
   border: 1px solid rgba(19, 34, 56, 0.08);
   background: rgba(255, 255, 255, 0.98);
@@ -911,7 +912,8 @@ button {
 
 .model-discovery-modal {
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  height: min(860px, calc(100vh - 48px));
+  min-height: min(860px, calc(100vh - 48px));
+  margin: 24px 0;
 }
 
 .modal-header,
@@ -953,15 +955,17 @@ button {
 
 .model-picker-groups {
   min-height: 0;
-  max-height: 100%;
-  overflow: auto;
-  display: grid;
-  align-content: start;
+  max-height: none;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 16px;
   padding-right: 6px;
 }
 
 .model-picker-group {
+  flex: 0 0 auto;
   border: 1px solid rgba(19, 34, 56, 0.08);
   border-radius: 18px;
   background: rgba(248, 250, 255, 0.9);
@@ -1025,8 +1029,8 @@ button {
 
 .model-picker-group-list {
   display: grid;
-  max-height: 360px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .model-picker-row {
