@@ -51,7 +51,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
       return "先为设备签发一次性 pairing token，安装命令会自动生成。";
     }
 
-    const server = "https://raspberrypi.tailnet.ts.net";
+    const server = "https://zhaocai.mintstudio.cn";
     const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken}`;
 
     const baseSetup = [
@@ -73,8 +73,6 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
     if (isLinux) {
       return [
-        "# 前提：这台机器已经接入同一个 Tailscale tailnet",
-        "getent hosts raspberrypi.tailnet.ts.net >/dev/null || { echo '未能解析 raspberrypi.tailnet.ts.net，请先安装并登录 Tailscale，或改用可访问的控制面地址'; exit 1; }",
         "sudo apt update",
         "sudo apt install -y python3-venv",
         ...baseSetup,
@@ -86,7 +84,6 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     }
 
     return [
-      "# 前提：这台机器已经接入同一个 Tailscale tailnet",
       ...baseSetup,
       ".venv/bin/python -m agent.cli doctor",
       ".venv/bin/python -m agent.cli install",
