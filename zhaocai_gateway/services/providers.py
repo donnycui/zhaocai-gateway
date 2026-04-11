@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import sqlite3
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -39,15 +40,18 @@ class ProviderService:
         normalized_base_url = base_url.strip()
         normalized_provider_type = provider_type.strip()
         normalized_auth_scheme = auth_scheme.strip()
-        provider = self.store.create_provider(
-            name=normalized_name,
-            provider_type=normalized_provider_type,
-            base_url=normalized_base_url,
-            auth_scheme=normalized_auth_scheme,
-            api_key_encrypted=api_key,
-            extra_headers=extra_headers,
-            enabled=True,
-        )
+        try:
+            provider = self.store.create_provider(
+                name=normalized_name,
+                provider_type=normalized_provider_type,
+                base_url=normalized_base_url,
+                auth_scheme=normalized_auth_scheme,
+                api_key_encrypted=api_key,
+                extra_headers=extra_headers,
+                enabled=True,
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(self._translate_integrity_error(exc)) from exc
         return asdict(provider)
 
     def update(
@@ -66,16 +70,19 @@ class ProviderService:
         normalized_base_url = base_url.strip()
         normalized_provider_type = provider_type.strip()
         normalized_auth_scheme = auth_scheme.strip()
-        provider = self.store.update_provider(
-            provider_id,
-            name=normalized_name,
-            base_url=normalized_base_url,
-            provider_type=normalized_provider_type,
-            auth_scheme=normalized_auth_scheme,
-            api_key_encrypted=api_key,
-            extra_headers=extra_headers,
-            enabled=enabled,
-        )
+        try:
+            provider = self.store.update_provider(
+                provider_id,
+                name=normalized_name,
+                base_url=normalized_base_url,
+                provider_type=normalized_provider_type,
+                auth_scheme=normalized_auth_scheme,
+                api_key_encrypted=api_key,
+                extra_headers=extra_headers,
+                enabled=enabled,
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(self._translate_integrity_error(exc)) from exc
         return asdict(provider)
 
     def delete(self, provider_id: int) -> None:
@@ -108,44 +115,45 @@ class ProviderService:
         if not validation["ok"]:
             raise ValueError(validation["message"])
 
-        headers = self._build_headers(
-            auth_scheme=auth_scheme,
-            api_key=api_key,
-            extra_headers=extra_headers,
-            provider_type=provider_type,
-        )
-
         payload = None
         last_error_message = "The upstream /models endpoint returned an unsupported payload"
         for models_url in self._candidate_models_urls(base_url):
-            try:
-                response = httpx.request(
-                    "GET",
-                    models_url,
-                    headers=headers,
-                    timeout=20.0,
-                )
-            except httpx.HTTPError as exc:
-                last_error_message = f"Unable to fetch models from upstream: {exc}"
-                continue
+            for headers in self._candidate_models_headers(
+                auth_scheme=auth_scheme,
+                api_key=api_key,
+                extra_headers=extra_headers,
+                provider_type=provider_type,
+            ):
+                try:
+                    response = httpx.request(
+                        "GET",
+                        models_url,
+                        headers=headers,
+                        timeout=20.0,
+                    )
+                except httpx.HTTPError as exc:
+                    last_error_message = f"Unable to fetch models from upstream: {exc}"
+                    continue
 
-            if not response.is_success:
-                last_error_message = self._extract_error_message(response)
-                continue
+                if not response.is_success:
+                    last_error_message = self._extract_error_message(response)
+                    continue
 
-            try:
-                candidate_payload = response.json()
-            except ValueError:
-                last_error_message = "The upstream /models endpoint did not return valid JSON"
-                continue
+                try:
+                    candidate_payload = response.json()
+                except ValueError:
+                    last_error_message = "The upstream /models endpoint did not return valid JSON"
+                    continue
 
-            items = self._extract_model_items(candidate_payload)
-            if items is None:
-                last_error_message = "The upstream /models endpoint returned an unsupported payload"
-                continue
+                items = self._extract_model_items(candidate_payload)
+                if items is None:
+                    last_error_message = "The upstream /models endpoint returned an unsupported payload"
+                    continue
 
-            payload = candidate_payload
-            break
+                payload = candidate_payload
+                break
+            if payload is not None:
+                break
 
         if payload is None:
             raise RuntimeError(last_error_message)
@@ -322,6 +330,43 @@ class ProviderService:
         if normalized_provider in {"anthropic", "anthropic-messages"}:
             headers.setdefault("anthropic-version", "2023-06-01")
         return headers
+
+    @classmethod
+    def _candidate_models_headers(
+        cls,
+        *,
+        auth_scheme: str,
+        api_key: str,
+        extra_headers: dict[str, str],
+        provider_type: str,
+    ) -> list[dict[str, str]]:
+        primary = cls._build_headers(
+            auth_scheme=auth_scheme,
+            api_key=api_key,
+            extra_headers=extra_headers,
+            provider_type=provider_type,
+        )
+        candidates = [primary]
+
+        normalized_provider = (provider_type or "openai-completions").strip().lower()
+        normalized_auth = (auth_scheme or "bearer").strip().lower()
+        if normalized_provider in {"anthropic", "anthropic-messages"} and normalized_auth == "x-api-key" and api_key:
+            fallback = {
+                key: value
+                for key, value in primary.items()
+                if key.lower() != "x-api-key"
+            }
+            fallback["Authorization"] = f"Bearer {api_key}"
+            candidates.append(fallback)
+
+        return candidates
+
+    @staticmethod
+    def _translate_integrity_error(exc: sqlite3.IntegrityError) -> str:
+        text = str(exc)
+        if "providers.name" in text:
+            return "供应商名称已存在，请更换名称。"
+        return "供应商保存失败，请检查输入后重试。"
 
     @classmethod
     def _extract_model_items(cls, payload: Any) -> list[dict[str, Any]] | None:

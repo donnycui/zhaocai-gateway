@@ -38,6 +38,25 @@ def test_create_provider():
     assert payload["provider"]["provider_type"] == "openai"
 
 
+def test_create_provider_returns_conflict_for_duplicate_name():
+    client = create_test_client()
+    payload = {
+        "name": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "provider_type": "openai",
+        "auth_scheme": "bearer",
+        "api_key": "sk-test",
+        "extra_headers": {},
+    }
+
+    first = client.post("/admin/providers", headers=admin_headers(), json=payload)
+    assert first.status_code == 200
+
+    second = client.post("/admin/providers", headers=admin_headers(), json=payload)
+    assert second.status_code == 409
+    assert "供应商名称已存在" in second.json()["detail"]
+
+
 def test_validate_provider_input():
     client = create_test_client()
 
@@ -212,6 +231,53 @@ def test_discover_provider_models_surfaces_upstream_errors(monkeypatch):
 
     assert response.status_code == 502
     assert "Invalid upstream key" in response.json()["detail"]
+
+
+def test_discover_provider_models_anthropic_falls_back_to_bearer_for_models(monkeypatch):
+    client = create_test_client()
+    calls: list[dict[str, str]] = []
+
+    class MissingTokenResponse:
+        status_code = 401
+        is_success = False
+        text = ""
+
+        def json(self) -> dict:
+            return {"error": {"message": "未提供令牌"}}
+
+    class SuccessResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {"data": [{"id": "claude-4.6-sonnet-real", "name": "claude-4.6-sonnet-real"}]}
+
+    def fake_request(method: str, url: str, headers: dict, timeout: float):
+        calls.append(headers)
+        if "Authorization" in headers:
+            return SuccessResponse()
+        return MissingTokenResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        "/admin/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://example.com",
+            "provider_type": "anthropic-messages",
+            "auth_scheme": "x-api-key",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(calls) == 2
+    assert "x-api-key" in calls[0]
+    assert calls[1]["Authorization"] == "Bearer sk-test"
+    assert response.json()["count"] == 1
 
 
 @pytest.mark.parametrize(

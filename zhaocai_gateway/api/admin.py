@@ -255,16 +255,19 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         x_admin_token: str | None = Header(default=None),
     ) -> dict:
         require_admin(x_admin_token)
-        return {
-            "provider": provider_service.create(
-                name=payload.name,
-                base_url=payload.base_url,
-                provider_type=payload.provider_type,
-                auth_scheme=payload.auth_scheme,
-                api_key=payload.api_key,
-                extra_headers=payload.extra_headers,
-            )
-        }
+        try:
+            return {
+                "provider": provider_service.create(
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    provider_type=payload.provider_type,
+                    auth_scheme=payload.auth_scheme,
+                    api_key=payload.api_key,
+                    extra_headers=payload.extra_headers,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     @router.patch("/providers/{provider_id}")
     def update_provider(
@@ -273,18 +276,21 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         x_admin_token: str | None = Header(default=None),
     ) -> dict:
         require_admin(x_admin_token)
-        return {
-            "provider": provider_service.update(
-                provider_id,
-                name=payload.name,
-                base_url=payload.base_url,
-                provider_type=payload.provider_type,
-                auth_scheme=payload.auth_scheme,
-                api_key=payload.api_key,
-                extra_headers=payload.extra_headers,
-                enabled=payload.enabled,
-            )
-        }
+        try:
+            return {
+                "provider": provider_service.update(
+                    provider_id,
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    provider_type=payload.provider_type,
+                    auth_scheme=payload.auth_scheme,
+                    api_key=payload.api_key,
+                    extra_headers=payload.extra_headers,
+                    enabled=payload.enabled,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     @router.delete("/providers/{provider_id}")
     def delete_provider(
