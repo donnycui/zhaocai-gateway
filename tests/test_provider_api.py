@@ -280,6 +280,48 @@ def test_discover_provider_models_anthropic_falls_back_to_bearer_for_models(monk
     assert response.json()["count"] == 1
 
 
+def test_discover_provider_models_retries_without_tls_verification(monkeypatch):
+    client = create_test_client()
+    calls: list[dict[str, object]] = []
+
+    class SuccessResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {"data": [{"id": "gpt-5.4", "name": "GPT-5.4", "owned_by": "openai"}]}
+
+    def fake_request(method: str, url: str, headers: dict, timeout: float, json=None, verify=True):
+        calls.append({"url": url, "verify": verify})
+        if verify:
+            raise httpx.ConnectError(
+                "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate",
+            )
+        return SuccessResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        "/admin/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://example.com/v1",
+            "provider_type": "openai-completions",
+            "auth_scheme": "bearer",
+            "api_key": "sk-test",
+            "extra_headers": {},
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        {"url": "https://example.com/v1/models", "verify": True},
+        {"url": "https://example.com/v1/models", "verify": False},
+    ]
+    assert response.json()["count"] == 1
+
+
 @pytest.mark.parametrize(
     ("provider_type", "auth_scheme", "expected_suffix", "expected_header"),
     [

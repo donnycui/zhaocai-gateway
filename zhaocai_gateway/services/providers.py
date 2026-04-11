@@ -125,11 +125,9 @@ class ProviderService:
                 provider_type=provider_type,
             ):
                 try:
-                    response = httpx.request(
-                        "GET",
-                        models_url,
+                    response = self._fetch_models_response(
+                        models_url=models_url,
                         headers=headers,
-                        timeout=20.0,
                     )
                 except httpx.HTTPError as exc:
                     last_error_message = f"Unable to fetch models from upstream: {exc}"
@@ -201,9 +199,9 @@ class ProviderService:
         for model in models:
             started_at = time.perf_counter()
             try:
-                response = httpx.request(
+                response = self._request_with_tls_fallback(
                     "POST",
-                    self._build_test_url(provider.base_url, provider.provider_type),
+                    url=self._build_test_url(provider.base_url, provider.provider_type),
                     headers=self._build_headers(
                         auth_scheme=provider.auth_scheme,
                         api_key=provider.api_key_encrypted,
@@ -331,6 +329,41 @@ class ProviderService:
             headers.setdefault("anthropic-version", "2023-06-01")
         return headers
 
+    @staticmethod
+    def _should_retry_without_tls_verification(exc: httpx.HTTPError) -> bool:
+        message = str(exc)
+        return "CERTIFICATE_VERIFY_FAILED" in message or "unable to get local issuer certificate" in message.lower()
+
+    @classmethod
+    def _request_with_tls_fallback(
+        cls,
+        method: str,
+        *,
+        url: str,
+        headers: dict[str, str],
+        timeout: float,
+        json: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        try:
+            return httpx.request(
+                method,
+                url,
+                headers=headers,
+                timeout=timeout,
+                json=json,
+            )
+        except httpx.HTTPError as exc:
+            if not cls._should_retry_without_tls_verification(exc):
+                raise
+        return httpx.request(
+            method,
+            url,
+            headers=headers,
+            timeout=timeout,
+            json=json,
+            verify=False,
+        )
+
     @classmethod
     def _candidate_models_headers(
         cls,
@@ -360,6 +393,20 @@ class ProviderService:
             candidates.append(fallback)
 
         return candidates
+
+    @classmethod
+    def _fetch_models_response(
+        cls,
+        *,
+        models_url: str,
+        headers: dict[str, str],
+    ) -> httpx.Response:
+        return cls._request_with_tls_fallback(
+            "GET",
+            url=models_url,
+            headers=headers,
+            timeout=20.0,
+        )
 
     @staticmethod
     def _translate_integrity_error(exc: sqlite3.IntegrityError) -> str:

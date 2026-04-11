@@ -263,10 +263,10 @@ function formatErrorMessage(status: number, body: string, contentType: string | 
 
   if (isHtmlBody(trimmed)) {
     if (status === 502) {
-      return "保存失败：控制面暂时不可用（502），请稍后再试。";
+      return "请求失败：控制面暂时不可用（502），请稍后再试。";
     }
     if (status === 504) {
-      return "保存失败：控制面请求超时（504），请稍后再试。";
+      return "请求失败：控制面请求超时（504），请稍后再试。";
     }
     return `请求失败：服务器返回了异常页面（${status}）。`;
   }
