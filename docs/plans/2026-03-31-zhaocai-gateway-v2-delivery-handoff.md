@@ -1,7 +1,7 @@
 # Zhaocai Gateway v2 Delivery Handoff
 
-**Date:** 2026-04-03  
-**Branch:** `codex/zhaocai-gateway-v2-scaffold`
+**Date:** 2026-04-13  
+**Branch:** `main`
 
 ## 1. Current State
 
@@ -12,7 +12,7 @@
 - `Media`
 - `Universal`
 
-The branch is already pushed to GitHub, deployed to the Raspberry Pi, and running in service-managed mode.
+The current code is already on GitHub `main`, deployed to the Raspberry Pi, and running in service-managed mode.
 
 ### OpenClaw
 
@@ -31,6 +31,16 @@ The branch is already pushed to GitHub, deployed to the Raspberry Pi, and runnin
   - `preserve_models`
 - The control plane sends those values to the node on the next sync and the agent writes the sidecar file.
 - `openclaw.json` itself remains standard and does not keep custom metadata.
+- Device model assignment has been changed to batch-save mode:
+  - checking models no longer triggers an API request per click
+  - operators now explicitly confirm with a save action
+- Provider editor model discovery has been reworked:
+  - the discovery modal now uses upstream-owner grouping where available
+  - groups default to collapsed
+  - imported models are not preselected automatically
+  - the modal uses a fixed header + scrollable middle list + fixed footer layout
+- The `reasoning` toggle in the provider editor now correctly maps to compiled `openclaw.json`.
+- Duplicate provider creation now returns a readable `409` conflict instead of an unhandled `500`.
 
 ### Gateway
 
@@ -76,6 +86,16 @@ Current failover policy:
 - Goal: smoother scrolling on Raspberry Pi and lower-powered clients
 - The resource-center OpenClaw cards now use rotating accent colors for provider avatars
 - The provider model-discovery modal uses the same avatar palette so adjacent model rows are easier to scan
+- The `Nodes` page onboarding command now defaults to the public gateway URL:
+  - `https://zhaocai.mintstudio.cn`
+- The generated Linux onboarding command now includes:
+  - `python3-venv` prerequisite
+  - explicit `register`
+  - `sync-once`
+  - `doctor`
+  - `install --service-manager systemd`
+  - `systemctl --user` enable/start steps
+- The generated command no longer includes the stray `+` prefixes that briefly appeared in multiline output.
 
 ## 2. Raspberry Pi Deployment
 
@@ -91,14 +111,26 @@ systemd service:
 
 - `zhaocai-gateway.service`
 
-As of **2026-04-03**, the following has been confirmed:
+As of **2026-04-13**, the following has been confirmed:
 
 - the service is managed by `systemd`
 - the previous hand-started Python process conflict on port `8000` has been removed
-- the Raspberry Pi is running the latest code from this branch
+- the Raspberry Pi is running the latest code from `main`
 - `web/dist` has been rebuilt on the Raspberry Pi
 - the latest frontend assets are in place
 - the provider model-discovery UI has been deployed to the Raspberry Pi
+- the Raspberry Pi itself has been registered as an OpenClaw node:
+  - device id `4`
+  - `zhaocai-agent.service` enabled via `systemd --user`
+  - local agent config at `/home/cuijunpeng/.zhaocai-gateway/agent.json`
+  - local OpenClaw config target at `/home/cuijunpeng/.openclaw/openclaw.json`
+- a remote AWS Ubuntu node has also been validated:
+  - device id `6`
+  - `register` and first `sync-once` both succeeded against `https://zhaocai.mintstudio.cn`
+  - the generated `systemd` service required a follow-up fix:
+    - `WorkingDirectory` had to point at the cloned repo
+    - `reload_command` had to use the absolute `openclaw` path
+  - after correction, `zhaocai-agent.service` is running normally on that node
 
 Smoke checks already performed:
 
@@ -116,6 +148,10 @@ Observed result:
 - device payloads now include:
   - `preserve_providers`
   - `preserve_models`
+- public agent routes are reachable through Cloudflare:
+  - `https://zhaocai.mintstudio.cn/agent/v1/register`
+  - `https://zhaocai.mintstudio.cn/agent/v1/config/meta`
+- `/control` remains protected by Cloudflare Access, but `/agent/v1/*` is reachable for node traffic
 
 ## 3. GitHub Status
 
@@ -123,9 +159,9 @@ Remote repository:
 
 - `https://github.com/donnycui/zhaocai-gateway`
 
-Pushed branch:
+Primary branch:
 
-- `origin/codex/zhaocai-gateway-v2-scaffold`
+- `origin/main`
 
 Key commits in delivery order:
 
@@ -146,6 +182,15 @@ Key commits in delivery order:
 - `42bae5a` `feat: manage device preserve config from ui`
 - `5f9fd80` `docs: refresh v2 handoff status`
 - `7e60bb9` `feat: add provider model discovery picker`
+- `05e2e70` `fix: clean zhaocai marker and batch device assignment`
+- `ab1e5a0` `fix: restore provider discovery modal layout`
+- `cea2d2e` `fix: stabilize provider discovery modal chrome`
+- `081cd7a` `fix: handle duplicate providers gracefully`
+- `d7fb486` `fix: improve provider discovery failures`
+- `620ce83` `fix: remove stray plus signs from node commands`
+- `0903b2e` `fix: expand node onboarding prerequisites`
+- `eeac789` `fix: default node onboarding to public gateway url`
+- `14e1b83` `fix: make linux node setup copy-pastable`
 
 ## 4. Verification Completed
 
@@ -182,8 +227,42 @@ Functional smoke checks already performed:
 - verify agent sync writes `~/.openclaw/zhaocai-preserve.json`
 - open an OpenClaw provider in the editor and fetch the upstream model list
 - verify the selection modal imports only newly selected models into the local edit form
+- verify Raspberry Pi local node registration, first sync, and `systemd --user` service startup
+- verify Mac `launchd` agent recovery after runtime code drift
+- verify AWS Ubuntu registration through public Cloudflare URL and persistent `systemd --user` service after service-file correction
 
-## 5. Content-IP-Strategy Next Step
+## 5. Current Known Issues
+
+These are active caveats worth carrying forward.
+
+### Node Onboarding
+
+- The UI-generated Linux/VPS onboarding command is now much closer to copy-paste ready, but real-world nodes may still need environment-specific correction:
+  - missing `python3-venv` on fresh Ubuntu hosts
+  - missing `openclaw` binary in `PATH`
+  - `systemd --user` environment not matching interactive shells
+- The public gateway URL is now the default onboarding target because it is more broadly reachable than the Tailscale-only address.
+
+### Upstream Model Discovery
+
+- `ice` model discovery is currently confirmed working.
+- `anyrouter` remains problematic specifically from the Raspberry Pi host:
+  - direct requests from the Raspberry Pi to `https://anyrouter.top/v1/models` are reset by the upstream
+  - the same endpoint is reachable from the Mac host with `Authorization: Bearer ...`
+  - this looks like an upstream/network-path issue, not a control-plane UI bug
+- `yunduan` discovery is also unstable from the Raspberry Pi host:
+  - macOS can reach `https://cloudapi.wdyu.eu.cc/v1/models`
+  - Raspberry Pi has shown certificate-chain errors and inconsistent `404/503` upstream responses
+  - a narrow TLS-cert fallback has been added for discovery/test requests, but the upstream itself is still not consistently healthy from the Raspberry Pi path
+
+### Runtime Compatibility
+
+- Local test execution on the development Mac is partially blocked by a repository-wide Python compatibility issue unrelated to the latest OpenClaw work:
+  - another service imports `datetime.UTC`
+  - the local Python 3.9 environment fails before some test modules can run
+- When validating recent changes, real endpoint checks on the Raspberry Pi and browser-level verification have been used as the authoritative signal where local pytest was blocked
+
+## 6. Content-IP-Strategy Next Step
 
 Local repository is already prepared at:
 
@@ -214,7 +293,7 @@ Suggested first alias mapping style:
 - which targets are available under that alias
 - how failover proceeds when a target fails
 
-## 6. Remaining Work
+## 7. Remaining Work
 
 The four-module minimum loop is in place, but these areas remain good follow-up candidates.
 
@@ -222,7 +301,7 @@ The four-module minimum loop is in place, but these areas remain good follow-up 
 
 - add a more formal upgrade script for the Raspberry Pi instead of manual zip deployment
 - optionally add a lightweight deployment verification script
-- evaluate whether and when to merge this branch back into `main`
+- keep deployment reproducible; the Raspberry Pi runtime directory is still a manual sync target rather than a Git working tree
 
 ### Gateway
 
@@ -245,7 +324,7 @@ The four-module minimum loop is in place, but these areas remain good follow-up 
 - it has not yet been cut over to the new gateway client key + alias mode
 - that work should happen in a separate thread with focused implementation and verification
 
-## 7. Recommended Reading Order
+## 8. Recommended Reading Order
 
 For a new maintainer, read in this order:
 
