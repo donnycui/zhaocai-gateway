@@ -1351,6 +1351,34 @@ class SQLiteStore:
             raise RuntimeError("Failed to create device")
         return device
 
+    def update_device(
+        self,
+        device_id: int,
+        *,
+        name: str,
+        device_type: str,
+        hostname: str,
+        platform: str,
+        active: bool,
+    ) -> Device:
+        self.conn.execute(
+            """
+            UPDATE devices
+            SET name = ?,
+                device_type = ?,
+                hostname = ?,
+                platform = ?,
+                active = ?
+            WHERE id = ?
+            """,
+            (name, device_type, hostname, platform, int(active), device_id),
+        )
+        self.conn.commit()
+        device = self.get_device(device_id)
+        if device is None:
+            raise RuntimeError("Failed to update device")
+        return device
+
     def get_device(self, device_id: int) -> Device | None:
         row = self.conn.execute(
             "SELECT * FROM devices WHERE id = ?",

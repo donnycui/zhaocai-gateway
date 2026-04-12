@@ -57,6 +57,40 @@ def test_issue_pairing_token():
     assert payload["pairing_token"] != ""
 
 
+def test_update_device():
+    client = create_test_client()
+    device = client.post(
+        "/admin/devices",
+        headers=admin_headers(),
+        json={
+            "name": "worker-a",
+            "device_type": "vps",
+            "hostname": "old-host",
+            "platform": "linux",
+        },
+    ).json()["device"]
+
+    response = client.patch(
+        f"/admin/devices/{device['id']}",
+        headers=admin_headers(),
+        json={
+            "name": "worker-b",
+            "device_type": "raspberrypi",
+            "hostname": "new-host",
+            "platform": "linux-arm64",
+            "active": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()["device"]
+    assert payload["name"] == "worker-b"
+    assert payload["device_type"] == "raspberrypi"
+    assert payload["hostname"] == "new-host"
+    assert payload["platform"] == "linux-arm64"
+    assert payload["active"] is False
+
+
 def test_assign_models_to_device():
     client = create_test_client()
     provider = client.post(

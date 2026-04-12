@@ -95,6 +95,14 @@ class DeviceCreate(BaseModel):
     active: bool = True
 
 
+class DeviceUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    device_type: str = Field(min_length=1)
+    hostname: str = ""
+    platform: str = ""
+    active: bool = True
+
+
 class PairingTokenCreate(BaseModel):
     expires_in_seconds: int = 600
 
@@ -707,6 +715,24 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {
             "device": device_service.create(
+                name=payload.name,
+                device_type=payload.device_type,
+                hostname=payload.hostname,
+                platform=payload.platform,
+                active=payload.active,
+            )
+        }
+
+    @router.patch("/devices/{device_id}")
+    def update_device(
+        device_id: int,
+        payload: DeviceUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "device": device_service.update(
+                device_id,
                 name=payload.name,
                 device_type=payload.device_type,
                 hostname=payload.hostname,

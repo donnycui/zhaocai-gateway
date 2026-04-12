@@ -30,6 +30,26 @@ class DeviceService:
         )
         return self._serialize(device)
 
+    def update(
+        self,
+        device_id: int,
+        *,
+        name: str,
+        device_type: str,
+        hostname: str = "",
+        platform: str = "",
+        active: bool = True,
+    ) -> dict:
+        device = self.store.update_device(
+            device_id,
+            name=name,
+            device_type=device_type,
+            hostname=hostname,
+            platform=platform,
+            active=active,
+        )
+        return self._serialize(device)
+
     def assign_models(self, *, device_id: int, model_ids: list[int]) -> dict:
         self.store.set_device_model_bindings(device_id=device_id, model_ids=model_ids)
         device = self.store.get_device(device_id)

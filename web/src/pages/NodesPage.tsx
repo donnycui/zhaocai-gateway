@@ -14,7 +14,10 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     hostname: "",
     platform: "",
   });
+  const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
+  const [message, setMessage] = useState<string>("");
   const [pairingInfo, setPairingInfo] = useState<{
+    deviceId: number;
     deviceName: string;
     deviceType: string;
     platform: string;
@@ -25,7 +28,15 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
   async function handleCreateDevice(event: React.FormEvent) {
     event.preventDefault();
-    await api.createDevice(form);
+    setMessage("");
+    if (editingDeviceId == null) {
+      await api.createDevice(form);
+      setMessage("节点已创建。");
+    } else {
+      await api.updateDevice(editingDeviceId, form);
+      setMessage("节点已更新。");
+      setEditingDeviceId(null);
+    }
     setForm({
       name: "",
       device_type: "vps",
@@ -35,9 +46,47 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     await onRefresh();
   }
 
+  function handleEditDevice(device: Device) {
+    setEditingDeviceId(device.id);
+    setForm({
+      name: device.name,
+      device_type: device.device_type,
+      hostname: device.hostname,
+      platform: device.platform,
+    });
+    setMessage("");
+  }
+
+  function handleCancelEdit() {
+    setEditingDeviceId(null);
+    setForm({
+      name: "",
+      device_type: "vps",
+      hostname: "",
+      platform: "",
+    });
+  }
+
+  async function handleDeleteDevice(device: Device) {
+    const confirmed = window.confirm(`确认删除节点 ${device.name} 吗？`);
+    if (!confirmed) {
+      return;
+    }
+    await api.deleteDevice(device.id);
+    if (editingDeviceId === device.id) {
+      handleCancelEdit();
+    }
+    if (pairingInfo?.deviceId === device.id) {
+      setPairingInfo(null);
+    }
+    setMessage("节点已删除。");
+    await onRefresh();
+  }
+
   async function handleIssueToken(device: Device) {
     const token = await api.issuePairingToken(device.id);
     setPairingInfo({
+      deviceId: device.id,
       deviceName: device.name,
       deviceType: device.device_type,
       platform: device.platform,
@@ -101,9 +150,10 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     <section className="page two-column">
       <form className="panel form-panel" onSubmit={handleCreateDevice}>
         <div className="panel-header">
-          <h3>创建节点</h3>
+          <h3>{editingDeviceId == null ? "创建节点" : "编辑节点"}</h3>
           <p>先在控制面登记设备，再让本地 agent 完成配对。</p>
         </div>
+        {message ? <p className="inline-message">{message}</p> : null}
         <label>
           <span>名称</span>
           <input
@@ -138,7 +188,14 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
             }
           />
         </label>
-        <button type="submit">创建节点</button>
+        <div className="topbar-actions">
+          <button type="submit">{editingDeviceId == null ? "创建节点" : "保存修改"}</button>
+          {editingDeviceId != null ? (
+            <button type="button" className="secondary-button" onClick={handleCancelEdit}>
+              取消编辑
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <div className="stack">
@@ -157,9 +214,29 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
                     <strong>{device.name}</strong>
                     <span>{device.device_type}</span>
                   </div>
-                  <button className="secondary-button" onClick={() => void handleIssueToken(device)}>
-                    签发 Token
-                  </button>
+                  <div className="topbar-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => handleEditDevice(device)}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleDeleteDevice(device)}
+                    >
+                      删除
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => void handleIssueToken(device)}
+                    >
+                      签发 Token
+                    </button>
+                  </div>
                 </div>
               ))
             )}

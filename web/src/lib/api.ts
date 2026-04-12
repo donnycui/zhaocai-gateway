@@ -739,6 +739,23 @@ export const api = {
     return result.device;
   },
 
+  async updateDevice(
+    deviceId: number,
+    payload: {
+      name: string;
+      device_type: string;
+      hostname?: string;
+      platform?: string;
+      active?: boolean;
+    },
+  ): Promise<Device> {
+    const result = await request<{ device: Device }>(`/admin/devices/${deviceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.device;
+  },
+
   async deleteDevice(deviceId: number): Promise<{ ok: boolean; device_id: number }> {
     return request(`/admin/devices/${deviceId}`, {
       method: "DELETE",
