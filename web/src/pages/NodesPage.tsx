@@ -52,10 +52,11 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     }
 
     const server = "https://zhaocai.mintstudio.cn";
-    const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken}`;
+    const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken} \\\n  --reload-cmd \"$(command -v openclaw) gateway restart\"`;
 
     const baseSetup = [
-      "git clone https://github.com/donnycui/zhaocai-gateway.git",
+      "command -v openclaw >/dev/null || { echo '未找到 openclaw，请先安装 OpenClaw'; exit 1; }",
+      "[ -d zhaocai-gateway ] || git clone https://github.com/donnycui/zhaocai-gateway.git",
       "cd zhaocai-gateway",
       "python3 -m venv .venv",
       ".venv/bin/pip install -r requirements.txt",
@@ -77,9 +78,13 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
         "sudo apt install -y python3-venv",
         ...baseSetup,
         ".venv/bin/python -m agent.cli doctor --service-manager systemd",
-        ".venv/bin/python -m agent.cli install --service-manager systemd",
+        ".venv/bin/python -m agent.cli install --service-manager systemd \\",
+        "  --config-path \"$HOME/.zhaocai-gateway/agent.json\" \\",
+        "  --python-path \"$PWD/.venv/bin/python\" \\",
+        "  --working-directory \"$PWD\"",
         "systemctl --user daemon-reload",
         "systemctl --user enable --now zhaocai-agent.service",
+        "systemctl --user status zhaocai-agent.service",
       ].join("\n");
     }
 
