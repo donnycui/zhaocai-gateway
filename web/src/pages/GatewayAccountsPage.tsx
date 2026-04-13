@@ -59,6 +59,7 @@ export default function GatewayAccountsPage() {
   const [message, setMessage] = useState("");
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [accountFeedback, setAccountFeedback] = useState<Record<number, { tone: "success" | "error"; text: string }>>({});
+  const [expandedSelectedModels, setExpandedSelectedModels] = useState<Record<number, boolean>>({});
   const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
   const [discoverAccountId, setDiscoverAccountId] = useState<number | null>(null);
   const [discoverLoading, setDiscoverLoading] = useState(false);
@@ -213,6 +214,16 @@ export default function GatewayAccountsPage() {
     [discoverAccountId, gatewayModels],
   );
 
+  const gatewayModelsByAccount = useMemo(() => {
+    const groups = new Map<number, GatewayModel[]>();
+    gatewayModels.forEach((model) => {
+      const current = groups.get(model.account_id) ?? [];
+      current.push(model);
+      groups.set(model.account_id, current);
+    });
+    return groups;
+  }, [gatewayModels]);
+
   async function handleDiscoverModels(accountId: number) {
     setDiscoverAccountId(accountId);
     setDiscoverLoading(true);
@@ -263,6 +274,13 @@ export default function GatewayAccountsPage() {
         .map((model) => model.upstream_model),
     );
     setSelectedDiscoveredIds(Array.from(new Set([...selectedDiscoveredIds, ...selectable])));
+  }
+
+  function toggleSelectedModels(accountId: number) {
+    setExpandedSelectedModels((current) => ({
+      ...current,
+      [accountId]: !current[accountId],
+    }));
   }
 
   function handleClearDiscoveredSelection() {
@@ -359,6 +377,12 @@ export default function GatewayAccountsPage() {
           <div className="placeholder-grid">
             {accounts.map((account) => (
               <article key={account.id} className="placeholder-card">
+                {(() => {
+                  const accountModels = gatewayModelsByAccount.get(account.id) ?? [];
+                  const expanded = expandedSelectedModels[account.id] ?? false;
+                  const visibleModels = expanded ? accountModels : accountModels.slice(0, 5);
+                  return (
+                    <>
                 <strong>
                   {account.name}
                   {accountFeedback[account.id] ? (
@@ -379,6 +403,29 @@ export default function GatewayAccountsPage() {
                 <span>协议：{account.protocol}</span>
                 <span>健康状态：{healthLabels[account.health_status] ?? account.health_status}</span>
                 {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
+                <div>
+                  <span>已选模型：</span>
+                  {accountModels.length === 0 ? (
+                    <span>暂无</span>
+                  ) : (
+                    <div className="selected-model-list">
+                      {visibleModels.map((model) => (
+                        <span key={model.id} className="mini-pill">
+                          {model.display_name}
+                        </span>
+                      ))}
+                      {accountModels.length > 5 ? (
+                        <button
+                          type="button"
+                          className="secondary-button compact-button"
+                          onClick={() => toggleSelectedModels(account.id)}
+                        >
+                          {expanded ? "收起" : `展开全部 ${accountModels.length} 个`}
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
                     {testingAccountId === account.id ? "测试中..." : "测试连接"}
@@ -393,6 +440,9 @@ export default function GatewayAccountsPage() {
                     删除
                   </button>
                 </div>
+                    </>
+                  );
+                })()}
               </article>
             ))}
           </div>

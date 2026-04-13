@@ -1124,6 +1124,20 @@ button {
   color: #5f6f84;
 }
 
+.selected-model-list {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.compact-button {
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 1024px) {
   .app-shell,
   .two-column,
