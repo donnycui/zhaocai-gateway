@@ -25,7 +25,6 @@ export default function GatewayAccountsPage() {
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [accountFeedback, setAccountFeedback] = useState<Record<number, { tone: "success" | "error"; text: string }>>({});
   const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
-  const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     base_url: "",
@@ -84,23 +83,6 @@ export default function GatewayAccountsPage() {
       await loadAccounts();
     } finally {
       setTestingAccountId(null);
-    }
-  }
-
-  async function handleSync(accountId: number) {
-    setSyncingAccountId(accountId);
-    try {
-      const result = await api.syncGatewayAccountModels(accountId);
-      setAccountFeedback((current) => ({
-        ...current,
-        [accountId]: {
-          tone: "success",
-          text: `已同步 ${result.models_count} 个模型`,
-        },
-      }));
-      await loadAccounts();
-    } finally {
-      setSyncingAccountId(null);
     }
   }
 
@@ -228,14 +210,10 @@ export default function GatewayAccountsPage() {
                 <span>鉴权：{account.auth_type}</span>
                 <span>协议：{account.protocol}</span>
                 <span>健康状态：{healthLabels[account.health_status] ?? account.health_status}</span>
-                <span>已同步模型：{account.synced_models_count}</span>
                 {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
                     {testingAccountId === account.id ? "测试中..." : "测试连接"}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => void handleSync(account.id)}>
-                    {syncingAccountId === account.id ? "同步中..." : "同步模型"}
                   </button>
                   <button type="button" className="secondary-button" onClick={() => void handleEdit(account.id)}>
                     查看/编辑
