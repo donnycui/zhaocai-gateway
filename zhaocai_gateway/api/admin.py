@@ -135,6 +135,16 @@ class GatewayAccountUpdate(BaseModel):
     notes: str = ""
 
 
+class GatewayAccountModelImport(BaseModel):
+    upstream_model: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    owner: str = ""
+
+
+class GatewayAccountModelImportRequest(BaseModel):
+    models: list[GatewayAccountModelImport] = Field(default_factory=list)
+
+
 class GatewayAliasCreate(BaseModel):
     alias_key: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -523,6 +533,34 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    @router.post("/gateway/accounts/{account_id}/discover-models")
+    def discover_gateway_account_models(
+        account_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return gateway_account_service.discover_models(account_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    @router.post("/gateway/accounts/{account_id}/import-models")
+    def import_gateway_account_models(
+        account_id: int,
+        payload: GatewayAccountModelImportRequest,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return gateway_account_service.import_models(
+                account_id,
+                models=[item.model_dump() for item in payload.models],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.post("/gateway/accounts/{account_id}/sync-models")
     def sync_gateway_account_models(

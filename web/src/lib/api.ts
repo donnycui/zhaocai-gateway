@@ -537,6 +537,26 @@ export const api = {
     });
   },
 
+  async discoverGatewayAccountModels(accountId: number): Promise<{ models: DiscoveredProviderModel[]; count: number }> {
+    return request(`/admin/gateway/accounts/${accountId}/discover-models`, {
+      method: "POST",
+    });
+  },
+
+  async importGatewayAccountModels(
+    accountId: number,
+    models: Array<{
+      upstream_model: string;
+      display_name: string;
+      owner?: string;
+    }>,
+  ): Promise<{ account: GatewayUpstreamAccount; imported_count: number; created_count: number }> {
+    return request(`/admin/gateway/accounts/${accountId}/import-models`, {
+      method: "POST",
+      body: JSON.stringify({ models }),
+    });
+  },
+
   async syncGatewayAccountModels(accountId: number): Promise<{
     account_id: number;
     models_count: number;
