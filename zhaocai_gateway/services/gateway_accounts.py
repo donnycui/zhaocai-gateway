@@ -21,6 +21,12 @@ class GatewayAccountService:
     def list(self) -> list[dict]:
         return [asdict(account) for account in self.store.list_gateway_upstream_accounts()]
 
+    def get(self, account_id: int) -> dict | None:
+        account = self.store.get_gateway_upstream_account(account_id)
+        if account is None:
+            return None
+        return asdict(account)
+
     def create(
         self,
         *,
@@ -41,6 +47,36 @@ class GatewayAccountService:
             notes=notes.strip(),
         )
         return asdict(account)
+
+    def update(
+        self,
+        account_id: int,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key: str,
+        protocol: str,
+        notes: str,
+        enabled: bool,
+    ) -> dict:
+        account = self.store.update_gateway_upstream_account(
+            account_id,
+            name=name.strip(),
+            base_url=base_url.strip().rstrip("/"),
+            auth_type=auth_type.strip().lower(),
+            api_key_encrypted=api_key,
+            protocol=protocol.strip() or "openai-compatible",
+            enabled=enabled,
+            notes=notes.strip(),
+        )
+        return asdict(account)
+
+    def delete(self, account_id: int) -> None:
+        account = self.store.get_gateway_upstream_account(account_id)
+        if account is None:
+            raise ValueError(f"Gateway account {account_id} not found")
+        self.store.delete_gateway_upstream_account(account_id)
 
     def test_connection(self, account_id: int) -> dict:
         account = self.store.get_gateway_upstream_account(account_id)

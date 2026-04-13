@@ -22,6 +22,10 @@ export default function GatewayAccountsPage() {
   const [accounts, setAccounts] = useState<GatewayUpstreamAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+  const [accountFeedback, setAccountFeedback] = useState<Record<number, { tone: "success" | "error"; text: string }>>({});
+  const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
+  const [syncingAccountId, setSyncingAccountId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     base_url: "",
@@ -47,7 +51,14 @@ export default function GatewayAccountsPage() {
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
     setMessage("");
-    await api.createGatewayAccount(form);
+    if (editingAccountId == null) {
+      await api.createGatewayAccount(form);
+      setMessage("Gateway 上游账号已创建。");
+    } else {
+      await api.updateGatewayAccount(editingAccountId, { ...form, enabled: true });
+      setMessage("Gateway 账号已更新。");
+      setEditingAccountId(null);
+    }
     setForm({
       name: "",
       base_url: "",
@@ -56,27 +67,93 @@ export default function GatewayAccountsPage() {
       protocol: "openai-compatible",
       notes: "",
     });
-    setMessage("Gateway 上游账号已创建。");
     await loadAccounts();
   }
 
   async function handleTest(accountId: number) {
-    const result = await api.testGatewayAccount(accountId);
-    setMessage(result.healthy ? "Gateway 账号测试通过。" : `Gateway 账号测试失败：HTTP ${result.models_status}`);
-    await loadAccounts();
+    setTestingAccountId(accountId);
+    try {
+      const result = await api.testGatewayAccount(accountId);
+      setAccountFeedback((current) => ({
+        ...current,
+        [accountId]: {
+          tone: result.healthy ? "success" : "error",
+          text: result.healthy ? "测试通过" : `测试失败（HTTP ${result.models_status}）`,
+        },
+      }));
+      await loadAccounts();
+    } finally {
+      setTestingAccountId(null);
+    }
   }
 
   async function handleSync(accountId: number) {
-    const result = await api.syncGatewayAccountModels(accountId);
-    setMessage(`已同步 ${result.models_count} 个模型，新增或更新 ${result.upserted_count} 个。`);
+    setSyncingAccountId(accountId);
+    try {
+      const result = await api.syncGatewayAccountModels(accountId);
+      setAccountFeedback((current) => ({
+        ...current,
+        [accountId]: {
+          tone: "success",
+          text: `已同步 ${result.models_count} 个模型`,
+        },
+      }));
+      await loadAccounts();
+    } finally {
+      setSyncingAccountId(null);
+    }
+  }
+
+  async function handleEdit(accountId: number) {
+    const account = await api.getGatewayAccount(accountId);
+    setEditingAccountId(accountId);
+    setForm({
+      name: account.name,
+      base_url: account.base_url,
+      auth_type: account.auth_type,
+      api_key: account.api_key_encrypted,
+      protocol: account.protocol,
+      notes: account.notes,
+    });
+    setMessage("");
+  }
+
+  async function handleDelete(accountId: number) {
+    const confirmed = window.confirm("确认删除这个 Gateway 账号吗？");
+    if (!confirmed) return;
+    await api.deleteGatewayAccount(accountId);
+    if (editingAccountId === accountId) {
+      setEditingAccountId(null);
+      setForm({
+        name: "",
+        base_url: "",
+        auth_type: "bearer",
+        api_key: "",
+        protocol: "openai-compatible",
+        notes: "",
+      });
+    }
+    setMessage("Gateway 账号已删除。");
     await loadAccounts();
+  }
+
+  function handleCancelEdit() {
+    setEditingAccountId(null);
+    setForm({
+      name: "",
+      base_url: "",
+      auth_type: "bearer",
+      api_key: "",
+      protocol: "openai-compatible",
+      notes: "",
+    });
   }
 
   return (
     <section className="page">
       <form className="panel form-panel" onSubmit={handleCreate}>
         <div className="panel-header" style={{ marginBottom: 0 }}>
-          <h3>Gateway Upstream Accounts</h3>
+          <h3>{editingAccountId == null ? "Gateway Upstream Accounts" : "编辑 Gateway 账号"}</h3>
           <p>接入公益站、官方站或代理站，并同步它们可用的真实模型。后续别名和 failover 会挂在这些账号之上。</p>
         </div>
         <div className="editor-grid">
@@ -108,7 +185,12 @@ export default function GatewayAccountsPage() {
           <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </label>
         <div className="topbar-actions">
-          <button type="submit">新增 Gateway 账号</button>
+          <button type="submit">{editingAccountId == null ? "新增 Gateway 账号" : "保存修改"}</button>
+          {editingAccountId != null ? (
+            <button type="button" className="secondary-button" onClick={handleCancelEdit}>
+              取消编辑
+            </button>
+          ) : null}
           <button type="button" className="secondary-button" onClick={() => void loadAccounts()}>
             {loading ? "加载中" : "刷新"}
           </button>
@@ -127,7 +209,21 @@ export default function GatewayAccountsPage() {
           <div className="placeholder-grid">
             {accounts.map((account) => (
               <article key={account.id} className="placeholder-card">
-                <strong>{account.name}</strong>
+                <strong>
+                  {account.name}
+                  {accountFeedback[account.id] ? (
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        color: accountFeedback[account.id].tone === "success" ? "#1f8f53" : "#b3392a",
+                        fontSize: "0.9rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {accountFeedback[account.id].text}
+                    </span>
+                  ) : null}
+                </strong>
                 <span>{account.base_url}</span>
                 <span>鉴权：{account.auth_type}</span>
                 <span>协议：{account.protocol}</span>
@@ -136,10 +232,16 @@ export default function GatewayAccountsPage() {
                 {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
-                    测试连接
+                    {testingAccountId === account.id ? "测试中..." : "测试连接"}
                   </button>
                   <button type="button" className="secondary-button" onClick={() => void handleSync(account.id)}>
-                    同步模型
+                    {syncingAccountId === account.id ? "同步中..." : "同步模型"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleEdit(account.id)}>
+                    查看/编辑
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleDelete(account.id)}>
+                    删除
                   </button>
                 </div>
               </article>

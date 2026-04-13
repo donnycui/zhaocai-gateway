@@ -481,6 +481,11 @@ export const api = {
     return result.accounts;
   },
 
+  async getGatewayAccount(accountId: number): Promise<GatewayUpstreamAccount> {
+    const result = await request<{ account: GatewayUpstreamAccount }>(`/admin/gateway/accounts/${accountId}`);
+    return result.account;
+  },
+
   async getGatewayModels(): Promise<GatewayModel[]> {
     const result = await request<{ models: GatewayModel[] }>("/admin/gateway/models");
     return result.models;
@@ -499,6 +504,31 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return result.account;
+  },
+
+  async updateGatewayAccount(
+    accountId: number,
+    payload: {
+      name: string;
+      base_url: string;
+      auth_type: string;
+      api_key: string;
+      protocol: string;
+      enabled: boolean;
+      notes: string;
+    },
+  ): Promise<GatewayUpstreamAccount> {
+    const result = await request<{ account: GatewayUpstreamAccount }>(`/admin/gateway/accounts/${accountId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.account;
+  },
+
+  async deleteGatewayAccount(accountId: number): Promise<{ ok: boolean; account_id: number }> {
+    return request(`/admin/gateway/accounts/${accountId}`, {
+      method: "DELETE",
+    });
   },
 
   async testGatewayAccount(accountId: number): Promise<{ healthy: boolean; models_status: number }> {
@@ -691,6 +721,11 @@ export const api = {
     return result.templates;
   },
 
+  async getUniversalTemplate(templateId: number): Promise<UniversalProviderTemplate> {
+    const result = await request<{ template: UniversalProviderTemplate }>(`/admin/universal/templates/${templateId}`);
+    return result.template;
+  },
+
   async createUniversalTemplate(payload: {
     name: string;
     base_url: string;
@@ -714,6 +749,40 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return result.template;
+  },
+
+  async updateUniversalTemplate(
+    templateId: number,
+    payload: {
+      name: string;
+      base_url: string;
+      auth_type: string;
+      api_key: string;
+      protocol: string;
+      notes: string;
+      models: Array<{
+        upstream_model: string;
+        display_name: string;
+        capabilities: string[];
+        reasoning: boolean;
+        input_modalities: string[];
+        context_window: number | null;
+        max_tokens: number | null;
+        enabled: boolean;
+      }>;
+    },
+  ): Promise<UniversalProviderTemplate> {
+    const result = await request<{ template: UniversalProviderTemplate }>(`/admin/universal/templates/${templateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.template;
+  },
+
+  async deleteUniversalTemplate(templateId: number): Promise<{ ok: boolean; template_id: number }> {
+    return request(`/admin/universal/templates/${templateId}`, {
+      method: "DELETE",
+    });
   },
 
   async importUniversalTemplate(

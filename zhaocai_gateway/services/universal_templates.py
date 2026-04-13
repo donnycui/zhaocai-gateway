@@ -19,6 +19,14 @@ class UniversalTemplateService:
             items.append(payload)
         return items
 
+    def get(self, template_id: int) -> dict | None:
+        template = self.store.get_universal_provider_template(template_id)
+        if template is None:
+            return None
+        payload = asdict(template)
+        payload["models"] = [asdict(model) for model in self.store.list_universal_provider_template_models(template.id)]
+        return payload
+
     def create(
         self,
         *,
@@ -57,6 +65,60 @@ class UniversalTemplateService:
         payload = asdict(template)
         payload["models"] = [asdict(model) for model in created_models]
         return payload
+
+    def update(
+        self,
+        template_id: int,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key: str,
+        protocol: str,
+        notes: str,
+        models: list[dict],
+    ) -> dict:
+        existing = self.store.get_universal_provider_template(template_id)
+        if existing is None:
+            raise ValueError(f"Universal template {template_id} not found")
+
+        template = self.store.update_universal_provider_template(
+            template_id,
+            name=name.strip(),
+            base_url=base_url.strip().rstrip("/"),
+            auth_type=auth_type.strip().lower(),
+            api_key_encrypted=api_key,
+            protocol=protocol.strip() or "openai-compatible",
+            notes=notes.strip(),
+        )
+        self.store.delete_universal_provider_template_models(template_id)
+
+        created_models = []
+        for model in models:
+            created_models.append(
+                self.store.create_universal_provider_template_model(
+                    template_id=template.id,
+                    upstream_model=str(model["upstream_model"]).strip(),
+                    display_name=str(model["display_name"]).strip(),
+                    capabilities=list(model.get("capabilities") or ["text"]),
+                    reasoning=bool(model.get("reasoning", False)),
+                    input_modalities=list(model.get("input_modalities") or ["text"]),
+                    context_window=model.get("context_window"),
+                    max_tokens=model.get("max_tokens"),
+                    enabled=bool(model.get("enabled", True)),
+                )
+            )
+
+        payload = asdict(template)
+        payload["models"] = [asdict(model) for model in created_models]
+        return payload
+
+    def delete(self, template_id: int) -> None:
+        template = self.store.get_universal_provider_template(template_id)
+        if template is None:
+            raise ValueError(f"Universal template {template_id} not found")
+        self.store.delete_universal_provider_template_models(template_id)
+        self.store.delete_universal_provider_template(template_id)
 
     def import_to_openclaw(self, template_id: int) -> dict:
         template, template_models = self._load_template_bundle(template_id)

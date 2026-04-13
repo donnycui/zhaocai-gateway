@@ -125,6 +125,16 @@ class GatewayAccountCreate(BaseModel):
     notes: str = ""
 
 
+class GatewayAccountUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    protocol: str = "openai-compatible"
+    enabled: bool = True
+    notes: str = ""
+
+
 class GatewayAliasCreate(BaseModel):
     alias_key: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -205,6 +215,16 @@ class UniversalTemplateModelCreate(BaseModel):
 
 
 class UniversalTemplateCreate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    protocol: str = "openai-compatible"
+    notes: str = ""
+    models: list[UniversalTemplateModelCreate] = Field(default_factory=list)
+
+
+class UniversalTemplateUpdate(BaseModel):
     name: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
     auth_type: str = Field(min_length=1)
@@ -423,6 +443,17 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"accounts": gateway_account_service.list()}
 
+    @router.get("/gateway/accounts/{account_id}")
+    def get_gateway_account(
+        account_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        account = gateway_account_service.get(account_id)
+        if account is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gateway account not found")
+        return {"account": account}
+
     @router.get("/gateway/models")
     def list_gateway_models(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
@@ -444,6 +475,41 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 notes=payload.notes,
             )
         }
+
+    @router.patch("/gateway/accounts/{account_id}")
+    def update_gateway_account(
+        account_id: int,
+        payload: GatewayAccountUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "account": gateway_account_service.update(
+                    account_id,
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    auth_type=payload.auth_type,
+                    api_key=payload.api_key,
+                    protocol=payload.protocol,
+                    enabled=payload.enabled,
+                    notes=payload.notes,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.delete("/gateway/accounts/{account_id}")
+    def delete_gateway_account(
+        account_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            gateway_account_service.delete(account_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "account_id": account_id}
 
     @router.post("/gateway/accounts/{account_id}/test")
     def test_gateway_account(
@@ -651,6 +717,17 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"templates": universal_template_service.list()}
 
+    @router.get("/universal/templates/{template_id}")
+    def get_universal_template(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        template = universal_template_service.get(template_id)
+        if template is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Universal template not found")
+        return {"template": template}
+
     @router.post("/universal/templates")
     def create_universal_template(
         payload: UniversalTemplateCreate,
@@ -668,6 +745,41 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 models=[item.model_dump() for item in payload.models],
             )
         }
+
+    @router.patch("/universal/templates/{template_id}")
+    def update_universal_template(
+        template_id: int,
+        payload: UniversalTemplateUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "template": universal_template_service.update(
+                    template_id,
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    auth_type=payload.auth_type,
+                    api_key=payload.api_key,
+                    protocol=payload.protocol,
+                    notes=payload.notes,
+                    models=[item.model_dump() for item in payload.models],
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.delete("/universal/templates/{template_id}")
+    def delete_universal_template(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            universal_template_service.delete(template_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "template_id": template_id}
 
     @router.post("/universal/templates/{template_id}/import/openclaw")
     def import_universal_template_to_openclaw(

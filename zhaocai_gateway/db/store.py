@@ -663,6 +663,51 @@ class SQLiteStore:
         ).fetchall()
         return [self._row_to_gateway_upstream_account(row) for row in rows]
 
+    def update_gateway_upstream_account(
+        self,
+        account_id: int,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        protocol: str,
+        enabled: bool,
+        notes: str,
+    ) -> GatewayUpstreamAccount:
+        self.conn.execute(
+            """
+            UPDATE gateway_upstream_accounts
+            SET name = ?,
+                base_url = ?,
+                auth_type = ?,
+                api_key_encrypted = ?,
+                protocol = ?,
+                enabled = ?,
+                notes = ?
+            WHERE id = ?
+            """,
+            (
+                name,
+                base_url,
+                auth_type,
+                api_key_encrypted,
+                protocol,
+                int(enabled),
+                notes,
+                account_id,
+            ),
+        )
+        self.conn.commit()
+        account = self.get_gateway_upstream_account(account_id)
+        if account is None:
+            raise RuntimeError("Failed to update gateway upstream account")
+        return account
+
+    def delete_gateway_upstream_account(self, account_id: int) -> None:
+        self.conn.execute("DELETE FROM gateway_upstream_accounts WHERE id = ?", (account_id,))
+        self.conn.commit()
+
     def update_gateway_upstream_account_status(
         self,
         account_id: int,
@@ -1262,6 +1307,36 @@ class SQLiteStore:
         ).fetchall()
         return [self._row_to_universal_provider_template(row) for row in rows]
 
+    def update_universal_provider_template(
+        self,
+        template_id: int,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        protocol: str,
+        notes: str,
+    ) -> UniversalProviderTemplate:
+        self.conn.execute(
+            """
+            UPDATE universal_provider_templates
+            SET name = ?,
+                base_url = ?,
+                auth_type = ?,
+                api_key_encrypted = ?,
+                protocol = ?,
+                notes = ?
+            WHERE id = ?
+            """,
+            (name, base_url, auth_type, api_key_encrypted, protocol, notes, template_id),
+        )
+        self.conn.commit()
+        template = self.get_universal_provider_template(template_id)
+        if template is None:
+            raise RuntimeError("Failed to update universal provider template")
+        return template
+
     def create_universal_provider_template_model(
         self,
         *,
@@ -1323,6 +1398,17 @@ class SQLiteStore:
             (template_id,),
         ).fetchall()
         return [self._row_to_universal_provider_template_model(row) for row in rows]
+
+    def delete_universal_provider_template_models(self, template_id: int) -> None:
+        self.conn.execute(
+            "DELETE FROM universal_provider_template_models WHERE template_id = ?",
+            (template_id,),
+        )
+        self.conn.commit()
+
+    def delete_universal_provider_template(self, template_id: int) -> None:
+        self.conn.execute("DELETE FROM universal_provider_templates WHERE id = ?", (template_id,))
+        self.conn.commit()
 
     def delete_device(self, device_id: int) -> None:
         self.conn.execute("DELETE FROM devices WHERE id = ?", (device_id,))

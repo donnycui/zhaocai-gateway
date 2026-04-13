@@ -5,6 +5,7 @@ import { api, type UniversalProviderTemplate } from "../lib/api";
 export default function UniversalTemplatesPage() {
   const [templates, setTemplates] = useState<UniversalProviderTemplate[]>([]);
   const [message, setMessage] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     base_url: "",
@@ -26,7 +27,7 @@ export default function UniversalTemplatesPage() {
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
-    await api.createUniversalTemplate({
+    const payload = {
       name: form.name,
       base_url: form.base_url,
       auth_type: form.auth_type,
@@ -45,7 +46,15 @@ export default function UniversalTemplatesPage() {
           enabled: true,
         },
       ],
-    });
+    };
+    if (editingTemplateId == null) {
+      await api.createUniversalTemplate(payload);
+      setMessage("Universal 模板已创建。");
+    } else {
+      await api.updateUniversalTemplate(editingTemplateId, payload);
+      setEditingTemplateId(null);
+      setMessage("Universal 模板已更新。");
+    }
     setForm({
       name: "",
       base_url: "",
@@ -56,8 +65,59 @@ export default function UniversalTemplatesPage() {
       upstream_model: "",
       display_name: "",
     });
-    setMessage("Universal 模板已创建。");
     await loadTemplates();
+  }
+
+  async function handleEdit(templateId: number) {
+    const template = await api.getUniversalTemplate(templateId);
+    const sampleModel = template.models[0];
+    setEditingTemplateId(templateId);
+    setForm({
+      name: template.name,
+      base_url: template.base_url,
+      auth_type: template.auth_type,
+      api_key: template.api_key_encrypted,
+      protocol: template.protocol,
+      notes: template.notes,
+      upstream_model: sampleModel?.upstream_model ?? "",
+      display_name: sampleModel?.display_name ?? "",
+    });
+    setMessage("");
+  }
+
+  async function handleDelete(templateId: number) {
+    const confirmed = window.confirm("确认删除这个 Universal 模板吗？");
+    if (!confirmed) return;
+    await api.deleteUniversalTemplate(templateId);
+    if (editingTemplateId === templateId) {
+      setEditingTemplateId(null);
+      setForm({
+        name: "",
+        base_url: "",
+        auth_type: "bearer",
+        api_key: "",
+        protocol: "openai-compatible",
+        notes: "",
+        upstream_model: "",
+        display_name: "",
+      });
+    }
+    setMessage("Universal 模板已删除。");
+    await loadTemplates();
+  }
+
+  function handleCancelEdit() {
+    setEditingTemplateId(null);
+    setForm({
+      name: "",
+      base_url: "",
+      auth_type: "bearer",
+      api_key: "",
+      protocol: "openai-compatible",
+      notes: "",
+      upstream_model: "",
+      display_name: "",
+    });
   }
 
   async function handleImport(templateId: number, target: "openclaw" | "gateway" | "media") {
@@ -70,7 +130,7 @@ export default function UniversalTemplatesPage() {
     <section className="page">
       <form className="panel form-panel" onSubmit={handleCreate}>
         <div className="panel-header" style={{ marginBottom: 0 }}>
-          <h3>Universal 模板池</h3>
+          <h3>{editingTemplateId == null ? "Universal 模板池" : "编辑 Universal 模板"}</h3>
           <p>这里不直接参与运行时，而是作为可复用模板池，导入到 OpenClaw、Gateway 或 Media 后再各自独立管理。</p>
         </div>
         <div className="editor-grid">
@@ -108,7 +168,12 @@ export default function UniversalTemplatesPage() {
           <textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </label>
         <div className="topbar-actions">
-          <button type="submit">新增模板</button>
+          <button type="submit">{editingTemplateId == null ? "新增模板" : "保存修改"}</button>
+          {editingTemplateId != null ? (
+            <button type="button" className="secondary-button" onClick={handleCancelEdit}>
+              取消编辑
+            </button>
+          ) : null}
         </div>
         {message ? <p className="inline-message">{message}</p> : null}
       </form>
@@ -129,6 +194,12 @@ export default function UniversalTemplatesPage() {
                 <span>鉴权：{template.auth_type}</span>
                 <span>模型数：{template.models.length}</span>
                 <div className="topbar-actions">
+                  <button type="button" className="secondary-button" onClick={() => void handleEdit(template.id)}>
+                    查看/编辑
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleDelete(template.id)}>
+                    删除
+                  </button>
                   <button type="button" className="secondary-button" onClick={() => void handleImport(template.id, "openclaw")}>
                     导入到 OpenClaw
                   </button>
