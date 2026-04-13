@@ -469,6 +469,18 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"models": gateway_alias_service.list_models()}
 
+    @router.delete("/gateway/models/{model_id}")
+    def delete_gateway_model(
+        model_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            gateway_account_service.delete_model(model_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "model_id": model_id}
+
     @router.post("/gateway/accounts")
     def create_gateway_account(
         payload: GatewayAccountCreate,

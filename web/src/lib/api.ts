@@ -491,6 +491,12 @@ export const api = {
     return result.models;
   },
 
+  async deleteGatewayModel(modelId: number): Promise<{ ok: boolean; model_id: number }> {
+    return request(`/admin/gateway/models/${modelId}`, {
+      method: "DELETE",
+    });
+  },
+
   async createGatewayAccount(payload: {
     name: string;
     base_url: string;

@@ -212,6 +212,12 @@ class GatewayAccountService:
             "created_count": created_count,
         }
 
+    def delete_model(self, model_id: int) -> None:
+        model = self.store.get_gateway_model(model_id)
+        if model is None:
+            raise ValueError(f"Gateway model {model_id} not found")
+        self.store.delete_gateway_model(model_id)
+
     def sync_models(self, account_id: int) -> dict:
         account = self.store.get_gateway_upstream_account(account_id)
         if account is None:

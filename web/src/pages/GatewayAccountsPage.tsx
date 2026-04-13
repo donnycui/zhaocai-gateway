@@ -61,6 +61,7 @@ export default function GatewayAccountsPage() {
   const [accountFeedback, setAccountFeedback] = useState<Record<number, { tone: "success" | "error"; text: string }>>({});
   const [expandedSelectedModels, setExpandedSelectedModels] = useState<Record<number, boolean>>({});
   const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
+  const [removingModelId, setRemovingModelId] = useState<number | null>(null);
   const [discoverAccountId, setDiscoverAccountId] = useState<number | null>(null);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [discoverMessage, setDiscoverMessage] = useState("");
@@ -283,6 +284,23 @@ export default function GatewayAccountsPage() {
     }));
   }
 
+  async function handleRemoveGatewayModel(modelId: number, accountId: number) {
+    setRemovingModelId(modelId);
+    try {
+      await api.deleteGatewayModel(modelId);
+      setAccountFeedback((current) => ({
+        ...current,
+        [accountId]: {
+          tone: "success",
+          text: "已移除模型",
+        },
+      }));
+      await loadAccounts();
+    } finally {
+      setRemovingModelId(null);
+    }
+  }
+
   function handleClearDiscoveredSelection() {
     setSelectedDiscoveredIds([]);
   }
@@ -410,9 +428,17 @@ export default function GatewayAccountsPage() {
                   ) : (
                     <div className="selected-model-list">
                       {visibleModels.map((model) => (
-                        <span key={model.id} className="mini-pill">
-                          {model.display_name}
-                        </span>
+                        <button
+                          key={model.id}
+                          type="button"
+                          className="mini-pill-button"
+                          onClick={() => void handleRemoveGatewayModel(model.id, account.id)}
+                          disabled={removingModelId === model.id}
+                          title="移除模型"
+                        >
+                          <span>{model.display_name}</span>
+                          <span>{removingModelId === model.id ? "..." : "×"}</span>
+                        </button>
                       ))}
                       {accountModels.length > 5 ? (
                         <button

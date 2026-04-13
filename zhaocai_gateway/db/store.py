@@ -794,6 +794,10 @@ class SQLiteStore:
             return None
         return self._row_to_gateway_model(row)
 
+    def delete_gateway_model(self, model_id: int) -> None:
+        self.conn.execute("DELETE FROM gateway_models WHERE id = ?", (model_id,))
+        self.conn.commit()
+
     def upsert_gateway_model(
         self,
         *,
