@@ -59,6 +59,7 @@ export default function GatewayAccountsPage() {
   const [message, setMessage] = useState("");
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
   const [accountFeedback, setAccountFeedback] = useState<Record<number, { tone: "success" | "error"; text: string }>>({});
+  const [expandedAccounts, setExpandedAccounts] = useState<Record<number, boolean>>({});
   const [expandedSelectedModels, setExpandedSelectedModels] = useState<Record<number, boolean>>({});
   const [testingAccountId, setTestingAccountId] = useState<number | null>(null);
   const [removingModelId, setRemovingModelId] = useState<number | null>(null);
@@ -284,6 +285,13 @@ export default function GatewayAccountsPage() {
     }));
   }
 
+  function toggleAccountDetails(accountId: number) {
+    setExpandedAccounts((current) => ({
+      ...current,
+      [accountId]: !current[accountId],
+    }));
+  }
+
   async function handleRemoveGatewayModel(modelId: number, accountId: number) {
     setRemovingModelId(modelId);
     try {
@@ -397,75 +405,91 @@ export default function GatewayAccountsPage() {
               <article key={account.id} className="placeholder-card">
                 {(() => {
                   const accountModels = gatewayModelsByAccount.get(account.id) ?? [];
-                  const expanded = expandedSelectedModels[account.id] ?? false;
-                  const visibleModels = expanded ? accountModels : accountModels.slice(0, 5);
+                  const selectedExpanded = expandedSelectedModels[account.id] ?? false;
+                  const detailsExpanded = expandedAccounts[account.id] ?? false;
+                  const visibleModels = selectedExpanded ? accountModels : accountModels.slice(0, 5);
                   return (
                     <>
-                <strong>
-                  {account.name}
-                  {accountFeedback[account.id] ? (
-                    <span
-                      style={{
-                        marginLeft: 8,
-                        color: accountFeedback[account.id].tone === "success" ? "#1f8f53" : "#b3392a",
-                        fontSize: "0.9rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {accountFeedback[account.id].text}
-                    </span>
-                  ) : null}
-                </strong>
-                <span>{account.base_url}</span>
-                <span>鉴权：{account.auth_type}</span>
-                <span>协议：{account.protocol}</span>
-                <span>健康状态：{healthLabels[account.health_status] ?? account.health_status}</span>
-                {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
-                <div>
-                  <span>已选模型：</span>
-                  {accountModels.length === 0 ? (
-                    <span>暂无</span>
-                  ) : (
-                    <div className="selected-model-list">
-                      {visibleModels.map((model) => (
-                        <button
-                          key={model.id}
-                          type="button"
-                          className="mini-pill-button"
-                          onClick={() => void handleRemoveGatewayModel(model.id, account.id)}
-                          disabled={removingModelId === model.id}
-                          title="移除模型"
-                        >
-                          <span>{model.display_name}</span>
-                          <span>{removingModelId === model.id ? "..." : "×"}</span>
-                        </button>
-                      ))}
-                      {accountModels.length > 5 ? (
-                        <button
-                          type="button"
-                          className="secondary-button compact-button"
-                          onClick={() => toggleSelectedModels(account.id)}
-                        >
-                          {expanded ? "收起" : `展开全部 ${accountModels.length} 个`}
-                        </button>
+                      <div className="gateway-account-card-header">
+                        <div className="gateway-account-card-main">
+                          <strong>
+                            {account.name}
+                            {accountFeedback[account.id] ? (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  color: accountFeedback[account.id].tone === "success" ? "#1f8f53" : "#b3392a",
+                                  fontSize: "0.9rem",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {accountFeedback[account.id].text}
+                              </span>
+                            ) : null}
+                          </strong>
+                          <span>{account.base_url}</span>
+                        </div>
+                        <div className="topbar-actions gateway-account-actions">
+                          <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
+                            {testingAccountId === account.id ? "测试中..." : "测试连接"}
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => void handleDiscoverModels(account.id)}>
+                            获取模型列表
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => void handleEdit(account.id)}>
+                            查看/编辑
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => void handleDelete(account.id)}>
+                            删除
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => toggleAccountDetails(account.id)}
+                          >
+                            {detailsExpanded ? "收起" : "展开"}
+                          </button>
+                        </div>
+                      </div>
+                      {detailsExpanded ? (
+                        <div className="gateway-account-details">
+                          <span>鉴权：{account.auth_type}</span>
+                          <span>协议：{account.protocol}</span>
+                          <span>健康状态：{healthLabels[account.health_status] ?? account.health_status}</span>
+                          {account.cooldown_until ? <span>冷却到：{account.cooldown_until}</span> : null}
+                          <div>
+                            <span>已选模型：</span>
+                            {accountModels.length === 0 ? (
+                              <span>暂无</span>
+                            ) : (
+                              <div className="selected-model-list">
+                                {visibleModels.map((model) => (
+                                  <button
+                                    key={model.id}
+                                    type="button"
+                                    className="mini-pill-button"
+                                    onClick={() => void handleRemoveGatewayModel(model.id, account.id)}
+                                    disabled={removingModelId === model.id}
+                                    title="移除模型"
+                                  >
+                                    <span>{model.display_name}</span>
+                                    <span>{removingModelId === model.id ? "..." : "×"}</span>
+                                  </button>
+                                ))}
+                                {accountModels.length > 5 ? (
+                                  <button
+                                    type="button"
+                                    className="secondary-button compact-button"
+                                    onClick={() => toggleSelectedModels(account.id)}
+                                  >
+                                    {selectedExpanded ? "收起" : `展开全部 ${accountModels.length} 个`}
+                                  </button>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       ) : null}
-                    </div>
-                  )}
-                </div>
-                <div className="topbar-actions">
-                  <button type="button" className="secondary-button" onClick={() => void handleTest(account.id)}>
-                    {testingAccountId === account.id ? "测试中..." : "测试连接"}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => void handleDiscoverModels(account.id)}>
-                    获取模型列表
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => void handleEdit(account.id)}>
-                    查看/编辑
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => void handleDelete(account.id)}>
-                    删除
-                  </button>
-                </div>
                     </>
                   );
                 })()}

@@ -371,6 +371,29 @@ button {
   line-height: 1.6;
 }
 
+.gateway-account-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.gateway-account-card-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gateway-account-actions {
+  justify-content: flex-end;
+}
+
+.gateway-account-details {
+  display: grid;
+  gap: 8px;
+}
+
 .provider-card {
   border: 1px solid rgba(19, 34, 56, 0.08);
   border-radius: 22px;
