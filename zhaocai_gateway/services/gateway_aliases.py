@@ -44,7 +44,9 @@ class GatewayAliasService:
         self,
         alias_id: int,
         *,
+        alias_key: str,
         display_name: str,
+        alias_type: str,
         enabled: bool,
         visibility: str,
         notes: str,
@@ -52,7 +54,9 @@ class GatewayAliasService:
         self._require_alias(alias_id)
         alias = self.store.update_gateway_alias(
             alias_id,
+            alias_key=alias_key.strip(),
             display_name=display_name.strip(),
+            alias_type=alias_type.strip(),
             enabled=enabled,
             visibility=visibility.strip() or "project",
             notes=notes.strip(),

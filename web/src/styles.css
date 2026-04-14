@@ -393,6 +393,15 @@ button {
   text-align: right;
 }
 
+.alias-target-summary {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(248, 250, 255, 0.92);
+}
+
 .provider-card-list {
   display: grid;
   gap: 16px;

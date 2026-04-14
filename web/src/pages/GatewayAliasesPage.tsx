@@ -31,7 +31,9 @@ export default function GatewayAliasesPage() {
   const [models, setModels] = useState<GatewayModel[]>([]);
   const [selectedAliasId, setSelectedAliasId] = useState<number | null>(null);
   const [targets, setTargets] = useState<EditableTarget[]>([]);
+  const [aliasTargetCounts, setAliasTargetCounts] = useState<Record<number, number>>({});
   const [message, setMessage] = useState("");
+  const [editingAliasId, setEditingAliasId] = useState<number | null>(null);
   const [aliasForm, setAliasForm] = useState({
     alias_key: "",
     display_name: "",
@@ -62,8 +64,12 @@ export default function GatewayAliasesPage() {
       api.getGatewayAliases(),
       api.getGatewayModels(),
     ]);
+    const countEntries = await Promise.all(
+      nextAliases.map(async (alias) => [alias.id, (await api.getGatewayAliasTargets(alias.id)).length] as const),
+    );
     setAliases(nextAliases);
     setModels(nextModels);
+    setAliasTargetCounts(Object.fromEntries(countEntries));
     if (selectedAliasId == null && nextAliases.length > 0) {
       setSelectedAliasId(nextAliases[0].id);
     } else if (selectedAliasId != null && !nextAliases.some((alias) => alias.id === selectedAliasId)) {
@@ -90,7 +96,17 @@ export default function GatewayAliasesPage() {
   async function handleCreateAlias(event: React.FormEvent) {
     event.preventDefault();
     setMessage("");
-    const alias = await api.createGatewayAlias(aliasForm);
+    const alias =
+      editingAliasId == null
+        ? await api.createGatewayAlias(aliasForm)
+        : await api.updateGatewayAlias(editingAliasId, {
+            alias_key: aliasForm.alias_key,
+            display_name: aliasForm.display_name,
+            alias_type: aliasForm.alias_type,
+            enabled: selectedAlias?.enabled ?? true,
+            visibility: aliasForm.visibility,
+            notes: aliasForm.notes,
+          });
     setAliasForm({
       alias_key: "",
       display_name: "",
@@ -98,15 +114,18 @@ export default function GatewayAliasesPage() {
       visibility: "project",
       notes: "",
     });
+    setEditingAliasId(null);
     await loadAll();
     setSelectedAliasId(alias.id);
-    setMessage("Gateway 别名已创建。");
+    setMessage(editingAliasId == null ? "Gateway 别名已创建。" : "Gateway 别名已更新。");
   }
 
   async function handleToggleAliasEnabled() {
     if (!selectedAlias) return;
     await api.updateGatewayAlias(selectedAlias.id, {
+      alias_key: selectedAlias.alias_key,
       display_name: selectedAlias.display_name,
+      alias_type: selectedAlias.alias_type,
       enabled: !selectedAlias.enabled,
       visibility: selectedAlias.visibility,
       notes: selectedAlias.notes,
@@ -121,9 +140,34 @@ export default function GatewayAliasesPage() {
     if (!confirmed) return;
     await api.deleteGatewayAlias(selectedAlias.id);
     setSelectedAliasId(null);
+    setEditingAliasId(null);
     setTargets([]);
     setMessage("Gateway 别名已删除。");
     await loadAll();
+  }
+
+  function handleEditAlias() {
+    if (!selectedAlias) return;
+    setEditingAliasId(selectedAlias.id);
+    setAliasForm({
+      alias_key: selectedAlias.alias_key,
+      display_name: selectedAlias.display_name,
+      alias_type: selectedAlias.alias_type,
+      visibility: selectedAlias.visibility,
+      notes: selectedAlias.notes,
+    });
+    setMessage("");
+  }
+
+  function handleCancelAliasEdit() {
+    setEditingAliasId(null);
+    setAliasForm({
+      alias_key: "",
+      display_name: "",
+      alias_type: "tier",
+      visibility: "project",
+      notes: "",
+    });
   }
 
   function updateTarget(localId: string, patch: Partial<EditableTarget>) {
@@ -205,7 +249,12 @@ export default function GatewayAliasesPage() {
           <textarea value={aliasForm.notes} onChange={(event) => setAliasForm((current) => ({ ...current, notes: event.target.value }))} />
         </label>
         <div className="topbar-actions">
-          <button type="submit">新增 Alias</button>
+          <button type="submit">{editingAliasId == null ? "新增 Alias" : "保存 Alias"}</button>
+          {editingAliasId != null ? (
+            <button type="button" className="secondary-button" onClick={handleCancelAliasEdit}>
+              取消编辑
+            </button>
+          ) : null}
         </div>
       </form>
 
@@ -234,7 +283,9 @@ export default function GatewayAliasesPage() {
                   >
                     <div className="gateway-alias-list-row">
                       <strong>{alias.display_name}</strong>
-                      <span className="gateway-alias-note">备注：{alias.notes || "暂无"}</span>
+                      <span className="gateway-alias-note">
+                        备注：{alias.notes || "暂无"} | Targets: {aliasTargetCounts[alias.id] ?? 0}
+                      </span>
                     </div>
                   </button>
                 </div>
@@ -249,12 +300,34 @@ export default function GatewayAliasesPage() {
             </div>
             {selectedAlias ? (
               <>
+                <div className="alias-target-summary">
+                  <strong>当前 Targets</strong>
+                  {targets.filter((target) => target.model_id).length === 0 ? (
+                    <span>暂无已配置 target</span>
+                  ) : (
+                    <div className="selected-model-list">
+                      {targets
+                        .filter((target) => target.model_id)
+                        .map((target) => {
+                          const option = modelOptions.find((item) => item.id === Number(target.model_id));
+                          return (
+                            <span key={target.local_id} className="mini-pill">
+                              {option ? `${option.label} · P${target.priority}` : `模型 #${target.model_id} · P${target.priority}`}
+                            </span>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleToggleAliasEnabled()}>
                     {selectedAlias.enabled ? "停用 Alias" : "启用 Alias"}
                   </button>
                   <button type="button" className="secondary-button" onClick={() => void handleDeleteAlias()}>
                     删除 Alias
+                  </button>
+                  <button type="button" className="secondary-button" onClick={handleEditAlias}>
+                    编辑 Alias
                   </button>
                 </div>
                 {targets.length === 0 ? <div className="empty-state">当前没有 target。</div> : null}

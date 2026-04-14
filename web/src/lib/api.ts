@@ -595,7 +595,9 @@ export const api = {
   async updateGatewayAlias(
     aliasId: number,
     payload: {
+      alias_key: string;
       display_name: string;
+      alias_type: string;
       enabled: boolean;
       visibility: string;
       notes: string;

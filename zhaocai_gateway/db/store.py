@@ -943,7 +943,9 @@ class SQLiteStore:
         self,
         alias_id: int,
         *,
+        alias_key: str,
         display_name: str,
+        alias_type: str,
         enabled: bool,
         visibility: str,
         notes: str,
@@ -951,7 +953,9 @@ class SQLiteStore:
         self.conn.execute(
             """
             UPDATE gateway_aliases
-            SET display_name = ?,
+            SET alias_key = ?,
+                display_name = ?,
+                alias_type = ?,
                 enabled = ?,
                 visibility = ?,
                 notes = ?,
@@ -959,7 +963,9 @@ class SQLiteStore:
             WHERE id = ?
             """,
             (
+                alias_key,
                 display_name,
+                alias_type,
                 int(enabled),
                 visibility,
                 notes,

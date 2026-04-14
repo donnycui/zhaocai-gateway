@@ -154,7 +154,9 @@ class GatewayAliasCreate(BaseModel):
 
 
 class GatewayAliasUpdate(BaseModel):
+    alias_key: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
+    alias_type: str = Field(min_length=1)
     enabled: bool = True
     visibility: str = "project"
     notes: str = ""
@@ -619,7 +621,9 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             return {
                 "alias": gateway_alias_service.update_alias(
                     alias_id,
+                    alias_key=payload.alias_key,
                     display_name=payload.display_name,
+                    alias_type=payload.alias_type,
                     enabled=payload.enabled,
                     visibility=payload.visibility,
                     notes=payload.notes,
