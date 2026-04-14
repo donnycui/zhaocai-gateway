@@ -345,6 +345,54 @@ button {
   font-size: 1rem;
 }
 
+.gateway-alias-list-card {
+  border-width: 2px;
+}
+
+.gateway-alias-list-card .device-card-button {
+  width: 100%;
+}
+
+.gateway-alias-list-card .device-card-button > span {
+  display: none;
+}
+
+.gateway-alias-list-card.selected {
+  box-shadow: 0 12px 24px rgba(19, 34, 56, 0.12);
+}
+
+.gateway-alias-list-card.selected.gateway-alias-enabled {
+  border-color: rgba(31, 143, 83, 0.58);
+}
+
+.gateway-alias-list-card.selected.gateway-alias-disabled {
+  border-color: rgba(179, 57, 42, 0.58);
+}
+
+.gateway-alias-enabled {
+  border-color: rgba(31, 143, 83, 0.22);
+  background: linear-gradient(135deg, rgba(31, 143, 83, 0.12), rgba(235, 250, 240, 0.92));
+}
+
+.gateway-alias-disabled {
+  border-color: rgba(179, 57, 42, 0.22);
+  background: linear-gradient(135deg, rgba(179, 57, 42, 0.12), rgba(253, 239, 237, 0.94));
+}
+
+.gateway-alias-list-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.gateway-alias-note {
+  color: #5f6f84;
+  font-size: 0.92rem;
+  text-align: right;
+}
+
 .provider-card-list {
   display: grid;
   gap: 16px;

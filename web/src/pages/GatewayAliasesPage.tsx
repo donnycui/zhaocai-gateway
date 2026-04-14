@@ -222,7 +222,7 @@ export default function GatewayAliasesPage() {
               {aliases.map((alias) => (
                 <div
                   key={alias.id}
-                  className={`device-card static-card gateway-alias-list-card ${alias.id === selectedAliasId ? "selected" : ""}`}
+                  className={`device-card static-card gateway-alias-list-card ${alias.enabled ? "gateway-alias-enabled" : "gateway-alias-disabled"} ${alias.id === selectedAliasId ? "selected" : ""}`}
                 >
                   <button
                     type="button"
@@ -232,11 +232,10 @@ export default function GatewayAliasesPage() {
                       setMessage("");
                     }}
                   >
-                    <strong>{alias.display_name}</strong>
-                    <span>{alias.notes || "暂无备注"}</span>
-                    <span className={alias.enabled ? "status-chip" : "mini-pill mini-pill-muted"}>
-                      {alias.enabled ? "启用" : "停用"}
-                    </span>
+                    <div className="gateway-alias-list-row">
+                      <strong>{alias.display_name}</strong>
+                      <span className="gateway-alias-note">备注：{alias.notes || "暂无"}</span>
+                    </div>
                   </button>
                 </div>
               ))}
