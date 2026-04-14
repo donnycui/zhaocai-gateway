@@ -41,16 +41,41 @@ export default function DevicesPage({
     return Array.from(groups.entries());
   }, [models]);
 
+  const modelById = useMemo(() => {
+    const next = new Map<number, Model>();
+    models.forEach((model) => next.set(model.id, model));
+    return next;
+  }, [models]);
+
+  const orderedSelectedModels = useMemo(
+    () => draftModelIds.map((modelId) => modelById.get(modelId)).filter((model): model is Model => Boolean(model)),
+    [draftModelIds, modelById],
+  );
+
   function toggleModel(modelId: number) {
     if (!selectedDevice) return;
     setDraftModelIds((current) => {
-      const next = new Set(current);
-      if (next.has(modelId)) {
-        next.delete(modelId);
-      } else {
-        next.add(modelId);
+      if (current.includes(modelId)) {
+        return current.filter((id) => id !== modelId);
       }
-      return Array.from(next);
+      return [...current, modelId];
+    });
+    setModelAssignmentDirty(true);
+    setModelAssignmentMessage("");
+  }
+
+  function moveModel(modelId: number, direction: -1 | 1) {
+    setDraftModelIds((current) => {
+      const index = current.indexOf(modelId);
+      if (index < 0) return current;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      const [model] = next.splice(index, 1);
+      next.splice(nextIndex, 0, model);
+      return next;
     });
     setModelAssignmentDirty(true);
     setModelAssignmentMessage("");
@@ -197,6 +222,44 @@ export default function DevicesPage({
             </button>
           </div>
           {modelAssignmentMessage ? <p className="inline-message">{modelAssignmentMessage}</p> : null}
+          <div className="selected-model-order">
+            <div className="panel-header" style={{ marginBottom: 0 }}>
+              <h3>已选模型顺序</h3>
+              <p>第 0 个模型会写入 `primary`，后面的模型依次写入 `fallbacks`。</p>
+            </div>
+            {orderedSelectedModels.length === 0 ? (
+              <div className="empty-state">当前还没有选中任何模型。</div>
+            ) : (
+              <div className="selected-model-order-list">
+                {orderedSelectedModels.map((model, index) => (
+                  <div key={model.id} className="selected-model-order-row">
+                    <div className="selected-model-order-main">
+                      <strong>{index}. {model.display_name}</strong>
+                      <span>{model.provider_name ?? `供应商 #${model.provider_id}`} / {model.upstream_model}</span>
+                    </div>
+                    <div className="topbar-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={index === 0}
+                        onClick={() => moveModel(model.id, -1)}
+                      >
+                        上移
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={index === orderedSelectedModels.length - 1}
+                        onClick={() => moveModel(model.id, 1)}
+                      >
+                        下移
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="checkbox-grid">
             {providerGroups.map(([providerName, providerModels]) => {
               const expanded = expandedProviders[providerName] ?? false;

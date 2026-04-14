@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE TABLE IF NOT EXISTS device_model_bindings (
     device_id INTEGER NOT NULL,
     model_id INTEGER NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (device_id, model_id),
     FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE,
     FOREIGN KEY(model_id) REFERENCES models(id) ON DELETE CASCADE

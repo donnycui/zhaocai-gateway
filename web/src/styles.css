@@ -1220,6 +1220,33 @@ button {
   align-items: center;
 }
 
+.selected-model-order {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.selected-model-order-list {
+  display: grid;
+  gap: 10px;
+}
+
+.selected-model-order-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(248, 250, 255, 0.88);
+}
+
+.selected-model-order-main {
+  display: grid;
+  gap: 4px;
+}
+
 .compact-button {
   padding: 7px 10px;
   border-radius: 999px;

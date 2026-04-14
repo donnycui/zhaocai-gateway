@@ -53,6 +53,7 @@ class SQLiteStore:
             "preserve_models_json",
             "ALTER TABLE devices ADD COLUMN preserve_models_json TEXT NOT NULL DEFAULT '[]'",
         )
+        self._ensure_device_binding_priority_column()
         self.conn.commit()
 
     def _ensure_model_column(self, column: str, ddl: str) -> None:
@@ -65,6 +66,37 @@ class SQLiteStore:
         columns = [row[1] for row in self.conn.execute("PRAGMA table_info(devices)").fetchall()]
         if column not in columns:
             self.conn.execute(ddl)
+            self.conn.commit()
+
+    def _ensure_device_binding_priority_column(self) -> None:
+        columns = [row[1] for row in self.conn.execute("PRAGMA table_info(device_model_bindings)").fetchall()]
+        if "priority" not in columns:
+            self.conn.execute(
+                "ALTER TABLE device_model_bindings ADD COLUMN priority INTEGER NOT NULL DEFAULT 0"
+            )
+            device_rows = self.conn.execute(
+                "SELECT DISTINCT device_id FROM device_model_bindings ORDER BY device_id ASC"
+            ).fetchall()
+            for row in device_rows:
+                device_id = int(row["device_id"])
+                model_rows = self.conn.execute(
+                    """
+                    SELECT model_id
+                    FROM device_model_bindings
+                    WHERE device_id = ?
+                    ORDER BY model_id ASC
+                    """,
+                    (device_id,),
+                ).fetchall()
+                for priority, model_row in enumerate(model_rows):
+                    self.conn.execute(
+                        """
+                        UPDATE device_model_bindings
+                        SET priority = ?
+                        WHERE device_id = ? AND model_id = ?
+                        """,
+                        (priority, device_id, int(model_row["model_id"])),
+                    )
             self.conn.commit()
 
     @staticmethod
@@ -591,7 +623,7 @@ class SQLiteStore:
             JOIN models m ON m.id = dmb.model_id
             JOIN providers p ON p.id = m.provider_id
             WHERE dmb.device_id = ?
-            ORDER BY m.id ASC
+            ORDER BY dmb.priority ASC, m.id ASC
             """,
             (device_id,),
         ).fetchall()
@@ -1553,14 +1585,19 @@ class SQLiteStore:
             (device_id,),
         )
         self.conn.executemany(
-            "INSERT INTO device_model_bindings (device_id, model_id) VALUES (?, ?)",
-            [(device_id, model_id) for model_id in model_ids],
+            "INSERT INTO device_model_bindings (device_id, model_id, priority) VALUES (?, ?, ?)",
+            [(device_id, model_id, priority) for priority, model_id in enumerate(model_ids)],
         )
         self.conn.commit()
 
     def get_device_model_ids(self, device_id: int) -> list[int]:
         rows = self.conn.execute(
-            "SELECT model_id FROM device_model_bindings WHERE device_id = ? ORDER BY model_id ASC",
+            """
+            SELECT model_id
+            FROM device_model_bindings
+            WHERE device_id = ?
+            ORDER BY priority ASC, model_id ASC
+            """,
             (device_id,),
         ).fetchall()
         return [int(row["model_id"]) for row in rows]
