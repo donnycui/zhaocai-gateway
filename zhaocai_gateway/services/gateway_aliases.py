@@ -59,6 +59,10 @@ class GatewayAliasService:
         )
         return asdict(alias)
 
+    def delete_alias(self, alias_id: int) -> None:
+        self._require_alias(alias_id)
+        self.store.delete_gateway_alias(alias_id)
+
     def list_targets(self, alias_id: int) -> list[dict]:
         self._require_alias(alias_id)
         return [asdict(target) for target in self.store.list_gateway_alias_targets(alias_id)]

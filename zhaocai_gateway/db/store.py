@@ -972,6 +972,10 @@ class SQLiteStore:
             raise RuntimeError("Failed to update gateway alias")
         return alias
 
+    def delete_gateway_alias(self, alias_id: int) -> None:
+        self.conn.execute("DELETE FROM gateway_aliases WHERE id = ?", (alias_id,))
+        self.conn.commit()
+
     def list_gateway_alias_targets(self, alias_id: int) -> list[GatewayAliasTarget]:
         rows = self.conn.execute(
             """

@@ -337,6 +337,14 @@ button {
   gap: 12px;
 }
 
+.gateway-alias-list-card .device-card-button {
+  align-items: flex-start;
+}
+
+.gateway-alias-list-card strong {
+  font-size: 1rem;
+}
+
 .provider-card-list {
   display: grid;
   gap: 16px;

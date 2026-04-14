@@ -608,6 +608,12 @@ export const api = {
     return result.alias;
   },
 
+  async deleteGatewayAlias(aliasId: number): Promise<{ ok: boolean; alias_id: number }> {
+    return request(`/admin/gateway/aliases/${aliasId}`, {
+      method: "DELETE",
+    });
+  },
+
   async getGatewayAliasTargets(aliasId: number): Promise<GatewayAliasTarget[]> {
     const result = await request<{ targets: GatewayAliasTarget[] }>(`/admin/gateway/aliases/${aliasId}/targets`);
     return result.targets;

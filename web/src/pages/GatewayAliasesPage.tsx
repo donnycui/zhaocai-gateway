@@ -115,6 +115,17 @@ export default function GatewayAliasesPage() {
     setMessage(selectedAlias.enabled ? "Gateway 别名已停用。" : "Gateway 别名已启用。");
   }
 
+  async function handleDeleteAlias() {
+    if (!selectedAlias) return;
+    const confirmed = window.confirm(`确认删除 alias ${selectedAlias.display_name} 吗？`);
+    if (!confirmed) return;
+    await api.deleteGatewayAlias(selectedAlias.id);
+    setSelectedAliasId(null);
+    setTargets([]);
+    setMessage("Gateway 别名已删除。");
+    await loadAll();
+  }
+
   function updateTarget(localId: string, patch: Partial<EditableTarget>) {
     setTargets((current) =>
       current.map((target) => (target.local_id === localId ? { ...target, ...patch } : target)),
@@ -211,7 +222,7 @@ export default function GatewayAliasesPage() {
               {aliases.map((alias) => (
                 <div
                   key={alias.id}
-                  className={`device-card static-card ${alias.id === selectedAliasId ? "selected" : ""}`}
+                  className={`device-card static-card gateway-alias-list-card ${alias.id === selectedAliasId ? "selected" : ""}`}
                 >
                   <button
                     type="button"
@@ -222,8 +233,10 @@ export default function GatewayAliasesPage() {
                     }}
                   >
                     <strong>{alias.display_name}</strong>
-                    <span>{alias.alias_key}</span>
-                    <span>{alias.enabled ? "启用中" : "已停用"}</span>
+                    <span>{alias.notes || "暂无备注"}</span>
+                    <span className={alias.enabled ? "status-chip" : "mini-pill mini-pill-muted"}>
+                      {alias.enabled ? "启用" : "停用"}
+                    </span>
                   </button>
                 </div>
               ))}
@@ -240,6 +253,9 @@ export default function GatewayAliasesPage() {
                 <div className="topbar-actions">
                   <button type="button" className="secondary-button" onClick={() => void handleToggleAliasEnabled()}>
                     {selectedAlias.enabled ? "停用 Alias" : "启用 Alias"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleDeleteAlias()}>
+                    删除 Alias
                   </button>
                 </div>
                 {targets.length === 0 ? <div className="empty-state">当前没有 target。</div> : null}

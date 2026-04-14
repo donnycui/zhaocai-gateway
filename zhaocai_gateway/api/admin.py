@@ -628,6 +628,18 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    @router.delete("/gateway/aliases/{alias_id}")
+    def delete_gateway_alias(
+        alias_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            gateway_alias_service.delete_alias(alias_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "alias_id": alias_id}
+
     @router.get("/gateway/aliases/{alias_id}/targets")
     def list_gateway_alias_targets(
         alias_id: int,
