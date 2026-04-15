@@ -17,7 +17,7 @@ function toEditableTarget(target?: GatewayAliasTarget): EditableTarget {
   return {
     local_id: `${target?.id ?? "new"}-${crypto.randomUUID()}`,
     model_id: target?.model_id?.toString() ?? "",
-    priority: target?.priority?.toString() ?? "",
+    priority: target?.priority?.toString() ?? "10",
     enabled: target?.enabled ?? true,
     fallback_on_timeout: target?.fallback_on_timeout ?? true,
     fallback_on_5xx: target?.fallback_on_5xx ?? true,
@@ -33,6 +33,9 @@ export default function GatewayAliasesPage() {
   const [targets, setTargets] = useState<EditableTarget[]>([]);
   const [aliasTargetCounts, setAliasTargetCounts] = useState<Record<number, number>>({});
   const [targetsLoading, setTargetsLoading] = useState(false);
+  const [savingTargets, setSavingTargets] = useState(false);
+  const [targetsMessage, setTargetsMessage] = useState("");
+  const [targetsMessageTone, setTargetsMessageTone] = useState<"success" | "error">("success");
   const [message, setMessage] = useState("");
   const [editingAliasId, setEditingAliasId] = useState<number | null>(null);
   const [aliasForm, setAliasForm] = useState({
@@ -91,12 +94,14 @@ export default function GatewayAliasesPage() {
     async function loadTargets() {
       if (selectedAliasId == null) {
         setTargets([]);
+        setTargetsMessage("");
         return;
       }
       setTargetsLoading(true);
       try {
         const nextTargets = await api.getGatewayAliasTargets(selectedAliasId);
         setTargets(nextTargets.length > 0 ? nextTargets.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
+        setTargetsMessage("");
       } finally {
         setTargetsLoading(false);
       }
@@ -188,7 +193,16 @@ export default function GatewayAliasesPage() {
   }
 
   function addTargetRow() {
-    setTargets((current) => [...current, toEditableTarget()]);
+    setTargets((current) => {
+      const nextPriority = (current.filter((target) => target.model_id).length + 1) * 10;
+      return [
+        ...current,
+        {
+          ...toEditableTarget(),
+          priority: String(nextPriority),
+        },
+      ];
+    });
   }
 
   function removeTargetRow(localId: string) {
@@ -197,6 +211,7 @@ export default function GatewayAliasesPage() {
 
   async function handleSaveTargets() {
     if (!selectedAlias) return;
+    setTargetsMessage("");
     const payload = targets
       .filter((target) => target.model_id && target.priority)
       .map((target) => {
@@ -217,18 +232,28 @@ export default function GatewayAliasesPage() {
       });
 
     if (payload.length === 0) {
-      setMessage("至少配置一个有效的 target 后再保存。");
+      setTargetsMessageTone("error");
+      setTargetsMessage("至少配置一个有效的 target 后再保存。");
       return;
     }
 
-    const saved = await api.replaceGatewayAliasTargets(selectedAlias.id, payload);
-    setTargets(saved.length > 0 ? saved.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
-    setAliasTargetCounts((current) => ({
-      ...current,
-      [selectedAlias.id]: saved.length,
-    }));
-    setMessage("Gateway alias targets 已保存。");
-    await loadAll();
+    setSavingTargets(true);
+    try {
+      const saved = await api.replaceGatewayAliasTargets(selectedAlias.id, payload);
+      setTargets(saved.length > 0 ? saved.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
+      setAliasTargetCounts((current) => ({
+        ...current,
+        [selectedAlias.id]: saved.length,
+      }));
+      setTargetsMessageTone("success");
+      setTargetsMessage("Gateway alias targets 已保存。");
+      await loadAll();
+    } catch (error) {
+      setTargetsMessageTone("error");
+      setTargetsMessage(error instanceof Error ? error.message : "保存 Targets 失败。");
+    } finally {
+      setSavingTargets(false);
+    }
   }
 
   return (
@@ -408,10 +433,15 @@ export default function GatewayAliasesPage() {
                   <button type="button" className="secondary-button" onClick={addTargetRow}>
                     新增 Target
                   </button>
-                  <button type="button" onClick={() => void handleSaveTargets()}>
-                    保存 Targets
+                  <button type="button" disabled={savingTargets} onClick={() => void handleSaveTargets()}>
+                    {savingTargets ? "保存中..." : "保存 Targets"}
                   </button>
                 </div>
+                {targetsMessage ? (
+                  <p className={targetsMessageTone === "success" ? "inline-message" : "error-inline-message"}>
+                    {targetsMessage}
+                  </p>
+                ) : null}
               </>
             ) : (
               <div className="empty-state">请先选择一个 alias。</div>
