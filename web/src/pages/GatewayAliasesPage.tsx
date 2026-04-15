@@ -205,6 +205,11 @@ export default function GatewayAliasesPage() {
         };
       });
 
+    if (payload.length === 0) {
+      setMessage("至少配置一个有效的 target 后再保存。");
+      return;
+    }
+
     const saved = await api.replaceGatewayAliasTargets(selectedAlias.id, payload);
     setTargets(saved.length > 0 ? saved.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
     setMessage("Gateway alias targets 已保存。");

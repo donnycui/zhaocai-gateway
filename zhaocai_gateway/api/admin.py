@@ -671,6 +671,8 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             }
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     @router.get("/gateway/client-keys")
     def list_gateway_client_keys(x_admin_token: str | None = Header(default=None)) -> dict:

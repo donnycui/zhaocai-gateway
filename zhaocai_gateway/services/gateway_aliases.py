@@ -73,6 +73,8 @@ class GatewayAliasService:
 
     def replace_targets(self, alias_id: int, *, targets: list[dict]) -> list[dict]:
         self._require_alias(alias_id)
+        if not targets:
+            raise RuntimeError("至少配置一个有效的 target 后再保存。")
         normalized_targets: list[dict] = []
         for target in targets:
             account_id = int(target["account_id"])
@@ -99,6 +101,8 @@ class GatewayAliasService:
             )
 
         ordered = sorted(normalized_targets, key=lambda item: (item["priority"], item["account_id"], item["model_id"]))
+        if not ordered:
+            raise RuntimeError("至少配置一个有效的 target 后再保存。")
         return [asdict(target) for target in self.store.replace_gateway_alias_targets(alias_id, targets=ordered)]
 
     def list_models(self) -> list[dict]:
