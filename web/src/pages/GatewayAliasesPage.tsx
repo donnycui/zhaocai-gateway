@@ -32,6 +32,7 @@ export default function GatewayAliasesPage() {
   const [selectedAliasId, setSelectedAliasId] = useState<number | null>(null);
   const [targets, setTargets] = useState<EditableTarget[]>([]);
   const [aliasTargetCounts, setAliasTargetCounts] = useState<Record<number, number>>({});
+  const [targetsLoading, setTargetsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingAliasId, setEditingAliasId] = useState<number | null>(null);
   const [aliasForm, setAliasForm] = useState({
@@ -64,17 +65,22 @@ export default function GatewayAliasesPage() {
       api.getGatewayAliases(),
       api.getGatewayModels(),
     ]);
-    const countEntries = await Promise.all(
-      nextAliases.map(async (alias) => [alias.id, (await api.getGatewayAliasTargets(alias.id)).length] as const),
-    );
     setAliases(nextAliases);
     setModels(nextModels);
-    setAliasTargetCounts(Object.fromEntries(countEntries));
     if (selectedAliasId == null && nextAliases.length > 0) {
       setSelectedAliasId(nextAliases[0].id);
     } else if (selectedAliasId != null && !nextAliases.some((alias) => alias.id === selectedAliasId)) {
       setSelectedAliasId(nextAliases[0]?.id ?? null);
     }
+    const nextCounts: Record<number, number> = {};
+    for (const alias of nextAliases) {
+      try {
+        nextCounts[alias.id] = (await api.getGatewayAliasTargets(alias.id)).length;
+      } catch {
+        nextCounts[alias.id] = 0;
+      }
+    }
+    setAliasTargetCounts(nextCounts);
   }
 
   useEffect(() => {
@@ -87,8 +93,13 @@ export default function GatewayAliasesPage() {
         setTargets([]);
         return;
       }
-      const nextTargets = await api.getGatewayAliasTargets(selectedAliasId);
-      setTargets(nextTargets.length > 0 ? nextTargets.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
+      setTargetsLoading(true);
+      try {
+        const nextTargets = await api.getGatewayAliasTargets(selectedAliasId);
+        setTargets(nextTargets.length > 0 ? nextTargets.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
+      } finally {
+        setTargetsLoading(false);
+      }
     }
     void loadTargets();
   }, [selectedAliasId]);
@@ -212,6 +223,10 @@ export default function GatewayAliasesPage() {
 
     const saved = await api.replaceGatewayAliasTargets(selectedAlias.id, payload);
     setTargets(saved.length > 0 ? saved.map((target) => toEditableTarget(target)) : [toEditableTarget()]);
+    setAliasTargetCounts((current) => ({
+      ...current,
+      [selectedAlias.id]: saved.length,
+    }));
     setMessage("Gateway alias targets 已保存。");
     await loadAll();
   }
@@ -307,7 +322,9 @@ export default function GatewayAliasesPage() {
               <>
                 <div className="alias-target-summary">
                   <strong>当前 Targets</strong>
-                  {targets.filter((target) => target.model_id).length === 0 ? (
+                  {targetsLoading ? (
+                    <span>正在加载 target...</span>
+                  ) : targets.filter((target) => target.model_id).length === 0 ? (
                     <span>暂无已配置 target</span>
                   ) : (
                     <div className="selected-model-list">
