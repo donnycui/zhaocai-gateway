@@ -30,6 +30,8 @@ export default function DevicesPage({
   const [preserveModelsText, setPreserveModelsText] = useState("");
   const [preserveMessage, setPreserveMessage] = useState("");
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
+  const [draggingModelId, setDraggingModelId] = useState<number | null>(null);
+  const [dragOverModelId, setDragOverModelId] = useState<number | null>(null);
   const providerGroups = useMemo(() => {
     const groups = new Map<string, Model[]>();
     models.forEach((model) => {
@@ -79,6 +81,40 @@ export default function DevicesPage({
     });
     setModelAssignmentDirty(true);
     setModelAssignmentMessage("");
+  }
+
+  function reorderModel(draggedModelId: number, targetModelId: number) {
+    setDraftModelIds((current) => {
+      const fromIndex = current.indexOf(draggedModelId);
+      const toIndex = current.indexOf(targetModelId);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        return current;
+      }
+      const next = [...current];
+      const [dragged] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, dragged);
+      return next;
+    });
+    setModelAssignmentDirty(true);
+    setModelAssignmentMessage("");
+  }
+
+  function handleDragStart(modelId: number) {
+    setDraggingModelId(modelId);
+    setDragOverModelId(null);
+  }
+
+  function handleDragEnd() {
+    setDraggingModelId(null);
+    setDragOverModelId(null);
+  }
+
+  function handleDropOnModel(targetModelId: number) {
+    if (draggingModelId == null) {
+      return;
+    }
+    reorderModel(draggingModelId, targetModelId);
+    handleDragEnd();
   }
 
   async function loadPreview() {
@@ -232,7 +268,28 @@ export default function DevicesPage({
             ) : (
               <div className="selected-model-order-list">
                 {orderedSelectedModels.map((model, index) => (
-                  <div key={model.id} className="selected-model-order-row">
+                  <div
+                    key={model.id}
+                    className={`selected-model-order-row ${draggingModelId === model.id ? "is-dragging" : ""} ${dragOverModelId === model.id ? "is-drag-over" : ""}`}
+                    draggable
+                    onDragStart={() => handleDragStart(model.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (draggingModelId != null && draggingModelId !== model.id) {
+                        setDragOverModelId(model.id);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverModelId === model.id) {
+                        setDragOverModelId(null);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      handleDropOnModel(model.id);
+                    }}
+                  >
                     <div className="selected-model-order-main">
                       <strong>{index}. {model.display_name}</strong>
                       <span>{model.provider_name ?? `供应商 #${model.provider_id}`} / {model.upstream_model}</span>

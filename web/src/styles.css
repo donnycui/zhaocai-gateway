@@ -1242,6 +1242,15 @@ button {
   background: rgba(248, 250, 255, 0.88);
 }
 
+.selected-model-order-row.is-dragging {
+  opacity: 0.55;
+}
+
+.selected-model-order-row.is-drag-over {
+  border-color: rgba(18, 121, 185, 0.42);
+  box-shadow: 0 0 0 2px rgba(18, 121, 185, 0.12);
+}
+
 .selected-model-order-main {
   display: grid;
   gap: 4px;
