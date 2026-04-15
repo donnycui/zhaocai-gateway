@@ -51,6 +51,11 @@ export default function GatewayAliasesPage() {
     [aliases, selectedAliasId],
   );
 
+  const labelSorter = useMemo(
+    () => new Intl.Collator("zh-Hans-CN", { numeric: true, sensitivity: "base" }),
+    [],
+  );
+
   const modelOptions = useMemo(
     () =>
       models
@@ -59,8 +64,9 @@ export default function GatewayAliasesPage() {
           id: model.id,
           account_id: model.account_id,
           label: `${model.account_name ?? `账号 #${model.account_id}`} / ${model.display_name} / ${model.upstream_model}`,
-        })),
-    [models],
+        }))
+        .sort((left, right) => labelSorter.compare(left.label, right.label)),
+    [labelSorter, models],
   );
 
   async function loadAll() {
