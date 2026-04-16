@@ -143,6 +143,8 @@ export default function MediaTemplateEditorPage({
           <span>Template Type</span>
           <select value={form.template_type} onChange={(event) => setForm((current) => ({ ...current, template_type: event.target.value }))}>
             <option value="openai_images">openai_images</option>
+            <option value="openai_images_edits">openai_images_edits</option>
+            <option value="openai_videos">openai_videos</option>
             <option value="gemini_generate_content">gemini_generate_content</option>
             <option value="bizyair_webapp">bizyair_webapp</option>
             <option value="siliconflow_tts">siliconflow_tts</option>

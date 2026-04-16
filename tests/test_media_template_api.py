@@ -153,3 +153,68 @@ def test_validate_media_template_rejects_unknown_provider():
     payload = response.json()
     assert payload["ok"] is False
     assert "provider_id does not exist" in payload["errors"]
+
+
+def test_validate_media_template_accepts_openai_edit_and_video_types():
+    client = create_test_client()
+    provider = client.post(
+        "/admin/media/providers",
+        headers=admin_headers(),
+        json={
+            "name": "grok-media",
+            "base_url": "http://127.0.0.1:8000/v1",
+            "auth_type": "bearer",
+            "api_key": "sk-test",
+            "notes": "",
+        },
+    ).json()["provider"]
+
+    edit_response = client.post(
+        "/admin/media/templates/validate",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider["id"],
+            "model_key": "image-edit/grok/imagine-edit",
+            "name": "Grok Imagine Image Edit",
+            "capability": "image_edit",
+            "template_type": "openai_images_edits",
+            "upstream_model": "grok-imagine-image-edit",
+            "ui_group": "image",
+            "ui_label": "Grok Imagine Image Edit",
+            "ui_description": "",
+            "ui_badge": "grok",
+            "ui_order": 10,
+            "input_schema_json": {"prompt": {"type": "string", "required": True}},
+            "request_template_json": {"endpoint": "/images/edits"},
+            "response_mapping_json": {"result_url_path": "$.data[0].url"},
+            "defaults_json": {"size": "1024x1024"},
+            "enabled": True,
+        },
+    )
+    assert edit_response.status_code == 200
+    assert edit_response.json()["ok"] is True
+
+    video_response = client.post(
+        "/admin/media/templates/validate",
+        headers=admin_headers(),
+        json={
+            "provider_id": provider["id"],
+            "model_key": "video/grok/imagine-video",
+            "name": "Grok Imagine Video",
+            "capability": "image_to_video",
+            "template_type": "openai_videos",
+            "upstream_model": "grok-imagine-video",
+            "ui_group": "video",
+            "ui_label": "Grok Imagine Video",
+            "ui_description": "",
+            "ui_badge": "grok",
+            "ui_order": 20,
+            "input_schema_json": {"prompt": {"type": "string", "required": True}},
+            "request_template_json": {"create": {"endpoint": "/videos"}},
+            "response_mapping_json": {"create_video_id_path": "$.id"},
+            "defaults_json": {"size": "720x1280"},
+            "enabled": True,
+        },
+    )
+    assert video_response.status_code == 200
+    assert video_response.json()["ok"] is True

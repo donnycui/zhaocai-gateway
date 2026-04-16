@@ -7,6 +7,8 @@ from zhaocai_gateway.db.store import SQLiteStore
 ALLOWED_MEDIA_CAPABILITIES = {"image", "image_edit", "image_to_video", "tts"}
 ALLOWED_TEMPLATE_TYPES = {
     "openai_images",
+    "openai_images_edits",
+    "openai_videos",
     "gemini_generate_content",
     "bizyair_webapp",
     "siliconflow_tts",
