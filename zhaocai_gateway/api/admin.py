@@ -196,6 +196,15 @@ class MediaProviderCreate(BaseModel):
     notes: str = ""
 
 
+class MediaProviderUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    auth_type: str = Field(min_length=1)
+    api_key: str = ""
+    enabled: bool = True
+    notes: str = ""
+
+
 class MediaTemplateCreate(BaseModel):
     provider_id: int
     model_key: str = Field(min_length=1)
@@ -716,6 +725,17 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"providers": media_provider_service.list()}
 
+    @router.get("/media/providers/{provider_id}")
+    def get_media_provider(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        provider = media_provider_service.get(provider_id)
+        if provider is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media provider not found")
+        return {"provider": provider}
+
     @router.post("/media/providers")
     def create_media_provider(
         payload: MediaProviderCreate,
@@ -731,6 +751,40 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
                 notes=payload.notes,
             )
         }
+
+    @router.patch("/media/providers/{provider_id}")
+    def update_media_provider(
+        provider_id: int,
+        payload: MediaProviderUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "provider": media_provider_service.update(
+                    provider_id,
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    auth_type=payload.auth_type,
+                    api_key=payload.api_key,
+                    enabled=payload.enabled,
+                    notes=payload.notes,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.delete("/media/providers/{provider_id}")
+    def delete_media_provider(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            media_provider_service.delete(provider_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "provider_id": provider_id}
 
     @router.get("/media/templates")
     def list_media_templates(x_admin_token: str | None = Header(default=None)) -> dict:

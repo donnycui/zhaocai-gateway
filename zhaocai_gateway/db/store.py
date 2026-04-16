@@ -1229,6 +1229,40 @@ class SQLiteStore:
         ).fetchall()
         return [self._row_to_media_provider(row) for row in rows]
 
+    def update_media_provider(
+        self,
+        provider_id: int,
+        *,
+        name: str,
+        base_url: str,
+        auth_type: str,
+        api_key_encrypted: str,
+        enabled: bool,
+        notes: str,
+    ) -> MediaProvider:
+        self.conn.execute(
+            """
+            UPDATE media_providers
+            SET name = ?,
+                base_url = ?,
+                auth_type = ?,
+                api_key_encrypted = ?,
+                enabled = ?,
+                notes = ?
+            WHERE id = ?
+            """,
+            (name, base_url, auth_type, api_key_encrypted, int(enabled), notes, provider_id),
+        )
+        self.conn.commit()
+        provider = self.get_media_provider(provider_id)
+        if provider is None:
+            raise RuntimeError("Failed to update media provider")
+        return provider
+
+    def delete_media_provider(self, provider_id: int) -> None:
+        self.conn.execute("DELETE FROM media_providers WHERE id = ?", (provider_id,))
+        self.conn.commit()
+
     def create_media_template(
         self,
         *,

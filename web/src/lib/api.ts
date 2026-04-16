@@ -677,6 +677,11 @@ export const api = {
     return result.providers;
   },
 
+  async getMediaProvider(providerId: number): Promise<MediaProvider> {
+    const result = await request<{ provider: MediaProvider }>(`/admin/media/providers/${providerId}`);
+    return result.provider;
+  },
+
   async createMediaProvider(payload: {
     name: string;
     base_url: string;
@@ -689,6 +694,30 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return result.provider;
+  },
+
+  async updateMediaProvider(
+    providerId: number,
+    payload: {
+      name: string;
+      base_url: string;
+      auth_type: string;
+      api_key: string;
+      enabled: boolean;
+      notes: string;
+    },
+  ): Promise<MediaProvider> {
+    const result = await request<{ provider: MediaProvider }>(`/admin/media/providers/${providerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.provider;
+  },
+
+  async deleteMediaProvider(providerId: number): Promise<{ ok: boolean; provider_id: number }> {
+    return request(`/admin/media/providers/${providerId}`, {
+      method: "DELETE",
+    });
   },
 
   async getMediaTemplates(): Promise<MediaTemplate[]> {
