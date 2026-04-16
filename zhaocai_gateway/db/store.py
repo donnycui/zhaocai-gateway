@@ -54,6 +54,15 @@ class SQLiteStore:
             "ALTER TABLE devices ADD COLUMN preserve_models_json TEXT NOT NULL DEFAULT '[]'",
         )
         self._ensure_device_binding_priority_column()
+        self._ensure_media_template_column("ui_group", "ALTER TABLE media_templates ADD COLUMN ui_group TEXT NOT NULL DEFAULT ''")
+        self._ensure_media_template_column("ui_label", "ALTER TABLE media_templates ADD COLUMN ui_label TEXT NOT NULL DEFAULT ''")
+        self._ensure_media_template_column("ui_description", "ALTER TABLE media_templates ADD COLUMN ui_description TEXT NOT NULL DEFAULT ''")
+        self._ensure_media_template_column("ui_badge", "ALTER TABLE media_templates ADD COLUMN ui_badge TEXT NOT NULL DEFAULT ''")
+        self._ensure_media_template_column("ui_order", "ALTER TABLE media_templates ADD COLUMN ui_order INTEGER NOT NULL DEFAULT 0")
+        self._ensure_media_template_column("input_schema_json", "ALTER TABLE media_templates ADD COLUMN input_schema_json TEXT NOT NULL DEFAULT '{}'")
+        self._ensure_media_template_column("request_template_json", "ALTER TABLE media_templates ADD COLUMN request_template_json TEXT NOT NULL DEFAULT '{}'")
+        self._ensure_media_template_column("response_mapping_json", "ALTER TABLE media_templates ADD COLUMN response_mapping_json TEXT NOT NULL DEFAULT '{}'")
+        self._ensure_media_template_column("defaults_json", "ALTER TABLE media_templates ADD COLUMN defaults_json TEXT NOT NULL DEFAULT '{}'")
         self.conn.commit()
 
     def _ensure_model_column(self, column: str, ddl: str) -> None:
@@ -64,6 +73,12 @@ class SQLiteStore:
 
     def _ensure_device_column(self, column: str, ddl: str) -> None:
         columns = [row[1] for row in self.conn.execute("PRAGMA table_info(devices)").fetchall()]
+        if column not in columns:
+            self.conn.execute(ddl)
+            self.conn.commit()
+
+    def _ensure_media_template_column(self, column: str, ddl: str) -> None:
+        columns = [row[1] for row in self.conn.execute("PRAGMA table_info(media_templates)").fetchall()]
         if column not in columns:
             self.conn.execute(ddl)
             self.conn.commit()

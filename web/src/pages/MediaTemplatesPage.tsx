@@ -7,16 +7,31 @@ export default function MediaTemplatesPage() {
   const [providers, setProviders] = useState<MediaProvider[]>([]);
   const [templates, setTemplates] = useState<MediaTemplate[]>([]);
   const [catalog, setCatalog] = useState<MediaCatalogItem[]>([]);
+  const [message, setMessage] = useState("");
 
   async function loadAll() {
-    const [nextProviders, nextTemplates, nextCatalog] = await Promise.all([
+    const [providersResult, templatesResult, catalogResult] = await Promise.allSettled([
       api.getMediaProviders(),
       api.getMediaTemplates(),
       api.getMediaCatalog(),
     ]);
-    setProviders(nextProviders);
-    setTemplates(nextTemplates);
-    setCatalog(nextCatalog);
+    if (providersResult.status === "fulfilled") {
+      setProviders(providersResult.value);
+    }
+    if (templatesResult.status === "fulfilled") {
+      setTemplates(templatesResult.value);
+    } else {
+      setTemplates([]);
+    }
+    if (catalogResult.status === "fulfilled") {
+      setCatalog(catalogResult.value);
+    } else {
+      setCatalog([]);
+    }
+    const errors = [templatesResult, catalogResult]
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => (result.reason instanceof Error ? result.reason.message : "Media 数据加载失败"));
+    setMessage(errors.join(" / "));
   }
 
   useEffect(() => {
@@ -26,6 +41,7 @@ export default function MediaTemplatesPage() {
   return (
     <section className="page">
       <MediaTemplateEditorPage providers={providers} onCreated={async () => loadAll()} />
+      {message ? <p className="error-inline-message">{message}</p> : null}
 
       <div className="panel placeholder-panel">
         <div className="panel-header" style={{ marginBottom: 0 }}>
