@@ -696,6 +696,112 @@ button {
   gap: 14px;
 }
 
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: #6b7788;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.builder-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  border-radius: 18px;
+  background: rgba(248, 251, 255, 0.82);
+}
+
+.builder-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.builder-card-header strong {
+  font-size: 1rem;
+}
+
+.builder-card-header span {
+  color: #6b7788;
+  font-size: 0.9rem;
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.builder-subsection {
+  display: grid;
+  gap: 14px;
+}
+
+.builder-list {
+  display: grid;
+  gap: 12px;
+}
+
+.builder-list-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.choice-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.choice-chip {
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(19, 34, 56, 0.06);
+  color: #41546d;
+  border: 1px solid transparent;
+}
+
+.choice-chip.selected {
+  background: rgba(18, 121, 185, 0.12);
+  color: #145b88;
+  border-color: rgba(18, 121, 185, 0.22);
+}
+
+.template-mode-toggle {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.template-mode-toggle .secondary-button.active {
+  background: rgba(18, 121, 185, 0.12);
+  color: #145b88;
+  border-color: rgba(18, 121, 185, 0.22);
+}
+
+.json-editor-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row.split {
+  justify-content: space-between;
+}
+
 .model-card-list {
   display: grid;
   gap: 16px;
@@ -1312,6 +1418,7 @@ button {
   }
 
   .editor-grid,
+  .builder-grid,
   .advanced-grid {
     grid-template-columns: 1fr;
   }
