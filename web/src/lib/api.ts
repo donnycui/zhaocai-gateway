@@ -725,6 +725,11 @@ export const api = {
     return result.templates;
   },
 
+  async getMediaTemplate(templateId: number): Promise<MediaTemplate> {
+    const result = await request<{ template: MediaTemplate }>(`/admin/media/templates/${templateId}`);
+    return result.template;
+  },
+
   async createMediaTemplate(payload: {
     provider_id: number;
     model_key: string;
@@ -748,6 +753,40 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return result.template;
+  },
+
+  async updateMediaTemplate(
+    templateId: number,
+    payload: {
+      provider_id: number;
+      model_key: string;
+      name: string;
+      capability: string;
+      template_type: string;
+      upstream_model: string;
+      ui_group: string;
+      ui_label: string;
+      ui_description: string;
+      ui_badge: string;
+      ui_order: number;
+      input_schema_json: Record<string, unknown>;
+      request_template_json: Record<string, unknown>;
+      response_mapping_json: Record<string, unknown>;
+      defaults_json: Record<string, unknown>;
+      enabled: boolean;
+    },
+  ): Promise<MediaTemplate> {
+    const result = await request<{ template: MediaTemplate }>(`/admin/media/templates/${templateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.template;
+  },
+
+  async deleteMediaTemplate(templateId: number): Promise<{ ok: boolean; template_id: number }> {
+    return request(`/admin/media/templates/${templateId}`, {
+      method: "DELETE",
+    });
   },
 
   async validateMediaTemplate(payload: {

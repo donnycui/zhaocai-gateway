@@ -24,6 +24,12 @@ class MediaTemplateService:
     def list(self) -> list[dict]:
         return [asdict(template) for template in self.store.list_media_templates()]
 
+    def get(self, template_id: int) -> dict | None:
+        template = self.store.get_media_template(template_id)
+        if template is None:
+            return None
+        return asdict(template)
+
     def create(
         self,
         *,
@@ -67,6 +73,61 @@ class MediaTemplateService:
             enabled=enabled,
         )
         return asdict(template)
+
+    def update(
+        self,
+        template_id: int,
+        *,
+        provider_id: int,
+        model_key: str,
+        name: str,
+        capability: str,
+        template_type: str,
+        upstream_model: str,
+        ui_group: str,
+        ui_label: str,
+        ui_description: str,
+        ui_badge: str,
+        ui_order: int,
+        input_schema_json: dict,
+        request_template_json: dict,
+        response_mapping_json: dict,
+        defaults_json: dict,
+        enabled: bool,
+    ) -> dict:
+        provider = self.store.get_media_provider(provider_id)
+        if provider is None:
+            raise ValueError(f"Media provider {provider_id} not found")
+        existing = self.store.get_media_template(template_id)
+        if existing is None:
+            raise ValueError(f"Media template {template_id} not found")
+
+        template = self.store.update_media_template(
+            template_id,
+            provider_id=provider_id,
+            model_key=model_key.strip(),
+            name=name.strip(),
+            capability=capability.strip(),
+            template_type=template_type.strip(),
+            upstream_model=upstream_model.strip(),
+            ui_group=ui_group.strip(),
+            ui_label=ui_label.strip(),
+            ui_description=ui_description.strip(),
+            ui_badge=ui_badge.strip(),
+            ui_order=int(ui_order),
+            input_schema_json=input_schema_json,
+            request_template_json=request_template_json,
+            response_mapping_json=response_mapping_json,
+            defaults_json=defaults_json,
+            enabled=enabled,
+        )
+        return asdict(template)
+
+    def delete(self, template_id: int) -> None:
+        template = self.store.get_media_template(template_id)
+        if template is None:
+            raise ValueError(f"Media template {template_id} not found")
+        self.store.delete_media_template(template_id)
 
     def validate_payload(self, payload: dict) -> dict:
         errors: list[str] = []

@@ -1,18 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, type MediaProvider, type MediaTemplate } from "../lib/api";
 
 interface MediaTemplateEditorPageProps {
   providers: MediaProvider[];
-  onCreated: (template: MediaTemplate) => Promise<void>;
+  editingTemplate: MediaTemplate | null;
+  onSaved: (template: MediaTemplate) => Promise<void>;
+  onCancelEdit: () => void;
 }
 
-export default function MediaTemplateEditorPage({
-  providers,
-  onCreated,
-}: MediaTemplateEditorPageProps) {
-  const [message, setMessage] = useState("");
-  const [form, setForm] = useState({
+function buildEmptyForm() {
+  return {
     provider_id: "",
     model_key: "",
     name: "",
@@ -28,7 +26,42 @@ export default function MediaTemplateEditorPage({
     request_template_json: "{\n  \"prompt\": \"{{prompt}}\"\n}",
     response_mapping_json: "{\n  \"output\": \"$.data\"\n}",
     defaults_json: "{\n  \"ratio\": \"1:1\"\n}",
-  });
+  };
+}
+
+export default function MediaTemplateEditorPage({
+  providers,
+  editingTemplate,
+  onSaved,
+  onCancelEdit,
+}: MediaTemplateEditorPageProps) {
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState(buildEmptyForm);
+
+  useEffect(() => {
+    if (!editingTemplate) {
+      setForm(buildEmptyForm());
+      return;
+    }
+
+    setForm({
+      provider_id: String(editingTemplate.provider_id),
+      model_key: editingTemplate.model_key,
+      name: editingTemplate.name,
+      capability: editingTemplate.capability,
+      template_type: editingTemplate.template_type,
+      upstream_model: editingTemplate.upstream_model,
+      ui_group: editingTemplate.ui_group,
+      ui_label: editingTemplate.ui_label,
+      ui_description: editingTemplate.ui_description,
+      ui_badge: editingTemplate.ui_badge,
+      ui_order: String(editingTemplate.ui_order),
+      input_schema_json: JSON.stringify(editingTemplate.input_schema_json, null, 2),
+      request_template_json: JSON.stringify(editingTemplate.request_template_json, null, 2),
+      response_mapping_json: JSON.stringify(editingTemplate.response_mapping_json, null, 2),
+      defaults_json: JSON.stringify(editingTemplate.defaults_json, null, 2),
+    });
+  }, [editingTemplate]);
 
   function parseJsonField(value: string) {
     try {
@@ -72,17 +105,17 @@ export default function MediaTemplateEditorPage({
     setMessage(result.ok ? "Media template 验证通过。" : `验证失败：${result.errors.join(" / ")}`);
   }
 
-  async function handleCreate(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const inputSchema = parseJsonField(form.input_schema_json);
     const requestTemplate = parseJsonField(form.request_template_json);
     const responseMapping = parseJsonField(form.response_mapping_json);
     const defaults = parseJsonField(form.defaults_json);
     if (!inputSchema.ok || !requestTemplate.ok || !responseMapping.ok || !defaults.ok) {
-      setMessage("存在 JSON 字段格式错误，无法创建模板。");
+      setMessage("存在 JSON 字段格式错误，无法保存模板。");
       return;
     }
-    const template = await api.createMediaTemplate({
+    const payload = {
       provider_id: Number(form.provider_id),
       model_key: form.model_key,
       name: form.name,
@@ -99,15 +132,19 @@ export default function MediaTemplateEditorPage({
       response_mapping_json: responseMapping.value,
       defaults_json: defaults.value,
       enabled: true,
-    });
-    setMessage("Media template 已创建。");
-    await onCreated(template);
+    };
+    const template =
+      editingTemplate == null
+        ? await api.createMediaTemplate(payload)
+        : await api.updateMediaTemplate(editingTemplate.id, payload);
+    setMessage(editingTemplate == null ? "Media template 已创建。" : "Media template 已更新。");
+    await onSaved(template);
   }
 
   return (
-    <form className="panel form-panel" onSubmit={handleCreate}>
+    <form className="panel form-panel" onSubmit={handleSubmit}>
       <div className="panel-header" style={{ marginBottom: 0 }}>
-        <h3>新增 Media Template</h3>
+        <h3>{editingTemplate == null ? "新增 Media Template" : `编辑 Media Template：${editingTemplate.ui_label || editingTemplate.name}`}</h3>
         <p>用声明式 JSON 描述媒体工作流。第一阶段先支持最小可用模板录入、验证和 catalog 导出。</p>
       </div>
       <div className="editor-grid">
@@ -197,7 +234,12 @@ export default function MediaTemplateEditorPage({
         <button type="button" className="secondary-button" onClick={() => void handleValidate()}>
           验证模板
         </button>
-        <button type="submit">创建模板</button>
+        {editingTemplate != null ? (
+          <button type="button" className="secondary-button" onClick={onCancelEdit}>
+            取消编辑
+          </button>
+        ) : null}
+        <button type="submit">{editingTemplate == null ? "创建模板" : "保存修改"}</button>
       </div>
       {message ? <p className="inline-message">{message}</p> : null}
     </form>

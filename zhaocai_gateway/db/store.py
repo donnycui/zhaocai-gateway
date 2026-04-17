@@ -1331,6 +1331,74 @@ class SQLiteStore:
             raise RuntimeError("Failed to create media template")
         return template
 
+    def update_media_template(
+        self,
+        template_id: int,
+        *,
+        provider_id: int,
+        model_key: str,
+        name: str,
+        capability: str,
+        template_type: str,
+        upstream_model: str,
+        ui_group: str,
+        ui_label: str,
+        ui_description: str,
+        ui_badge: str,
+        ui_order: int,
+        input_schema_json: dict[str, Any],
+        request_template_json: dict[str, Any],
+        response_mapping_json: dict[str, Any],
+        defaults_json: dict[str, Any],
+        enabled: bool,
+    ) -> MediaTemplate:
+        self.conn.execute(
+            """
+            UPDATE media_templates
+            SET provider_id = ?,
+                model_key = ?,
+                name = ?,
+                capability = ?,
+                template_type = ?,
+                upstream_model = ?,
+                ui_group = ?,
+                ui_label = ?,
+                ui_description = ?,
+                ui_badge = ?,
+                ui_order = ?,
+                input_schema_json = ?,
+                request_template_json = ?,
+                response_mapping_json = ?,
+                defaults_json = ?,
+                enabled = ?
+            WHERE id = ?
+            """,
+            (
+                provider_id,
+                model_key,
+                name,
+                capability,
+                template_type,
+                upstream_model,
+                ui_group,
+                ui_label,
+                ui_description,
+                ui_badge,
+                ui_order,
+                json.dumps(input_schema_json, ensure_ascii=False),
+                json.dumps(request_template_json, ensure_ascii=False),
+                json.dumps(response_mapping_json, ensure_ascii=False),
+                json.dumps(defaults_json, ensure_ascii=False),
+                int(enabled),
+                template_id,
+            ),
+        )
+        self.conn.commit()
+        template = self.get_media_template(template_id)
+        if template is None:
+            raise RuntimeError("Failed to update media template")
+        return template
+
     def get_media_template(self, template_id: int) -> MediaTemplate | None:
         row = self.conn.execute(
             """
@@ -1355,6 +1423,10 @@ class SQLiteStore:
             """
         ).fetchall()
         return [self._row_to_media_template(row) for row in rows]
+
+    def delete_media_template(self, template_id: int) -> None:
+        self.conn.execute("DELETE FROM media_templates WHERE id = ?", (template_id,))
+        self.conn.commit()
 
     def create_universal_provider_template(
         self,

@@ -8,6 +8,7 @@ export default function MediaTemplatesPage() {
   const [templates, setTemplates] = useState<MediaTemplate[]>([]);
   const [catalog, setCatalog] = useState<MediaCatalogItem[]>([]);
   const [message, setMessage] = useState("");
+  const [editingTemplate, setEditingTemplate] = useState<MediaTemplate | null>(null);
 
   async function loadAll() {
     const [providersResult, templatesResult, catalogResult] = await Promise.allSettled([
@@ -38,9 +39,29 @@ export default function MediaTemplatesPage() {
     void loadAll();
   }, []);
 
+  async function handleEdit(templateId: number) {
+    const template = await api.getMediaTemplate(templateId);
+    setEditingTemplate(template);
+  }
+
+  async function handleDelete(templateId: number) {
+    const confirmed = window.confirm("确认删除这个 Media Template 吗？");
+    if (!confirmed) return;
+    await api.deleteMediaTemplate(templateId);
+    if (editingTemplate?.id === templateId) {
+      setEditingTemplate(null);
+    }
+    await loadAll();
+  }
+
   return (
     <section className="page">
-      <MediaTemplateEditorPage providers={providers} onCreated={async () => loadAll()} />
+      <MediaTemplateEditorPage
+        providers={providers}
+        editingTemplate={editingTemplate}
+        onSaved={async () => loadAll()}
+        onCancelEdit={() => setEditingTemplate(null)}
+      />
       {message ? <p className="error-inline-message">{message}</p> : null}
 
       <div className="panel placeholder-panel">
@@ -60,6 +81,14 @@ export default function MediaTemplatesPage() {
                 <span>Capability：{template.capability}</span>
                 <span>Template Type：{template.template_type}</span>
                 <span>Upstream Model：{template.upstream_model}</span>
+                <div className="topbar-actions">
+                  <button type="button" className="secondary-button" onClick={() => void handleEdit(template.id)}>
+                    查看/编辑
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => void handleDelete(template.id)}>
+                    删除
+                  </button>
+                </div>
               </article>
             ))}
           </div>

@@ -224,6 +224,25 @@ class MediaTemplateCreate(BaseModel):
     enabled: bool = True
 
 
+class MediaTemplateUpdate(BaseModel):
+    provider_id: int
+    model_key: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    capability: str = Field(min_length=1)
+    template_type: str = Field(min_length=1)
+    upstream_model: str = Field(min_length=1)
+    ui_group: str = ""
+    ui_label: str = ""
+    ui_description: str = ""
+    ui_badge: str = ""
+    ui_order: int = 0
+    input_schema_json: dict = Field(default_factory=dict)
+    request_template_json: dict = Field(default_factory=dict)
+    response_mapping_json: dict = Field(default_factory=dict)
+    defaults_json: dict = Field(default_factory=dict)
+    enabled: bool = True
+
+
 class UniversalTemplateModelCreate(BaseModel):
     upstream_model: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -791,6 +810,17 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"templates": media_template_service.list()}
 
+    @router.get("/media/templates/{template_id}")
+    def get_media_template(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        template = media_template_service.get(template_id)
+        if template is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media template not found")
+        return {"template": template}
+
     @router.post("/media/templates")
     def create_media_template(
         payload: MediaTemplateCreate,
@@ -820,6 +850,50 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             }
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.patch("/media/templates/{template_id}")
+    def update_media_template(
+        template_id: int,
+        payload: MediaTemplateUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "template": media_template_service.update(
+                    template_id,
+                    provider_id=payload.provider_id,
+                    model_key=payload.model_key,
+                    name=payload.name,
+                    capability=payload.capability,
+                    template_type=payload.template_type,
+                    upstream_model=payload.upstream_model,
+                    ui_group=payload.ui_group,
+                    ui_label=payload.ui_label,
+                    ui_description=payload.ui_description,
+                    ui_badge=payload.ui_badge,
+                    ui_order=payload.ui_order,
+                    input_schema_json=payload.input_schema_json,
+                    request_template_json=payload.request_template_json,
+                    response_mapping_json=payload.response_mapping_json,
+                    defaults_json=payload.defaults_json,
+                    enabled=payload.enabled,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.delete("/media/templates/{template_id}")
+    def delete_media_template(
+        template_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            media_template_service.delete(template_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "template_id": template_id}
 
     @router.post("/media/templates/validate")
     def validate_media_template(
