@@ -36,6 +36,7 @@ class SQLiteStore:
 
     def init_schema(self) -> None:
         self.conn.executescript(SCHEMA_SQL)
+        self._migrate_media_template_provider_fk()
         self._ensure_model_column("reasoning", "ALTER TABLE models ADD COLUMN reasoning INTEGER NOT NULL DEFAULT 0")
         self._ensure_model_column(
             "input_modalities",
@@ -63,6 +64,99 @@ class SQLiteStore:
         self._ensure_media_template_column("request_template_json", "ALTER TABLE media_templates ADD COLUMN request_template_json TEXT NOT NULL DEFAULT '{}'")
         self._ensure_media_template_column("response_mapping_json", "ALTER TABLE media_templates ADD COLUMN response_mapping_json TEXT NOT NULL DEFAULT '{}'")
         self._ensure_media_template_column("defaults_json", "ALTER TABLE media_templates ADD COLUMN defaults_json TEXT NOT NULL DEFAULT '{}'")
+        self.conn.commit()
+
+    def _migrate_media_template_provider_fk(self) -> None:
+        row = self.conn.execute(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'media_templates'
+            """
+        ).fetchone()
+        if row is None:
+            return
+
+        create_sql = str(row["sql"] or "")
+        if "REFERENCES providers(id)" not in create_sql:
+            return
+
+        self.conn.execute("PRAGMA foreign_keys = OFF")
+        self.conn.execute("ALTER TABLE media_templates RENAME TO media_templates_legacy")
+        self.conn.executescript(
+            """
+            CREATE TABLE media_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_key TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                provider_id INTEGER NOT NULL,
+                capability TEXT NOT NULL,
+                template_type TEXT NOT NULL,
+                upstream_model TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                ui_group TEXT NOT NULL DEFAULT '',
+                ui_label TEXT NOT NULL DEFAULT '',
+                ui_description TEXT NOT NULL DEFAULT '',
+                ui_badge TEXT NOT NULL DEFAULT '',
+                ui_order INTEGER NOT NULL DEFAULT 0,
+                input_schema_json TEXT NOT NULL DEFAULT '{}',
+                request_template_json TEXT NOT NULL DEFAULT '{}',
+                response_mapping_json TEXT NOT NULL DEFAULT '{}',
+                defaults_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(provider_id) REFERENCES media_providers(id) ON DELETE CASCADE
+            );
+            """
+        )
+        self.conn.execute(
+            """
+            INSERT INTO media_templates (
+                id,
+                model_key,
+                name,
+                provider_id,
+                capability,
+                template_type,
+                upstream_model,
+                enabled,
+                ui_group,
+                ui_label,
+                ui_description,
+                ui_badge,
+                ui_order,
+                input_schema_json,
+                request_template_json,
+                response_mapping_json,
+                defaults_json,
+                created_at,
+                updated_at
+            )
+            SELECT
+                id,
+                model_key,
+                name,
+                provider_id,
+                capability,
+                template_type,
+                COALESCE(upstream_model, ''),
+                COALESCE(enabled, 1),
+                COALESCE(ui_group, ''),
+                COALESCE(ui_label, ''),
+                COALESCE(ui_description, ''),
+                COALESCE(ui_badge, ''),
+                COALESCE(ui_order, 0),
+                COALESCE(input_schema_json, '{}'),
+                COALESCE(request_template_json, '{}'),
+                COALESCE(response_mapping_json, '{}'),
+                COALESCE(defaults_json, '{}'),
+                COALESCE(created_at, CURRENT_TIMESTAMP),
+                COALESCE(updated_at, CURRENT_TIMESTAMP)
+            FROM media_templates_legacy
+            """
+        )
+        self.conn.execute("DROP TABLE media_templates_legacy")
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.commit()
 
     def _ensure_model_column(self, column: str, ddl: str) -> None:
