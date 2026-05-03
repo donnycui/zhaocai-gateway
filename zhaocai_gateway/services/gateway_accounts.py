@@ -84,6 +84,9 @@ class GatewayAccountService:
         if account is None:
             raise ValueError(f"Gateway account {account_id} not found")
 
+        if self._normalize_protocol(account.protocol) == "gemini":
+            return self._test_gemini_connection(account)
+
         try:
             response = httpx.request(
                 "GET",
@@ -110,6 +113,51 @@ class GatewayAccountService:
             "models_status": response.status_code,
         }
 
+    def _test_gemini_connection(self, account) -> dict:
+        last_status = None
+        last_message = "Unable to reach Gemini upstream"
+        for models_url in self._candidate_models_urls(account.base_url, protocol=account.protocol):
+            for headers in self._candidate_models_headers(
+                account.auth_type,
+                account.api_key_encrypted,
+                protocol=account.protocol,
+            ):
+                try:
+                    response = ProviderService._request_with_tls_fallback(
+                        "GET",
+                        url=models_url,
+                        headers=headers,
+                        timeout=20.0,
+                    )
+                except httpx.HTTPError as exc:
+                    last_message = str(exc)
+                    continue
+
+                last_status = response.status_code
+                if response.is_success:
+                    self.store.update_gateway_upstream_account_status(
+                        account.id,
+                        health_status="HEALTHY",
+                        last_checked_at=_utc_now_iso(),
+                    )
+                    return {
+                        "healthy": True,
+                        "models_status": response.status_code,
+                    }
+
+                last_message = self._extract_error_message(response)
+
+        self.store.update_gateway_upstream_account_status(
+            account.id,
+            health_status="DEGRADED" if last_status is not None else "ERROR",
+            last_checked_at=_utc_now_iso(),
+        )
+        return {
+            "healthy": False,
+            "models_status": last_status or 0,
+            "message": last_message,
+        }
+
     def discover_models(self, account_id: int) -> dict:
         account = self.store.get_gateway_upstream_account(account_id)
         if account is None:
@@ -117,8 +165,12 @@ class GatewayAccountService:
 
         payload = None
         last_error_message = "The upstream /models endpoint returned an unsupported payload"
-        for models_url in self._candidate_models_urls(account.base_url):
-            for headers in self._candidate_models_headers(account.auth_type, account.api_key_encrypted):
+        for models_url in self._candidate_models_urls(account.base_url, protocol=account.protocol):
+            for headers in self._candidate_models_headers(
+                account.auth_type,
+                account.api_key_encrypted,
+                protocol=account.protocol,
+            ):
                 try:
                     response = ProviderService._request_with_tls_fallback(
                         "GET",
@@ -297,12 +349,22 @@ class GatewayAccountService:
         return f"{normalized}/models" if normalized.endswith("/v1") else f"{normalized}/models"
 
     @classmethod
-    def _candidate_models_urls(cls, base_url: str) -> list[str]:
+    def _candidate_models_urls(cls, base_url: str, *, protocol: str = "openai-compatible") -> list[str]:
         normalized_base = base_url.strip().rstrip("/")
-        candidates = [
-            cls._build_models_url(normalized_base),
-            f"{normalized_base}/v1/models",
-        ]
+        if cls._normalize_protocol(protocol) == "gemini":
+            base_no_suffix = normalized_base[:-len("/gemini")] if normalized_base.endswith("/gemini") else normalized_base
+            candidates = [
+                f"{normalized_base}/v1beta/models",
+                f"{normalized_base}/v1/models",
+                cls._build_models_url(normalized_base),
+                f"{base_no_suffix}/gemini/v1beta/models",
+                f"{base_no_suffix}/v1beta/models",
+            ]
+        else:
+            candidates = [
+                cls._build_models_url(normalized_base),
+                f"{normalized_base}/v1/models",
+            ]
         unique: list[str] = []
         for candidate in candidates:
             if candidate not in unique:
@@ -323,12 +385,23 @@ class GatewayAccountService:
         return {}
 
     @classmethod
-    def _candidate_models_headers(cls, auth_type: str, api_key: str) -> list[dict[str, str]]:
+    def _candidate_models_headers(cls, auth_type: str, api_key: str, *, protocol: str = "openai-compatible") -> list[dict[str, str]]:
         primary = cls._build_headers(auth_type, api_key)
         candidates = [primary]
-        if (auth_type or "").strip().lower() == "x-api-key" and api_key:
+        normalized_auth = (auth_type or "").strip().lower()
+        if normalized_auth == "x-api-key" and api_key:
             candidates.append({"Authorization": f"Bearer {api_key}"})
+        if cls._normalize_protocol(protocol) == "gemini" and api_key:
+            if normalized_auth != "x-goog-api-key":
+                candidates.append({"x-goog-api-key": api_key})
+            if normalized_auth != "x-api-key":
+                candidates.append({"x-api-key": api_key})
         return candidates
+
+    @staticmethod
+    def _normalize_protocol(protocol: str | None) -> str:
+        normalized = (protocol or "openai-compatible").strip().lower()
+        return normalized or "openai-compatible"
 
     @staticmethod
     def _extract_error_message(response: httpx.Response) -> str:

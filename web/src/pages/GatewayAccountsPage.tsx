@@ -11,6 +11,11 @@ const authOptions = [
   { value: "passcode", label: "Passcode" },
 ] as const;
 
+const protocolOptions = [
+  { value: "openai-compatible", label: "OpenAI Compatible" },
+  { value: "gemini", label: "Gemini" },
+] as const;
+
 const healthLabels: Record<string, string> = {
   UNKNOWN: "未知",
   HEALTHY: "健康",
@@ -372,6 +377,16 @@ export default function GatewayAccountsPage() {
           <label>
             <span>API Key</span>
             <input value={form.api_key} onChange={(event) => setForm((current) => ({ ...current, api_key: event.target.value }))} />
+          </label>
+          <label>
+            <span>协议</span>
+            <select value={form.protocol} onChange={(event) => setForm((current) => ({ ...current, protocol: event.target.value }))}>
+              {protocolOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <label>
