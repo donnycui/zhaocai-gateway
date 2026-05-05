@@ -66,6 +66,20 @@ class GatewayModel:
 
 
 @dataclass(frozen=True)
+class GatewayModelUsageSummary:
+    account_id: int
+    account_name: str
+    model_id: int
+    upstream_model: str
+    display_name: str
+    total_calls: int
+    success_calls: int
+    failure_calls: int
+    last_called_at: str | None
+    avg_latency_ms: float | None = None
+
+
+@dataclass(frozen=True)
 class GatewayAlias:
     id: int
     alias_key: str

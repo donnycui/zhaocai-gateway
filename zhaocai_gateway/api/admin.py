@@ -10,6 +10,7 @@ from zhaocai_gateway.services import (
     GatewayAccountService,
     GatewayAliasService,
     GatewayClientKeyService,
+    GatewayUsageService,
     MediaCatalogService,
     MediaProviderService,
     MediaTemplateService,
@@ -283,6 +284,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     gateway_account_service = GatewayAccountService(store)
     gateway_alias_service = GatewayAliasService(store)
     gateway_client_key_service = GatewayClientKeyService(store)
+    gateway_usage_service = GatewayUsageService(store)
     media_provider_service = MediaProviderService(store)
     media_template_service = MediaTemplateService(store)
     media_catalog_service = MediaCatalogService(store)
@@ -498,6 +500,20 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     def list_gateway_models(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
         return {"models": gateway_alias_service.list_models()}
+
+    @router.get("/gateway/usage/models")
+    def list_gateway_model_usage(
+        window: str = "24h",
+        account_id: int | None = None,
+        model_id: int | None = None,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return gateway_usage_service.list_model_usage(
+            window=window,
+            account_id=account_id,
+            model_id=model_id,
+        )
 
     @router.delete("/gateway/models/{model_id}")
     def delete_gateway_model(

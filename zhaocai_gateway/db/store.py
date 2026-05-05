@@ -15,6 +15,7 @@ from zhaocai_gateway.domain.models import (
     GatewayAliasTarget,
     GatewayClientKey,
     GatewayModel,
+    GatewayModelUsageSummary,
     GatewayUpstreamAccount,
     MediaProvider,
     MediaTemplate,
@@ -262,6 +263,21 @@ class SQLiteStore:
             supports_responses=bool(row["supports_responses"]),
             enabled=bool(row["enabled"]),
             account_name=str(account_name) if account_name is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_gateway_model_usage_summary(row: sqlite3.Row) -> GatewayModelUsageSummary:
+        return GatewayModelUsageSummary(
+            account_id=int(row["account_id"]),
+            account_name=str(row["account_name"]),
+            model_id=int(row["model_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            total_calls=int(row["total_calls"] or 0),
+            success_calls=int(row["success_calls"] or 0),
+            failure_calls=int(row["failure_calls"] or 0),
+            last_called_at=str(row["last_called_at"]) if row["last_called_at"] is not None else None,
+            avg_latency_ms=float(row["avg_latency_ms"]) if row["avg_latency_ms"] is not None else None,
         )
 
     @staticmethod
@@ -938,6 +954,97 @@ class SQLiteStore:
     def delete_gateway_model(self, model_id: int) -> None:
         self.conn.execute("DELETE FROM gateway_models WHERE id = ?", (model_id,))
         self.conn.commit()
+
+    def create_gateway_model_usage_event(
+        self,
+        *,
+        alias_key: str,
+        account_id: int,
+        account_name: str,
+        model_id: int,
+        upstream_model: str,
+        display_name: str,
+        request_kind: str,
+        client_key_id: int | None,
+        status_code: int,
+        ok: bool,
+        latency_ms: int,
+        created_at: str,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO gateway_model_usage_events
+            (
+                alias_key,
+                account_id,
+                account_name,
+                model_id,
+                upstream_model,
+                display_name,
+                request_kind,
+                client_key_id,
+                status_code,
+                ok,
+                latency_ms,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                alias_key,
+                account_id,
+                account_name,
+                model_id,
+                upstream_model,
+                display_name,
+                request_kind,
+                client_key_id,
+                status_code,
+                int(ok),
+                latency_ms,
+                created_at,
+            ),
+        )
+        self.conn.commit()
+
+    def list_gateway_model_usage_summaries(
+        self,
+        *,
+        since_iso: str,
+        account_id: int | None = None,
+        model_id: int | None = None,
+    ) -> list[GatewayModelUsageSummary]:
+        filters = ["created_at >= ?"]
+        params: list[Any] = [since_iso]
+        if account_id is not None:
+            filters.append("account_id = ?")
+            params.append(account_id)
+        if model_id is not None:
+            filters.append("model_id = ?")
+            params.append(model_id)
+
+        where_clause = " AND ".join(filters)
+        rows = self.conn.execute(
+            f"""
+            SELECT
+                account_id,
+                account_name,
+                model_id,
+                upstream_model,
+                display_name,
+                COUNT(*) AS total_calls,
+                SUM(CASE WHEN ok = 1 THEN 1 ELSE 0 END) AS success_calls,
+                SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS failure_calls,
+                MAX(created_at) AS last_called_at,
+                AVG(latency_ms) AS avg_latency_ms
+            FROM gateway_model_usage_events
+            WHERE {where_clause}
+            GROUP BY account_id, account_name, model_id, upstream_model, display_name
+            ORDER BY total_calls DESC, last_called_at DESC
+            """,
+            tuple(params),
+        ).fetchall()
+        return [self._row_to_gateway_model_usage_summary(row) for row in rows]
 
     def upsert_gateway_model(
         self,

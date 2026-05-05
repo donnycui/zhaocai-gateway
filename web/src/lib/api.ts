@@ -70,6 +70,19 @@ export interface GatewayModel {
   account_name?: string;
 }
 
+export interface GatewayModelUsageSummary {
+  account_id: number;
+  account_name: string;
+  model_id: number;
+  upstream_model: string;
+  display_name: string;
+  total_calls: number;
+  success_calls: number;
+  failure_calls: number;
+  last_called_at: string | null;
+  avg_latency_ms: number | null;
+}
+
 export interface GatewayAlias {
   id: number;
   alias_key: string;
@@ -489,6 +502,19 @@ export const api = {
   async getGatewayModels(): Promise<GatewayModel[]> {
     const result = await request<{ models: GatewayModel[] }>("/admin/gateway/models");
     return result.models;
+  },
+
+  async getGatewayModelUsage(params?: {
+    window?: "24h" | "7d";
+    account_id?: number;
+    model_id?: number;
+  }): Promise<{ window: string; hours: number; items: GatewayModelUsageSummary[] }> {
+    const query = new URLSearchParams();
+    if (params?.window) query.set("window", params.window);
+    if (params?.account_id != null) query.set("account_id", String(params.account_id));
+    if (params?.model_id != null) query.set("model_id", String(params.model_id));
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    return request(`/admin/gateway/usage/models${suffix}`);
   },
 
   async deleteGatewayModel(modelId: number): Promise<{ ok: boolean; model_id: number }> {

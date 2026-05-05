@@ -16,7 +16,7 @@ def create_runtime_router(store: SQLiteStore) -> APIRouter:
 
     @router.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
-        authenticate_runtime_request(request, gateway_client_key_service)
+        client_key = authenticate_runtime_request(request, gateway_client_key_service)
         payload = await request.json()
         if not isinstance(payload, dict):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request body must be a JSON object")
@@ -26,7 +26,11 @@ def create_runtime_router(store: SQLiteStore) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model is required")
 
         try:
-            response_status, response_payload = gateway_alias_service.invoke_chat_completions(alias_key, payload)
+            response_status, response_payload = gateway_alias_service.invoke_chat_completions(
+                alias_key,
+                payload,
+                client_key_id=client_key["id"],
+            )
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -36,7 +40,7 @@ def create_runtime_router(store: SQLiteStore) -> APIRouter:
 
     @router.post("/v1/responses")
     async def responses(request: Request) -> JSONResponse:
-        authenticate_runtime_request(request, gateway_client_key_service)
+        client_key = authenticate_runtime_request(request, gateway_client_key_service)
         payload = await request.json()
         if not isinstance(payload, dict):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request body must be a JSON object")
@@ -46,7 +50,11 @@ def create_runtime_router(store: SQLiteStore) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model is required")
 
         try:
-            response_status, response_payload = gateway_alias_service.invoke_responses(alias_key, payload)
+            response_status, response_payload = gateway_alias_service.invoke_responses(
+                alias_key,
+                payload,
+                client_key_id=client_key["id"],
+            )
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -57,7 +65,7 @@ def create_runtime_router(store: SQLiteStore) -> APIRouter:
     return router
 
 
-def authenticate_runtime_request(request: Request, client_key_service: GatewayClientKeyService) -> None:
+def authenticate_runtime_request(request: Request, client_key_service: GatewayClientKeyService) -> dict[str, Any]:
     if not client_key_service.has_enabled_keys():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -77,6 +85,7 @@ def authenticate_runtime_request(request: Request, client_key_service: GatewayCl
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid gateway client key",
         )
+    return authenticated
 
 
 def _extract_runtime_api_key(request: Request) -> str:

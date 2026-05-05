@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+import time
 from typing import Any
 
 import httpx
@@ -108,11 +109,35 @@ class GatewayAliasService:
     def list_models(self) -> list[dict]:
         return [asdict(model) for model in self.store.list_gateway_models()]
 
-    def invoke_chat_completions(self, alias_key: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        return self._invoke_alias_request(alias_key, "/chat/completions", payload)
+    def invoke_chat_completions(
+        self,
+        alias_key: str,
+        payload: dict[str, Any],
+        *,
+        client_key_id: int | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        return self._invoke_alias_request(
+            alias_key,
+            "/chat/completions",
+            payload,
+            request_kind="chat_completions",
+            client_key_id=client_key_id,
+        )
 
-    def invoke_responses(self, alias_key: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        return self._invoke_alias_request(alias_key, "/responses", payload)
+    def invoke_responses(
+        self,
+        alias_key: str,
+        payload: dict[str, Any],
+        *,
+        client_key_id: int | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        return self._invoke_alias_request(
+            alias_key,
+            "/responses",
+            payload,
+            request_kind="responses",
+            client_key_id=client_key_id,
+        )
 
     def _require_alias(self, alias_id: int) -> None:
         if self.store.get_gateway_alias(alias_id) is None:
@@ -123,6 +148,9 @@ class GatewayAliasService:
         alias_key: str,
         path: str,
         payload: dict[str, Any],
+        *,
+        request_kind: str,
+        client_key_id: int | None,
     ) -> tuple[int, dict[str, Any]]:
         alias = self.store.get_gateway_alias_by_key(alias_key)
         if alias is None:
@@ -156,6 +184,7 @@ class GatewayAliasService:
             request_payload = dict(payload)
             request_payload["model"] = model.upstream_model
 
+            started_at = time.perf_counter()
             try:
                 response = httpx.request(
                     "POST",
@@ -165,11 +194,39 @@ class GatewayAliasService:
                     timeout=30.0,
                 )
             except httpx.RequestError as exc:
+                self.store.create_gateway_model_usage_event(
+                    alias_key=alias.alias_key,
+                    account_id=account.id,
+                    account_name=account.name,
+                    model_id=model.id,
+                    upstream_model=model.upstream_model,
+                    display_name=model.display_name,
+                    request_kind=request_kind,
+                    client_key_id=client_key_id,
+                    status_code=0,
+                    ok=False,
+                    latency_ms=int((time.perf_counter() - started_at) * 1000),
+                    created_at=_utc_now_iso(),
+                )
                 last_error_payload = {"error": {"message": str(exc)}}
                 last_error_status = 502
                 self._mark_target_failed(account.id, target.cooldown_seconds, health_status="ERROR")
                 continue
 
+            self.store.create_gateway_model_usage_event(
+                alias_key=alias.alias_key,
+                account_id=account.id,
+                account_name=account.name,
+                model_id=model.id,
+                upstream_model=model.upstream_model,
+                display_name=model.display_name,
+                request_kind=request_kind,
+                client_key_id=client_key_id,
+                status_code=response.status_code,
+                ok=response.is_success,
+                latency_ms=int((time.perf_counter() - started_at) * 1000),
+                created_at=_utc_now_iso(),
+            )
             payload_json = self._safe_json(response)
             if response.status_code == 429 or response.status_code >= 500:
                 last_error_status = response.status_code

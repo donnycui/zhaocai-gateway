@@ -112,6 +112,22 @@ CREATE TABLE IF NOT EXISTS gateway_models (
     FOREIGN KEY(account_id) REFERENCES gateway_upstream_accounts(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS gateway_model_usage_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alias_key TEXT NOT NULL,
+    account_id INTEGER NOT NULL,
+    account_name TEXT NOT NULL,
+    model_id INTEGER NOT NULL,
+    upstream_model TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    request_kind TEXT NOT NULL,
+    client_key_id INTEGER,
+    status_code INTEGER NOT NULL,
+    ok INTEGER NOT NULL DEFAULT 0,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS gateway_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alias_key TEXT NOT NULL UNIQUE,

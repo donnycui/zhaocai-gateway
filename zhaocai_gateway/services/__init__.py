@@ -3,6 +3,7 @@ from zhaocai_gateway.services.devices import DeviceService
 from zhaocai_gateway.services.gateway_accounts import GatewayAccountService
 from zhaocai_gateway.services.gateway_aliases import GatewayAliasService
 from zhaocai_gateway.services.gateway_client_keys import GatewayClientKeyService
+from zhaocai_gateway.services.gateway_usage import GatewayUsageService
 from zhaocai_gateway.services.media_catalog import MediaCatalogService
 from zhaocai_gateway.services.media_providers import MediaProviderService
 from zhaocai_gateway.services.media_templates import MediaTemplateService
@@ -17,6 +18,7 @@ __all__ = [
     "GatewayAccountService",
     "GatewayAliasService",
     "GatewayClientKeyService",
+    "GatewayUsageService",
     "MediaCatalogService",
     "MediaProviderService",
     "MediaTemplateService",

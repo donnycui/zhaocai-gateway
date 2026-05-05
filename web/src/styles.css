@@ -813,6 +813,43 @@ button {
   flex-wrap: wrap;
 }
 
+.usage-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.usage-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(19, 34, 56, 0.08);
+  background: rgba(248, 250, 255, 0.88);
+}
+
+.usage-row-main {
+  display: grid;
+  gap: 4px;
+}
+
+.usage-row-main strong {
+  font-size: 1rem;
+}
+
+.usage-row-main span {
+  color: #5f6f84;
+  font-size: 0.9rem;
+}
+
+.usage-row-metrics {
+  display: flex;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  color: #32465f;
+  font-size: 0.88rem;
+}
+
 .model-editor-card {
   border: 1px solid rgba(19, 34, 56, 0.08);
   border-radius: 20px;

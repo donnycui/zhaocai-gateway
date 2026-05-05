@@ -2,7 +2,13 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import GatewayAliasesPage from "./GatewayAliasesPage";
 import GatewayClientKeysPage from "./GatewayClientKeysPage";
-import { api, type DiscoveredProviderModel, type GatewayModel, type GatewayUpstreamAccount } from "../lib/api";
+import {
+  api,
+  type DiscoveredProviderModel,
+  type GatewayModel,
+  type GatewayModelUsageSummary,
+  type GatewayUpstreamAccount,
+} from "../lib/api";
 
 const authOptions = [
   { value: "bearer", label: "Bearer" },
@@ -60,6 +66,10 @@ function buildModelAvatarLabel(model: DiscoveredProviderModel): string {
 export default function GatewayAccountsPage() {
   const [accounts, setAccounts] = useState<GatewayUpstreamAccount[]>([]);
   const [gatewayModels, setGatewayModels] = useState<GatewayModel[]>([]);
+  const [usageItems, setUsageItems] = useState<GatewayModelUsageSummary[]>([]);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [usageWindow, setUsageWindow] = useState<"24h" | "7d">("24h");
+  const [usageAccountFilter, setUsageAccountFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
@@ -99,9 +109,26 @@ export default function GatewayAccountsPage() {
     }
   }
 
+  async function loadUsage() {
+    setUsageLoading(true);
+    try {
+      const result = await api.getGatewayModelUsage({
+        window: usageWindow,
+        account_id: usageAccountFilter === "all" ? undefined : Number(usageAccountFilter),
+      });
+      setUsageItems(result.items);
+    } finally {
+      setUsageLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadAccounts();
   }, []);
+
+  useEffect(() => {
+    void loadUsage();
+  }, [usageWindow, usageAccountFilter]);
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -230,6 +257,29 @@ export default function GatewayAccountsPage() {
     });
     return groups;
   }, [gatewayModels]);
+
+  const usageByAccount = useMemo(() => {
+    const groups = new Map<number, GatewayModelUsageSummary[]>();
+    usageItems.forEach((item) => {
+      const current = groups.get(item.account_id) ?? [];
+      current.push(item);
+      groups.set(item.account_id, current);
+    });
+    return groups;
+  }, [usageItems]);
+
+  function formatUsageTime(value: string | null): string {
+    if (!value) return "暂无";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  }
 
   async function handleDiscoverModels(accountId: number) {
     setDiscoverAccountId(accountId);
@@ -510,6 +560,74 @@ export default function GatewayAccountsPage() {
                 })()}
               </article>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="panel placeholder-panel">
+        <div className="panel-header" style={{ marginBottom: 0 }}>
+          <h3>Gateway Usage</h3>
+          <p>按真实模型统计最近调用情况，第一版先看调用次数、成功率、平均延迟和最近调用时间。</p>
+        </div>
+        <div className="model-toolbar">
+          <label>
+            <span>时间范围</span>
+            <select value={usageWindow} onChange={(event) => setUsageWindow(event.target.value as "24h" | "7d")}>
+              <option value="24h">最近 24 小时</option>
+              <option value="7d">最近 7 天</option>
+            </select>
+          </label>
+          <label>
+            <span>账号筛选</span>
+            <select value={usageAccountFilter} onChange={(event) => setUsageAccountFilter(event.target.value)}>
+              <option value="all">全部账号</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={String(account.id)}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="secondary-button" onClick={() => void loadUsage()}>
+            {usageLoading ? "刷新中..." : "刷新用量"}
+          </button>
+        </div>
+        {usageItems.length === 0 ? (
+          <div className="empty-state">{usageLoading ? "正在加载用量..." : "当前时间范围还没有任何模型用量记录。"}</div>
+        ) : (
+          <div className="placeholder-grid">
+            {accounts
+              .filter((account) => usageAccountFilter === "all" || account.id === Number(usageAccountFilter))
+              .map((account) => {
+                const items = usageByAccount.get(account.id) ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <article key={account.id} className="placeholder-card">
+                    <strong>{account.name}</strong>
+                    <div className="usage-list">
+                      {items.map((item) => {
+                        const successRate = item.total_calls > 0 ? Math.round((item.success_calls / item.total_calls) * 100) : 0;
+                        return (
+                          <div key={`${item.account_id}-${item.model_id}`} className="usage-row">
+                            <div className="usage-row-main">
+                              <strong>{item.display_name}</strong>
+                              <span>{item.upstream_model}</span>
+                            </div>
+                            <div className="usage-row-metrics">
+                              <span>调用 {item.total_calls}</span>
+                              <span>成功 {item.success_calls}</span>
+                              <span>失败 {item.failure_calls}</span>
+                              <span>成功率 {successRate}%</span>
+                              <span>均延迟 {item.avg_latency_ms != null ? `${Math.round(item.avg_latency_ms)}ms` : "暂无"}</span>
+                              <span>最近调用 {formatUsageTime(item.last_called_at)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                );
+              })}
           </div>
         )}
       </div>
