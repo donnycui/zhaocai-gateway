@@ -23,6 +23,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     platform: string;
     pairingToken: string;
     expiresAt: string;
+    installCommand: string;
   } | null>(null);
   const latestDevice = useMemo(() => devices[devices.length - 1] ?? null, [devices]);
 
@@ -92,6 +93,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
       platform: device.platform,
       pairingToken: token.pairing_token,
       expiresAt: token.expires_at,
+      installCommand: token.install_command,
     });
   }
 
@@ -99,52 +101,14 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     if (!pairingInfo) {
       return "先为 OpenClaw 设备签发一次性 pairing token，安装命令会自动生成。";
     }
-
-    const server = "https://zhaocai.mintstudio.cn";
-    const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken} \\\n  --reload-cmd \"$(command -v openclaw) gateway restart\"`;
-
-    const baseSetup = [
-      "command -v openclaw >/dev/null || { echo '未找到 openclaw，请先安装 OpenClaw'; exit 1; }",
-      "[ -d zhaocai-gateway ] || git clone https://github.com/donnycui/zhaocai-gateway.git",
-      "cd zhaocai-gateway",
-      "python3 -m venv .venv",
-      ".venv/bin/pip install -r requirements.txt",
-      registerStep,
-      ".venv/bin/python -m agent.cli sync-once",
-    ];
-
-    const platform = pairingInfo.platform.toLowerCase();
-    const deviceType = pairingInfo.deviceType.toLowerCase();
-    const isLinux =
-      platform.includes("linux") ||
-      deviceType.includes("vps") ||
-      deviceType.includes("linux") ||
-      deviceType.includes("raspberry");
-
-    if (isLinux) {
-      return [
-        "sudo apt update",
-        "sudo apt install -y python3-venv",
-        ...baseSetup,
-        ".venv/bin/python -m agent.cli doctor --service-manager systemd",
-        ".venv/bin/python -m agent.cli install --service-manager systemd \\",
-        "  --config-path \"$HOME/.zhaocai-gateway/agent.json\" \\",
-        "  --python-path \"$PWD/.venv/bin/python\" \\",
-        "  --working-directory \"$PWD\"",
-        "systemctl --user daemon-reload",
-        "systemctl --user enable --now zhaocai-agent.service",
-        "systemctl --user status zhaocai-agent.service",
-      ].join("\n");
-    }
-
-    return [
-      ...baseSetup,
-      ".venv/bin/python -m agent.cli doctor",
-      ".venv/bin/python -m agent.cli install",
-      "launchctl unload ~/Library/LaunchAgents/com.zhaocai.agent.plist >/dev/null 2>&1 || true",
-      "launchctl load ~/Library/LaunchAgents/com.zhaocai.agent.plist",
-    ].join("\n");
+    return pairingInfo.installCommand;
   }, [pairingInfo]);
+
+  async function handleCopyInstallCommand() {
+    if (!pairingInfo) return;
+    await navigator.clipboard.writeText(pairingInfo.installCommand);
+    setMessage("安装命令已复制。");
+  }
 
   return (
     <section className="page two-column">
@@ -247,6 +211,11 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
           <div className="panel-header">
             <h3>OpenClaw 安装命令</h3>
             <p>{latestDevice ? `最新节点：${latestDevice.name}` : "请先创建 OpenClaw 节点。"}</p>
+          </div>
+          <div className="topbar-actions" style={{ marginBottom: 12 }}>
+            <button type="button" className="secondary-button" disabled={!pairingInfo} onClick={() => void handleCopyInstallCommand()}>
+              复制命令
+            </button>
           </div>
           <pre className="code-block">{installCommand}</pre>
           {pairingInfo ? (

@@ -123,3 +123,7 @@ def test_issue_hermes_pairing_token():
     assert payload["device_id"] == device["id"]
     assert isinstance(payload["pairing_token"], str)
     assert payload["pairing_token"] != ""
+    assert payload["install_command"]
+    assert f"--token {payload['pairing_token']}" in payload["install_command"]
+    assert "git switch codex/hermes-module" in payload["install_command"]
+    assert "--reload-cmd /usr/bin/true" in payload["install_command"]

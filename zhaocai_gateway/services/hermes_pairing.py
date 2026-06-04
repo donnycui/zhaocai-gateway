@@ -6,6 +6,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
 from zhaocai_gateway.db.store import SQLiteStore
+from zhaocai_gateway.services.node_onboarding import build_install_command
 
 
 def _utcnow() -> datetime:
@@ -26,6 +27,9 @@ class HermesPairingService:
         device_id: int,
         expires_in_seconds: int = 600,
     ) -> dict:
+        device = self.store.get_hermes_device(device_id)
+        if device is None:
+            raise ValueError(f"Hermes device {device_id} not found")
         raw_token = secrets.token_urlsafe(24)
         expires_at = _utcnow() + timedelta(seconds=expires_in_seconds)
         pairing_token = self.store.create_hermes_pairing_token(
@@ -37,6 +41,12 @@ class HermesPairingService:
             "device_id": device_id,
             "pairing_token": raw_token,
             "expires_at": pairing_token.expires_at,
+            "install_command": build_install_command(
+                target="hermes",
+                pairing_token=raw_token,
+                platform=device.platform,
+                device_type=device.device_type,
+            ),
         }
 
     def register_device(

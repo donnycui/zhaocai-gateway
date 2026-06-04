@@ -732,10 +732,13 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         x_admin_token: str | None = Header(default=None),
     ) -> dict:
         require_admin(x_admin_token)
-        return hermes_pairing_service.issue_pairing_token(
-            device_id=device_id,
-            expires_in_seconds=payload.expires_in_seconds,
-        )
+        try:
+            return hermes_pairing_service.issue_pairing_token(
+                device_id=device_id,
+                expires_in_seconds=payload.expires_in_seconds,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.put("/hermes/devices/{device_id}/models")
     def assign_hermes_device_models(
@@ -1363,10 +1366,13 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         x_admin_token: str | None = Header(default=None),
     ) -> dict:
         require_admin(x_admin_token)
-        return pairing_service.issue_pairing_token(
-            device_id=device_id,
-            expires_in_seconds=payload.expires_in_seconds,
-        )
+        try:
+            return pairing_service.issue_pairing_token(
+                device_id=device_id,
+                expires_in_seconds=payload.expires_in_seconds,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.put("/devices/{device_id}/models")
     def assign_device_models(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import platform as platform_module
 from typing import Literal
 
 
@@ -13,9 +14,15 @@ DEFAULT_HERMES_AGENT_CONFIG_PATH = Path.home() / ".zhaocai-gateway" / "hermes-ag
 DEFAULT_OUTPUT_PATH = Path.home() / ".openclaw" / "openclaw.json"
 DEFAULT_HERMES_OUTPUT_PATH = Path.home() / ".hermes" / "config.yaml"
 DEFAULT_RELOAD_COMMAND = "openclaw gateway restart"
-DEFAULT_HERMES_RELOAD_COMMAND = (
+DEFAULT_HERMES_LINUX_RELOAD_COMMAND = (
     "systemctl --user restart hermes-gateway && "
     "systemctl --user restart hermes-webui"
+)
+DEFAULT_HERMES_MACOS_RELOAD_COMMAND = "/usr/bin/true"
+DEFAULT_HERMES_RELOAD_COMMAND = (
+    DEFAULT_HERMES_MACOS_RELOAD_COMMAND
+    if platform_module.system().lower() == "darwin"
+    else DEFAULT_HERMES_LINUX_RELOAD_COMMAND
 )
 
 

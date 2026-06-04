@@ -265,6 +265,13 @@ export interface DiscoveredProviderModel {
   cost_cache_write: number | null;
 }
 
+export interface PairingTokenResult {
+  device_id: number;
+  pairing_token: string;
+  expires_at: string;
+  install_command: string;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const ADMIN_TOKEN_STORAGE_KEY = "zhaocai-admin-token";
 
@@ -1126,7 +1133,7 @@ export const api = {
   async issuePairingToken(
     deviceId: number,
     expires_in_seconds = 600,
-  ): Promise<{ device_id: number; pairing_token: string; expires_at: string }> {
+  ): Promise<PairingTokenResult> {
     return request(`/admin/devices/${deviceId}/pairing-token`, {
       method: "POST",
       body: JSON.stringify({ expires_in_seconds }),
@@ -1185,7 +1192,7 @@ export const api = {
   async issueHermesPairingToken(
     deviceId: number,
     expires_in_seconds = 600,
-  ): Promise<{ device_id: number; pairing_token: string; expires_at: string }> {
+  ): Promise<PairingTokenResult> {
     return request(`/admin/hermes/devices/${deviceId}/pairing-token`, {
       method: "POST",
       body: JSON.stringify({ expires_in_seconds }),
