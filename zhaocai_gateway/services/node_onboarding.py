@@ -44,11 +44,12 @@ def build_install_command(
     pairing_token: str,
     platform: str,
     device_type: str,
+    platform_family: PlatformFamily | None = None,
     public_base_url: str | None = None,
     repo_url: str | None = None,
     git_ref: str | None = None,
 ) -> str:
-    family = infer_platform_family(platform, device_type)
+    family = platform_family or infer_platform_family(platform, device_type)
     resolved_base_url = resolve_public_base_url(public_base_url)
     resolved_repo_url = resolve_node_repo_url(repo_url)
     resolved_git_ref = resolve_node_git_ref(target, git_ref)

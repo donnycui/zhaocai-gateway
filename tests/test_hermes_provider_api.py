@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import httpx
 
 from zhaocai_gateway.app import create_app
 
@@ -67,6 +68,70 @@ def test_import_openclaw_provider_into_hermes():
     assert payload["action"] == "created"
     assert payload["provider"]["name"] == "openrouter"
     assert payload["provider"]["source_openclaw_provider_id"] == provider["id"]
+
+
+def test_discover_hermes_provider_models_uses_default_headers(monkeypatch):
+    client = create_test_client()
+    calls: list[dict] = []
+
+    class DummyResponse:
+        status_code = 200
+        is_success = True
+        text = ""
+
+        def json(self) -> dict:
+            return {
+                "data": [
+                    {
+                        "id": "gpt-5.5",
+                        "name": "GPT-5.5",
+                        "owned_by": "relay",
+                    }
+                ]
+            }
+
+    def fake_request(
+        method: str,
+        url: str,
+        headers: dict,
+        timeout: float,
+        json=None,
+    ) -> DummyResponse:
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
+        return DummyResponse()
+
+    monkeypatch.setattr(httpx, "request", fake_request)
+
+    response = client.post(
+        "/admin/hermes/providers/discover-models",
+        headers=admin_headers(),
+        json={
+            "base_url": "https://relay.example.com/v1",
+            "api_key": "sk-hermes",
+            "default_headers_json": {
+                "HTTP-Referer": "https://hermes-agent.nousresearch.com",
+                "X-Title": "Hermes",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["models"][0]["upstream_model"] == "gpt-5.5"
+    assert payload["models"][0]["display_name"] == "GPT-5.5"
+    assert calls[0]["method"] == "GET"
+    assert calls[0]["url"] == "https://relay.example.com/v1/models"
+    assert calls[0]["headers"]["Authorization"] == "Bearer sk-hermes"
+    assert calls[0]["headers"]["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
+    assert calls[0]["headers"]["X-Title"] == "Hermes"
 
 
 def test_create_and_update_hermes_model():

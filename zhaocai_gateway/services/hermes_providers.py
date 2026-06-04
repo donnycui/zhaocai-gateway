@@ -4,6 +4,7 @@ from dataclasses import asdict
 import sqlite3
 
 from zhaocai_gateway.db.store import SQLiteStore
+from zhaocai_gateway.services.providers import ProviderService
 
 
 ALLOWED_HERMES_PLUGIN_MODES = {"none", "default_headers"}
@@ -117,6 +118,21 @@ class HermesProviderService:
             source_openclaw_provider_id=source.id,
         )
         return {"provider": asdict(provider), "action": "updated"}
+
+    def discover_models(
+        self,
+        *,
+        base_url: str,
+        api_key: str,
+        default_headers_json: dict[str, str],
+    ) -> dict:
+        return ProviderService(self.store).discover_models(
+            base_url=base_url,
+            provider_type="openai-completions",
+            auth_scheme="bearer",
+            api_key=api_key,
+            extra_headers=self._normalize_headers(default_headers_json),
+        )
 
     @staticmethod
     def _normalize_plugin_mode(plugin_mode: str) -> str:

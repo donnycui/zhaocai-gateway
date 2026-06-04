@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { api, type HermesDevice } from "../lib/api";
+import { api, type HermesDevice, type PairingPlatformFamily } from "../lib/api";
 
 interface HermesNodesPageProps {
   devices: HermesDevice[];
@@ -16,11 +16,13 @@ export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageP
   });
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [selectedPlatformFamily, setSelectedPlatformFamily] = useState<PairingPlatformFamily>("macos");
   const [pairingInfo, setPairingInfo] = useState<{
     deviceId: number;
     deviceName: string;
     deviceType: string;
     platform: string;
+    platformFamily: PairingPlatformFamily;
     pairingToken: string;
     expiresAt: string;
     installCommand: string;
@@ -83,12 +85,13 @@ export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageP
   }
 
   async function handleIssueToken(device: HermesDevice) {
-    const token = await api.issueHermesPairingToken(device.id);
+    const token = await api.issueHermesPairingToken(device.id, selectedPlatformFamily);
     setPairingInfo({
       deviceId: device.id,
       deviceName: device.name,
       deviceType: device.device_type,
       platform: device.platform,
+      platformFamily: selectedPlatformFamily,
       pairingToken: token.pairing_token,
       expiresAt: token.expires_at,
       installCommand: token.install_command,
@@ -146,7 +149,23 @@ export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageP
         <div className="panel">
           <div className="panel-header">
             <h3>Hermes Pairing Token</h3>
-            <p>为目标设备签发一次性 token，再去目标机器执行 Hermes 注册命令。</p>
+            <p>先选择目标系统，再为设备签发一次性 token。</p>
+          </div>
+          <div className="topbar-actions" style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              className={`choice-chip ${selectedPlatformFamily === "macos" ? "selected" : ""}`}
+              onClick={() => setSelectedPlatformFamily("macos")}
+            >
+              macOS
+            </button>
+            <button
+              type="button"
+              className={`choice-chip ${selectedPlatformFamily === "linux" ? "selected" : ""}`}
+              onClick={() => setSelectedPlatformFamily("linux")}
+            >
+              Linux
+            </button>
           </div>
           <div className="device-list">
             {devices.length === 0 ? (
@@ -166,7 +185,7 @@ export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageP
                       删除
                     </button>
                     <button type="button" className="secondary-button" onClick={() => void handleIssueToken(device)}>
-                      签发 Token
+                      签发 {selectedPlatformFamily === "macos" ? "macOS" : "Linux"} Token
                     </button>
                   </div>
                 </div>
@@ -188,7 +207,7 @@ export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageP
           <pre className="code-block">{installCommand}</pre>
           {pairingInfo ? (
             <p className="inline-message">
-              {pairingInfo.deviceName} 的 token 过期时间：{pairingInfo.expiresAt}
+              {pairingInfo.deviceName} 的 {pairingInfo.platformFamily === "macos" ? "macOS" : "Linux"} token 过期时间：{pairingInfo.expiresAt}
             </p>
           ) : null}
         </div>

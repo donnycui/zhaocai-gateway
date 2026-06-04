@@ -272,6 +272,8 @@ export interface PairingTokenResult {
   install_command: string;
 }
 
+export type PairingPlatformFamily = "macos" | "linux";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const ADMIN_TOKEN_STORAGE_KEY = "zhaocai-admin-token";
 
@@ -526,6 +528,17 @@ export const api = {
     return request("/admin/hermes/providers/import-openclaw", {
       method: "POST",
       body: JSON.stringify({ openclaw_provider_id }),
+    });
+  },
+
+  async discoverHermesProviderModels(payload: {
+    base_url: string;
+    api_key: string;
+    default_headers_json: Record<string, string>;
+  }): Promise<{ models: DiscoveredProviderModel[]; count: number }> {
+    return request("/admin/hermes/providers/discover-models", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 
@@ -1191,11 +1204,12 @@ export const api = {
 
   async issueHermesPairingToken(
     deviceId: number,
+    platform_family: PairingPlatformFamily,
     expires_in_seconds = 600,
   ): Promise<PairingTokenResult> {
     return request(`/admin/hermes/devices/${deviceId}/pairing-token`, {
       method: "POST",
-      body: JSON.stringify({ expires_in_seconds }),
+      body: JSON.stringify({ expires_in_seconds, platform_family }),
     });
   },
 

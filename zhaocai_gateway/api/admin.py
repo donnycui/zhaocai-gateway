@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -113,6 +115,10 @@ class PairingTokenCreate(BaseModel):
     expires_in_seconds: int = 600
 
 
+class HermesPairingTokenCreate(PairingTokenCreate):
+    platform_family: Literal["macos", "linux"] | None = None
+
+
 class DeviceModelBindingUpdate(BaseModel):
     model_ids: list[int] = Field(default_factory=list)
 
@@ -146,6 +152,12 @@ class HermesProviderUpdate(BaseModel):
 
 class HermesProviderImportOpenClaw(BaseModel):
     openclaw_provider_id: int
+
+
+class HermesProviderDiscover(BaseModel):
+    base_url: str = Field(min_length=1)
+    api_key: str = ""
+    default_headers_json: dict[str, str] = Field(default_factory=dict)
 
 
 class HermesModelCreate(BaseModel):
@@ -534,6 +546,23 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
         require_admin(x_admin_token)
         return {"providers": hermes_provider_service.list()}
 
+    @router.post("/hermes/providers/discover-models")
+    def discover_hermes_provider_models(
+        payload: HermesProviderDiscover,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return hermes_provider_service.discover_models(
+                base_url=payload.base_url,
+                api_key=payload.api_key,
+                default_headers_json=payload.default_headers_json,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
     @router.get("/hermes/providers/{provider_id}")
     def get_hermes_provider(provider_id: int, x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
@@ -728,7 +757,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     @router.post("/hermes/devices/{device_id}/pairing-token")
     def create_hermes_pairing_token(
         device_id: int,
-        payload: PairingTokenCreate,
+        payload: HermesPairingTokenCreate,
         x_admin_token: str | None = Header(default=None),
     ) -> dict:
         require_admin(x_admin_token)
@@ -736,6 +765,7 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
             return hermes_pairing_service.issue_pairing_token(
                 device_id=device_id,
                 expires_in_seconds=payload.expires_in_seconds,
+                platform_family=payload.platform_family,
             )
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

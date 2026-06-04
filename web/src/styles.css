@@ -1101,6 +1101,25 @@ button {
   max-height: 360px;
 }
 
+.inline-code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(17, 32, 49, 0.06);
+  color: #32465f;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.code-textarea {
+  min-height: 150px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .status-chip,
 .error-chip {
   display: inline-flex;

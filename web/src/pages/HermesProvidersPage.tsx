@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { api, type HermesModel, type HermesProvider, type Provider } from "../lib/api";
 
@@ -21,6 +21,50 @@ const avatarToneClasses = [
   "tone-indigo",
   "tone-lime",
 ];
+
+function IconButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="icon-button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M15.17 3.59a2 2 0 0 1 2.83 0l2.41 2.41a2 2 0 0 1 0 2.83L9.24 20H4v-5.24L15.17 3.59Zm1.41 1.41L6 15.59V18h2.41L19 7.41 16.58 5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h2v8H7V9Zm4 0h2v8h-2V9Zm4 0h2v8h-2V9ZM6 21a2 2 0 0 1-2-2V8h16v11a2 2 0 0 1-2 2H6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 export default function HermesProvidersPage({
   providers,
@@ -134,12 +178,12 @@ export default function HermesProvidersPage({
                   ) : null}
                 </div>
                 <div className="provider-card-actions">
-                  <button type="button" className="secondary-button" onClick={() => onEdit(provider.id)}>
-                    编辑
-                  </button>
-                  <button type="button" className="secondary-button" onClick={() => void handleDeleteProvider(provider.id)}>
-                    删除
-                  </button>
+                  <IconButton title="编辑 Hermes 供应商" onClick={() => onEdit(provider.id)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton title="删除 Hermes 供应商" onClick={() => void handleDeleteProvider(provider.id)}>
+                    <DeleteIcon />
+                  </IconButton>
                 </div>
               </div>
               {provider.notes ? <p className="provider-note">{provider.notes}</p> : null}

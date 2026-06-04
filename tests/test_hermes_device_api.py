@@ -127,3 +127,56 @@ def test_issue_hermes_pairing_token():
     assert f"--token {payload['pairing_token']}" in payload["install_command"]
     assert "git switch codex/hermes-module" in payload["install_command"]
     assert "--reload-cmd /usr/bin/true" in payload["install_command"]
+
+
+def test_issue_hermes_pairing_token_for_selected_macos_platform():
+    client = create_test_client()
+    device = client.post(
+        "/admin/hermes/devices",
+        headers=admin_headers(),
+        json={
+            "name": "hermes-mac-selected",
+            "device_type": "vps",
+            "platform": "linux",
+        },
+    ).json()["device"]
+
+    response = client.post(
+        f"/admin/hermes/devices/{device['id']}/pairing-token",
+        headers=admin_headers(),
+        json={"platform_family": "macos"},
+    )
+
+    assert response.status_code == 200
+    install_command = response.json()["install_command"]
+    assert "launchctl load ~/Library/LaunchAgents/com.zhaocai.hermes-agent.plist" in install_command
+    assert "--reload-cmd /usr/bin/true" in install_command
+    assert "systemctl --user" not in install_command
+    assert "sudo apt" not in install_command
+
+
+def test_issue_hermes_pairing_token_for_selected_linux_platform():
+    client = create_test_client()
+    device = client.post(
+        "/admin/hermes/devices",
+        headers=admin_headers(),
+        json={
+            "name": "hermes-linux-selected",
+            "device_type": "mac",
+            "platform": "darwin",
+        },
+    ).json()["device"]
+
+    response = client.post(
+        f"/admin/hermes/devices/{device['id']}/pairing-token",
+        headers=admin_headers(),
+        json={"platform_family": "linux"},
+    )
+
+    assert response.status_code == 200
+    install_command = response.json()["install_command"]
+    assert "sudo apt install -y python3-venv" in install_command
+    assert "--service-manager systemd" in install_command
+    assert "systemctl --user enable --now zhaocai-hermes-agent.service" in install_command
+    assert "launchctl" not in install_command
+    assert "--reload-cmd /usr/bin/true" not in install_command
