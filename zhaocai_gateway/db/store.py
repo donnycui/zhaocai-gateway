@@ -17,6 +17,11 @@ from zhaocai_gateway.domain.models import (
     GatewayModel,
     GatewayModelUsageSummary,
     GatewayUpstreamAccount,
+    HermesConfigSnapshot,
+    HermesDevice,
+    HermesModel,
+    HermesPairingToken,
+    HermesProvider,
     MediaProvider,
     MediaTemplate,
     Model,
@@ -335,6 +340,69 @@ class SQLiteStore:
             api_key_encrypted=str(row["api_key_encrypted"]),
             enabled=bool(row["enabled"]),
             notes=str(row["notes"] or ""),
+        )
+
+    @staticmethod
+    def _row_to_hermes_provider(row: sqlite3.Row) -> HermesProvider:
+        return HermesProvider(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            base_url=str(row["base_url"]),
+            api_key_encrypted=str(row["api_key_encrypted"]),
+            enabled=bool(row["enabled"]),
+            notes=str(row["notes"] or ""),
+            plugin_mode=str(row["plugin_mode"]),
+            default_headers_json=json.loads(row["default_headers_json"] or "{}"),
+            source_openclaw_provider_id=int(row["source_openclaw_provider_id"]) if row["source_openclaw_provider_id"] is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_hermes_model(row: sqlite3.Row) -> HermesModel:
+        provider_name = row["provider_name"] if "provider_name" in row.keys() else None
+        return HermesModel(
+            id=int(row["id"]),
+            provider_id=int(row["provider_id"]),
+            upstream_model=str(row["upstream_model"]),
+            display_name=str(row["display_name"]),
+            enabled=bool(row["enabled"]),
+            provider_name=str(provider_name) if provider_name is not None else None,
+        )
+
+    @staticmethod
+    def _row_to_hermes_device(row: sqlite3.Row) -> HermesDevice:
+        return HermesDevice(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            device_type=str(row["device_type"]),
+            hostname=str(row["hostname"]),
+            platform=str(row["platform"]),
+            active=bool(row["active"]),
+            last_seen_at=str(row["last_seen_at"]) if row["last_seen_at"] is not None else None,
+            sync_token_hash=str(row["sync_token_hash"]),
+            current_config_version=int(row["current_config_version"]),
+        )
+
+    @staticmethod
+    def _row_to_hermes_pairing_token(row: sqlite3.Row) -> HermesPairingToken:
+        return HermesPairingToken(
+            id=int(row["id"]),
+            device_id=int(row["device_id"]),
+            token_hash=str(row["token_hash"]),
+            expires_at=str(row["expires_at"]),
+            used_at=str(row["used_at"]) if row["used_at"] is not None else None,
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _row_to_hermes_config_snapshot(row: sqlite3.Row) -> HermesConfigSnapshot:
+        return HermesConfigSnapshot(
+            id=int(row["id"]),
+            device_id=int(row["device_id"]),
+            version=int(row["version"]),
+            etag=str(row["etag"]),
+            payload_json=json.loads(row["payload_json"]),
+            content_hash=str(row["content_hash"]),
+            created_at=str(row["created_at"]),
         )
 
     @staticmethod
@@ -1463,6 +1531,513 @@ class SQLiteStore:
     def delete_media_provider(self, provider_id: int) -> None:
         self.conn.execute("DELETE FROM media_providers WHERE id = ?", (provider_id,))
         self.conn.commit()
+
+    def create_hermes_provider(
+        self,
+        *,
+        name: str,
+        base_url: str,
+        api_key_encrypted: str,
+        enabled: bool,
+        notes: str,
+        plugin_mode: str,
+        default_headers_json: dict[str, str],
+        source_openclaw_provider_id: int | None,
+    ) -> HermesProvider:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO hermes_providers
+            (name, base_url, api_key_encrypted, enabled, notes, plugin_mode, default_headers_json, source_openclaw_provider_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                base_url,
+                api_key_encrypted,
+                int(enabled),
+                notes,
+                plugin_mode,
+                json.dumps(default_headers_json, ensure_ascii=False),
+                source_openclaw_provider_id,
+            ),
+        )
+        self.conn.commit()
+        provider = self.get_hermes_provider(int(cursor.lastrowid))
+        if provider is None:
+            raise RuntimeError("Failed to create hermes provider")
+        return provider
+
+    def get_hermes_provider(self, provider_id: int) -> HermesProvider | None:
+        row = self.conn.execute(
+            "SELECT * FROM hermes_providers WHERE id = ?",
+            (provider_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_provider(row)
+
+    def get_hermes_provider_by_name(self, name: str) -> HermesProvider | None:
+        row = self.conn.execute(
+            "SELECT * FROM hermes_providers WHERE name = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_provider(row)
+
+    def list_hermes_providers(self) -> list[HermesProvider]:
+        rows = self.conn.execute(
+            "SELECT * FROM hermes_providers ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_hermes_provider(row) for row in rows]
+
+    def update_hermes_provider(
+        self,
+        provider_id: int,
+        *,
+        name: str,
+        base_url: str,
+        api_key_encrypted: str,
+        enabled: bool,
+        notes: str,
+        plugin_mode: str,
+        default_headers_json: dict[str, str],
+        source_openclaw_provider_id: int | None,
+    ) -> HermesProvider:
+        self.conn.execute(
+            """
+            UPDATE hermes_providers
+            SET name = ?,
+                base_url = ?,
+                api_key_encrypted = ?,
+                enabled = ?,
+                notes = ?,
+                plugin_mode = ?,
+                default_headers_json = ?,
+                source_openclaw_provider_id = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                name,
+                base_url,
+                api_key_encrypted,
+                int(enabled),
+                notes,
+                plugin_mode,
+                json.dumps(default_headers_json, ensure_ascii=False),
+                source_openclaw_provider_id,
+                provider_id,
+            ),
+        )
+        self.conn.commit()
+        provider = self.get_hermes_provider(provider_id)
+        if provider is None:
+            raise RuntimeError("Failed to update hermes provider")
+        return provider
+
+    def delete_hermes_provider(self, provider_id: int) -> None:
+        self.conn.execute("DELETE FROM hermes_providers WHERE id = ?", (provider_id,))
+        self.conn.commit()
+
+    def create_hermes_model(
+        self,
+        *,
+        provider_id: int,
+        upstream_model: str,
+        display_name: str,
+        enabled: bool,
+    ) -> HermesModel:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO hermes_models
+            (provider_id, upstream_model, display_name, enabled)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                provider_id,
+                upstream_model,
+                display_name,
+                int(enabled),
+            ),
+        )
+        self.conn.commit()
+        model = self.get_hermes_model(int(cursor.lastrowid))
+        if model is None:
+            raise RuntimeError("Failed to create hermes model")
+        return model
+
+    def get_hermes_model(self, model_id: int) -> HermesModel | None:
+        row = self.conn.execute(
+            """
+            SELECT hm.*, hp.name AS provider_name
+            FROM hermes_models hm
+            JOIN hermes_providers hp ON hp.id = hm.provider_id
+            WHERE hm.id = ?
+            """,
+            (model_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_model(row)
+
+    def list_hermes_models(self, provider_id: int | None = None) -> list[HermesModel]:
+        params: tuple[Any, ...] = ()
+        where = ""
+        if provider_id is not None:
+            where = "WHERE hm.provider_id = ?"
+            params = (provider_id,)
+
+        rows = self.conn.execute(
+            f"""
+            SELECT hm.*, hp.name AS provider_name
+            FROM hermes_models hm
+            JOIN hermes_providers hp ON hp.id = hm.provider_id
+            {where}
+            ORDER BY hm.id ASC
+            """,
+            params,
+        ).fetchall()
+        return [self._row_to_hermes_model(row) for row in rows]
+
+    def update_hermes_model(
+        self,
+        model_id: int,
+        *,
+        upstream_model: str,
+        display_name: str,
+        enabled: bool,
+    ) -> HermesModel:
+        self.conn.execute(
+            """
+            UPDATE hermes_models
+            SET upstream_model = ?,
+                display_name = ?,
+                enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                upstream_model,
+                display_name,
+                int(enabled),
+                model_id,
+            ),
+        )
+        self.conn.commit()
+        model = self.get_hermes_model(model_id)
+        if model is None:
+            raise RuntimeError("Failed to update hermes model")
+        return model
+
+    def delete_hermes_model(self, model_id: int) -> None:
+        self.conn.execute("DELETE FROM hermes_models WHERE id = ?", (model_id,))
+        self.conn.commit()
+
+    def get_hermes_model_by_provider_and_upstream(
+        self,
+        provider_id: int,
+        upstream_model: str,
+    ) -> HermesModel | None:
+        row = self.conn.execute(
+            """
+            SELECT hm.*, hp.name AS provider_name
+            FROM hermes_models hm
+            JOIN hermes_providers hp ON hp.id = hm.provider_id
+            WHERE hm.provider_id = ? AND hm.upstream_model = ?
+            LIMIT 1
+            """,
+            (provider_id, upstream_model),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_model(row)
+
+    def list_hermes_models_for_device(self, device_id: int) -> list[HermesModel]:
+        rows = self.conn.execute(
+            """
+            SELECT hm.*, hp.name AS provider_name
+            FROM hermes_device_model_bindings hdmb
+            JOIN hermes_models hm ON hm.id = hdmb.model_id
+            JOIN hermes_providers hp ON hp.id = hm.provider_id
+            WHERE hdmb.device_id = ?
+            ORDER BY hdmb.priority ASC, hm.id ASC
+            """,
+            (device_id,),
+        ).fetchall()
+        return [self._row_to_hermes_model(row) for row in rows]
+
+    def create_hermes_device(
+        self,
+        *,
+        name: str,
+        device_type: str,
+        hostname: str,
+        platform: str,
+        active: bool,
+    ) -> HermesDevice:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO hermes_devices
+            (name, device_type, hostname, platform, active)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (name, device_type, hostname, platform, int(active)),
+        )
+        self.conn.commit()
+        device = self.get_hermes_device(int(cursor.lastrowid))
+        if device is None:
+            raise RuntimeError("Failed to create hermes device")
+        return device
+
+    def update_hermes_device(
+        self,
+        device_id: int,
+        *,
+        name: str,
+        device_type: str,
+        hostname: str,
+        platform: str,
+        active: bool,
+    ) -> HermesDevice:
+        self.conn.execute(
+            """
+            UPDATE hermes_devices
+            SET name = ?,
+                device_type = ?,
+                hostname = ?,
+                platform = ?,
+                active = ?
+            WHERE id = ?
+            """,
+            (name, device_type, hostname, platform, int(active), device_id),
+        )
+        self.conn.commit()
+        device = self.get_hermes_device(device_id)
+        if device is None:
+            raise RuntimeError("Failed to update hermes device")
+        return device
+
+    def get_hermes_device(self, device_id: int) -> HermesDevice | None:
+        row = self.conn.execute(
+            "SELECT * FROM hermes_devices WHERE id = ?",
+            (device_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_device(row)
+
+    def list_hermes_devices(self) -> list[HermesDevice]:
+        rows = self.conn.execute(
+            "SELECT * FROM hermes_devices ORDER BY id ASC",
+        ).fetchall()
+        return [self._row_to_hermes_device(row) for row in rows]
+
+    def delete_hermes_device(self, device_id: int) -> None:
+        self.conn.execute("DELETE FROM hermes_devices WHERE id = ?", (device_id,))
+        self.conn.commit()
+
+    def set_hermes_device_model_bindings(self, *, device_id: int, model_ids: list[int]) -> None:
+        self.conn.execute(
+            "DELETE FROM hermes_device_model_bindings WHERE device_id = ?",
+            (device_id,),
+        )
+        self.conn.executemany(
+            "INSERT INTO hermes_device_model_bindings (device_id, model_id, priority) VALUES (?, ?, ?)",
+            [(device_id, model_id, priority) for priority, model_id in enumerate(model_ids)],
+        )
+        self.conn.commit()
+
+    def get_hermes_device_model_ids(self, device_id: int) -> list[int]:
+        rows = self.conn.execute(
+            """
+            SELECT model_id
+            FROM hermes_device_model_bindings
+            WHERE device_id = ?
+            ORDER BY priority ASC, model_id ASC
+            """,
+            (device_id,),
+        ).fetchall()
+        return [int(row["model_id"]) for row in rows]
+
+    def create_hermes_pairing_token(
+        self,
+        *,
+        device_id: int,
+        token_hash: str,
+        expires_at: str,
+    ) -> HermesPairingToken:
+        cursor = self.conn.execute(
+            """
+            INSERT INTO hermes_pairing_tokens (device_id, token_hash, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (device_id, token_hash, expires_at),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM hermes_pairing_tokens WHERE id = ?",
+            (int(cursor.lastrowid),),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create hermes pairing token")
+        return self._row_to_hermes_pairing_token(row)
+
+    def consume_hermes_pairing_token(
+        self,
+        *,
+        token_hash: str,
+        used_at: str,
+        now: str,
+    ) -> HermesPairingToken | None:
+        row = self.conn.execute(
+            """
+            SELECT *
+            FROM hermes_pairing_tokens
+            WHERE token_hash = ?
+              AND used_at IS NULL
+              AND expires_at > ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (token_hash, now),
+        ).fetchone()
+        if row is None:
+            return None
+        self.conn.execute(
+            "UPDATE hermes_pairing_tokens SET used_at = ? WHERE id = ?",
+            (used_at, int(row["id"])),
+        )
+        self.conn.commit()
+        updated = self.conn.execute(
+            "SELECT * FROM hermes_pairing_tokens WHERE id = ?",
+            (int(row["id"]),),
+        ).fetchone()
+        if updated is None:
+            return None
+        return self._row_to_hermes_pairing_token(updated)
+
+    def activate_hermes_device_registration(
+        self,
+        *,
+        device_id: int,
+        hostname: str,
+        platform: str,
+        sync_token_hash: str,
+        last_seen_at: str,
+    ) -> HermesDevice:
+        self.conn.execute(
+            """
+            UPDATE hermes_devices
+            SET hostname = ?, platform = ?, sync_token_hash = ?, last_seen_at = ?
+            WHERE id = ?
+            """,
+            (hostname, platform, sync_token_hash, last_seen_at, device_id),
+        )
+        self.conn.commit()
+        device = self.get_hermes_device(device_id)
+        if device is None:
+            raise RuntimeError("Failed to activate hermes device registration")
+        return device
+
+    def touch_hermes_device_heartbeat(
+        self,
+        *,
+        sync_token_hash: str,
+        last_seen_at: str,
+    ) -> HermesDevice | None:
+        row = self.conn.execute(
+            "SELECT id FROM hermes_devices WHERE sync_token_hash = ?",
+            (sync_token_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        device_id = int(row["id"])
+        self.conn.execute(
+            "UPDATE hermes_devices SET last_seen_at = ? WHERE id = ?",
+            (last_seen_at, device_id),
+        )
+        self.conn.commit()
+        return self.get_hermes_device(device_id)
+
+    def get_hermes_device_by_sync_token_hash(self, sync_token_hash: str) -> HermesDevice | None:
+        row = self.conn.execute(
+            "SELECT * FROM hermes_devices WHERE sync_token_hash = ?",
+            (sync_token_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_device(row)
+
+    def record_applied_hermes_config(
+        self,
+        *,
+        sync_token_hash: str,
+        version: int,
+        status: str,
+    ) -> AppliedConfigReport | None:
+        device = self.get_hermes_device_by_sync_token_hash(sync_token_hash)
+        if device is None:
+            return None
+        return AppliedConfigReport(
+            device_id=device.id,
+            version=version,
+            status=status,
+        )
+
+    def save_hermes_config_snapshot(self, *, device_id: int, payload: dict[str, Any]) -> HermesConfigSnapshot:
+        payload_text = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        content_hash = hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
+        latest_row = self.conn.execute(
+            """
+            SELECT *
+            FROM hermes_config_snapshots
+            WHERE device_id = ?
+            ORDER BY version DESC
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+        if latest_row is not None and str(latest_row["content_hash"]) == content_hash:
+            return self._row_to_hermes_config_snapshot(latest_row)
+
+        next_version = 1 if latest_row is None else int(latest_row["version"]) + 1
+        etag = f"\"{content_hash[:16]}-v{next_version}\""
+        cursor = self.conn.execute(
+            """
+            INSERT INTO hermes_config_snapshots
+            (device_id, version, etag, payload_json, content_hash)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (device_id, next_version, etag, payload_text, content_hash),
+        )
+        self.conn.execute(
+            "UPDATE hermes_devices SET current_config_version = ? WHERE id = ?",
+            (next_version, device_id),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT * FROM hermes_config_snapshots WHERE id = ?",
+            (int(cursor.lastrowid),),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Failed to create hermes config snapshot")
+        return self._row_to_hermes_config_snapshot(row)
+
+    def get_latest_hermes_config_snapshot(self, device_id: int) -> HermesConfigSnapshot | None:
+        row = self.conn.execute(
+            """
+            SELECT *
+            FROM hermes_config_snapshots
+            WHERE device_id = ?
+            ORDER BY version DESC
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_hermes_config_snapshot(row)
 
     def create_media_template(
         self,

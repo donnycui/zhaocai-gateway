@@ -76,7 +76,29 @@ textarea {
   gap: 10px;
 }
 
+.nav-group {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.nav-group-label {
+  padding: 0 8px;
+  color: #6b7788;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-subnav {
+  display: grid;
+  gap: 8px;
+  padding-left: 10px;
+}
+
 .nav-button,
+.nav-sub-button,
 button,
 .secondary-button {
   border: 0;
@@ -98,6 +120,23 @@ button,
 
 .nav-button.active {
   background: linear-gradient(135deg, #132238, #1f4c74);
+  color: #fff;
+}
+
+.nav-sub-button {
+  padding: 11px 14px;
+  text-align: left;
+  background: rgba(19, 34, 56, 0.03);
+  color: #32465f;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nav-sub-button:hover {
+  background: rgba(19, 34, 56, 0.07);
+}
+
+.nav-sub-button.active {
+  background: linear-gradient(135deg, rgba(19, 34, 56, 0.96), rgba(31, 76, 116, 0.9));
   color: #fff;
 }
 
@@ -142,7 +181,7 @@ button,
 .module-tab-row {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 
@@ -589,6 +628,19 @@ button {
   gap: 10px;
   opacity: 1;
   pointer-events: auto;
+}
+
+.provider-note {
+  margin: 0;
+  color: #5f6f84;
+  font-size: 0.92rem;
+}
+
+.provider-source-meta {
+  display: inline-flex;
+  margin-top: 4px;
+  color: #7b5a21;
+  font-size: 0.84rem;
 }
 
 .device-card {
@@ -1477,6 +1529,7 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .nav-button,
+  .nav-sub-button,
   .module-tab,
   .provider-card,
   .provider-card-actions,
@@ -1487,6 +1540,7 @@ button {
   }
 
   .nav-button:hover,
+  .nav-sub-button:hover,
   .module-tab:hover,
   .provider-card:hover {
     transform: none;

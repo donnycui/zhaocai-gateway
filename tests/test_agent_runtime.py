@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agent.cli import build_parser
 from agent.config import (
+    DEFAULT_HERMES_RELOAD_COMMAND,
     DEFAULT_RELOAD_COMMAND,
     AgentConfig,
     default_preserve_path_for,
@@ -61,6 +62,19 @@ def test_agent_default_preserve_path_tracks_output_path(tmp_path: Path):
     )
 
     assert Path(config.preserve_path) == default_preserve_path_for(output_path)
+
+
+def test_hermes_agent_defaults():
+    config = AgentConfig(
+        server_url="https://raspberrypi.tailnet.ts.net",
+        sync_token="sync-token",
+        device_id=1,
+        target="hermes",
+    )
+
+    assert config.output_path.endswith(".hermes/config.yaml")
+    assert config.reload_command == DEFAULT_HERMES_RELOAD_COMMAND
+    assert config.preserve_path == ""
 
 
 def test_write_openclaw_config_creates_backup(tmp_path: Path):
@@ -264,6 +278,33 @@ def test_launchd_install_artifact_content(tmp_path: Path):
     assert "<string>30</string>" in artifact.content
 
 
+def test_hermes_install_artifact_content(tmp_path: Path):
+    systemd_artifact = systemd_install_artifact(
+        target="hermes",
+        python_path="/srv/zhaocai/.venv/bin/python",
+        config_path="/srv/zhaocai/hermes-agent.json",
+        interval_seconds=45,
+        working_directory="/srv/zhaocai",
+        output_path=str(tmp_path / "zhaocai-hermes-agent.service"),
+    )
+
+    assert "zhaocai-hermes-agent.service" in str(systemd_artifact.path)
+    assert "--target hermes" in systemd_artifact.content
+
+    launchd_artifact = launchd_install_artifact(
+        target="hermes",
+        python_path="/Users/donny/.venv/bin/python",
+        config_path="/Users/donny/.zhaocai-gateway/hermes-agent.json",
+        interval_seconds=30,
+        working_directory="/Users/donny/.zhaocai-gateway",
+        output_path=str(tmp_path / "com.zhaocai.hermes-agent.plist"),
+    )
+
+    assert "<string>com.zhaocai.hermes-agent</string>" in launchd_artifact.content
+    assert "<string>--target</string>" in launchd_artifact.content
+    assert "<string>hermes</string>" in launchd_artifact.content
+
+
 def test_write_install_artifact(tmp_path: Path):
     artifact = systemd_install_artifact(
         python_path="/srv/zhaocai/.venv/bin/python",
@@ -301,9 +342,11 @@ def test_install_artifact_for_manager_launchd(tmp_path: Path):
 def test_install_next_steps():
     systemd_steps = install_next_steps("systemd", "/tmp/zhaocai-agent.service")
     launchd_steps = install_next_steps("launchd", "/tmp/com.zhaocai.agent.plist")
+    hermes_steps = install_next_steps("systemd", "/tmp/zhaocai-hermes-agent.service", target="hermes")
 
     assert systemd_steps[0] == "systemctl --user daemon-reload"
     assert "launchctl load /tmp/com.zhaocai.agent.plist" in launchd_steps[-1]
+    assert hermes_steps[-1] == "systemctl --user status zhaocai-hermes-agent.service"
 
 
 def test_collect_doctor_checks_with_valid_config(tmp_path: Path):

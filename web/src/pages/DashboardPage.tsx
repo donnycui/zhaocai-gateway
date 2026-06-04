@@ -1,9 +1,12 @@
-import type { Device, Model, Provider } from "../lib/api";
+import type { Device, HermesDevice, HermesModel, HermesProvider, Model, Provider } from "../lib/api";
 
 interface DashboardPageProps {
   providers: Provider[];
   models: Model[];
   devices: Device[];
+  hermesProviders: HermesProvider[];
+  hermesModels: HermesModel[];
+  hermesDevices: HermesDevice[];
   onRefresh: () => void;
 }
 
@@ -40,9 +43,15 @@ export default function DashboardPage({
   providers,
   models,
   devices,
+  hermesProviders,
+  hermesModels,
+  hermesDevices,
   onRefresh,
 }: DashboardPageProps) {
-  const offlineDevices = devices.filter((device) => !device.last_seen_at);
+  const runtimeDevices = [
+    ...devices.map((device) => ({ ...device, module: "OpenClaw" })),
+    ...hermesDevices.map((device) => ({ ...device, module: "Hermes" })),
+  ];
 
   return (
     <section className="page">
@@ -58,28 +67,37 @@ export default function DashboardPage({
 
       <div className="stats-grid">
         <article className="stat-card">
-          <span className="stat-label">供应商</span>
+          <span className="stat-label">OpenClaw 供应商</span>
           <strong>{providers.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">模型</span>
+          <span className="stat-label">OpenClaw 模型</span>
           <strong>{models.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">设备</span>
+          <span className="stat-label">OpenClaw 设备</span>
           <strong>{devices.length}</strong>
         </article>
         <article className="stat-card">
-          <span className="stat-label">待处理</span>
-          <strong>{offlineDevices.length}</strong>
+          <span className="stat-label">Hermes 供应商</span>
+          <strong>{hermesProviders.length}</strong>
+        </article>
+        <article className="stat-card">
+          <span className="stat-label">Hermes 模型</span>
+          <strong>{hermesModels.length}</strong>
+        </article>
+        <article className="stat-card">
+          <span className="stat-label">Hermes 设备</span>
+          <strong>{hermesDevices.length}</strong>
         </article>
       </div>
 
       <div className="panel">
-        <h3>设备状态</h3>
+        <h3>节点状态</h3>
         <table className="table">
           <thead>
             <tr>
+              <th>模块</th>
               <th>名称</th>
               <th>类型</th>
               <th>最近心跳</th>
@@ -87,15 +105,16 @@ export default function DashboardPage({
             </tr>
           </thead>
           <tbody>
-            {devices.length === 0 ? (
+            {runtimeDevices.length === 0 ? (
               <tr>
-                <td colSpan={4} className="empty-cell">
-                  还没有注册任何设备。
+                <td colSpan={5} className="empty-cell">
+                  还没有注册任何 OpenClaw 或 Hermes 设备。
                 </td>
               </tr>
             ) : (
-              devices.map((device) => (
-                <tr key={device.id}>
+              runtimeDevices.map((device) => (
+                <tr key={`${device.module}-${device.id}`}>
+                  <td>{device.module}</td>
                   <td>{device.name}</td>
                   <td>{device.device_type}</td>
                   <td>{formatHeartbeat(device.last_seen_at)}</td>

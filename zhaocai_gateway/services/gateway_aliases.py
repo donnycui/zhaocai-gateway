@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 from typing import Any
 
@@ -10,7 +10,7 @@ from zhaocai_gateway.db.store import SQLiteStore
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class GatewayAliasService:
@@ -162,7 +162,7 @@ class GatewayAliasService:
 
         last_error_status = 502
         last_error_payload: dict[str, Any] = {"error": {"message": f"No available target for alias '{alias_key}'"}}
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
 
         for target in targets:
             if not target.enabled:
@@ -257,7 +257,7 @@ class GatewayAliasService:
 
     def _mark_target_failed(self, account_id: int, cooldown_seconds: int, *, health_status: str) -> None:
         cooldown_until = (
-            datetime.now(UTC) + timedelta(seconds=max(0, cooldown_seconds))
+            datetime.now(timezone.utc) + timedelta(seconds=max(0, cooldown_seconds))
         ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         self.store.update_gateway_upstream_account_status(
             account_id,

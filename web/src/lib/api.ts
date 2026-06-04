@@ -9,6 +9,18 @@ export interface Provider {
   enabled: boolean;
 }
 
+export interface HermesProvider {
+  id: number;
+  name: string;
+  base_url: string;
+  api_key_encrypted: string;
+  enabled: boolean;
+  notes: string;
+  plugin_mode: string;
+  default_headers_json: Record<string, string>;
+  source_openclaw_provider_id: number | null;
+}
+
 export interface Model {
   id: number;
   provider_id: number;
@@ -27,6 +39,15 @@ export interface Model {
   enabled: boolean;
 }
 
+export interface HermesModel {
+  id: number;
+  provider_id: number;
+  provider_name?: string;
+  upstream_model: string;
+  display_name: string;
+  enabled: boolean;
+}
+
 export interface Device {
   id: number;
   name: string;
@@ -40,6 +61,19 @@ export interface Device {
   model_ids: number[];
   preserve_providers: string[];
   preserve_models: string[];
+}
+
+export interface HermesDevice {
+  id: number;
+  name: string;
+  device_type: string;
+  hostname: string;
+  platform: string;
+  active: boolean;
+  last_seen_at: string | null;
+  sync_token_hash: string;
+  current_config_version: number;
+  model_ids: number[];
 }
 
 export interface GatewayUpstreamAccount {
@@ -426,6 +460,108 @@ export const api = {
     return result.models;
   },
 
+  async getHermesProviders(): Promise<HermesProvider[]> {
+    const result = await request<{ providers: HermesProvider[] }>("/admin/hermes/providers");
+    return result.providers;
+  },
+
+  async getHermesProvider(providerId: number): Promise<{ provider: HermesProvider; models: HermesModel[] }> {
+    return request(`/admin/hermes/providers/${providerId}`);
+  },
+
+  async createHermesProvider(payload: {
+    name: string;
+    base_url: string;
+    api_key: string;
+    enabled: boolean;
+    notes: string;
+    plugin_mode: string;
+    default_headers_json: Record<string, string>;
+    source_openclaw_provider_id?: number | null;
+  }): Promise<HermesProvider> {
+    const result = await request<{ provider: HermesProvider }>("/admin/hermes/providers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.provider;
+  },
+
+  async updateHermesProvider(
+    providerId: number,
+    payload: {
+      name: string;
+      base_url: string;
+      api_key: string;
+      enabled: boolean;
+      notes: string;
+      plugin_mode: string;
+      default_headers_json: Record<string, string>;
+      source_openclaw_provider_id?: number | null;
+    },
+  ): Promise<HermesProvider> {
+    const result = await request<{ provider: HermesProvider }>(`/admin/hermes/providers/${providerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.provider;
+  },
+
+  async deleteHermesProvider(providerId: number): Promise<{ ok: boolean; provider_id: number }> {
+    return request(`/admin/hermes/providers/${providerId}`, {
+      method: "DELETE",
+    });
+  },
+
+  async importOpenClawProviderToHermes(openclaw_provider_id: number): Promise<{
+    provider: HermesProvider;
+    action: "created" | "updated";
+  }> {
+    return request("/admin/hermes/providers/import-openclaw", {
+      method: "POST",
+      body: JSON.stringify({ openclaw_provider_id }),
+    });
+  },
+
+  async getHermesModels(providerId?: number): Promise<HermesModel[]> {
+    const suffix = providerId != null ? `?provider_id=${providerId}` : "";
+    const result = await request<{ models: HermesModel[] }>(`/admin/hermes/models${suffix}`);
+    return result.models;
+  },
+
+  async createHermesModel(payload: {
+    provider_id: number;
+    upstream_model: string;
+    display_name: string;
+    enabled: boolean;
+  }): Promise<HermesModel> {
+    const result = await request<{ model: HermesModel }>("/admin/hermes/models", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.model;
+  },
+
+  async updateHermesModel(
+    modelId: number,
+    payload: {
+      upstream_model: string;
+      display_name: string;
+      enabled: boolean;
+    },
+  ): Promise<HermesModel> {
+    const result = await request<{ model: HermesModel }>(`/admin/hermes/models/${modelId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.model;
+  },
+
+  async deleteHermesModel(modelId: number): Promise<{ ok: boolean; model_id: number }> {
+    return request(`/admin/hermes/models/${modelId}`, {
+      method: "DELETE",
+    });
+  },
+
   async syncOpenRouterFree(): Promise<OpenRouterSyncResult> {
     return request("/admin/sync/openrouter-free", {
       method: "POST",
@@ -486,6 +622,11 @@ export const api = {
 
   async getDevices(): Promise<Device[]> {
     const result = await request<{ devices: Device[] }>("/admin/devices");
+    return result.devices;
+  },
+
+  async getHermesDevices(): Promise<HermesDevice[]> {
+    const result = await request<{ devices: HermesDevice[] }>("/admin/hermes/devices");
     return result.devices;
   },
 
@@ -994,5 +1135,64 @@ export const api = {
 
   async getConfigPreview(deviceId: number): Promise<ConfigPreview> {
     return request(`/admin/devices/${deviceId}/config-preview`);
+  },
+
+  async createHermesDevice(payload: {
+    name: string;
+    device_type: string;
+    hostname?: string;
+    platform?: string;
+    active?: boolean;
+  }): Promise<HermesDevice> {
+    const result = await request<{ device: HermesDevice }>("/admin/hermes/devices", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return result.device;
+  },
+
+  async updateHermesDevice(
+    deviceId: number,
+    payload: {
+      name: string;
+      device_type: string;
+      hostname?: string;
+      platform?: string;
+      active?: boolean;
+    },
+  ): Promise<HermesDevice> {
+    const result = await request<{ device: HermesDevice }>(`/admin/hermes/devices/${deviceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return result.device;
+  },
+
+  async deleteHermesDevice(deviceId: number): Promise<{ ok: boolean; device_id: number }> {
+    return request(`/admin/hermes/devices/${deviceId}`, {
+      method: "DELETE",
+    });
+  },
+
+  async assignHermesDeviceModels(deviceId: number, model_ids: number[]): Promise<HermesDevice> {
+    const result = await request<{ device: HermesDevice }>(`/admin/hermes/devices/${deviceId}/models`, {
+      method: "PUT",
+      body: JSON.stringify({ model_ids }),
+    });
+    return result.device;
+  },
+
+  async issueHermesPairingToken(
+    deviceId: number,
+    expires_in_seconds = 600,
+  ): Promise<{ device_id: number; pairing_token: string; expires_at: string }> {
+    return request(`/admin/hermes/devices/${deviceId}/pairing-token`, {
+      method: "POST",
+      body: JSON.stringify({ expires_in_seconds }),
+    });
+  },
+
+  async getHermesConfigPreview(deviceId: number): Promise<ConfigPreview> {
+    return request(`/admin/hermes/devices/${deviceId}/config-preview`);
   },
 };

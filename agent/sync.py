@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from agent.client import AgentClient
 from agent.config import AgentConfig, save_agent_config
+from agent.hermes_writer import write_hermes_config
 from agent.openclaw_writer import run_reload_command, write_openclaw_config, write_preserve_sidecar
 
 
@@ -25,15 +26,21 @@ def sync_once(config: AgentConfig, client: AgentClient, *, persist_path: str | N
         return SyncResult(changed=False, version=version, etag=etag)
 
     payload = client.get_config(sync_token=config.sync_token)
-    preserve_payload = None
-    if isinstance(payload, dict):
-        preserve_payload = payload.pop("_zhaocai", None)
-    write_preserve_sidecar(config.preserve_path, preserve_payload)
-    backup_path = write_openclaw_config(
-        config.output_path,
-        payload,
-        preserve_path=config.preserve_path,
-    )
+    if config.target == "hermes":
+        backup_path = write_hermes_config(
+            config.output_path,
+            payload,
+        )
+    else:
+        preserve_payload = None
+        if isinstance(payload, dict):
+            preserve_payload = payload.pop("_zhaocai", None)
+        write_preserve_sidecar(config.preserve_path, preserve_payload)
+        backup_path = write_openclaw_config(
+            config.output_path,
+            payload,
+            preserve_path=config.preserve_path,
+        )
     run_reload_command(config.reload_command)
     client.report_applied(sync_token=config.sync_token, version=version, status="applied")
 

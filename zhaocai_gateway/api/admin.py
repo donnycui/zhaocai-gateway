@@ -11,6 +11,11 @@ from zhaocai_gateway.services import (
     GatewayAliasService,
     GatewayClientKeyService,
     GatewayUsageService,
+    HermesConfigCompilerService,
+    HermesDeviceService,
+    HermesModelService,
+    HermesPairingService,
+    HermesProviderService,
     MediaCatalogService,
     MediaProviderService,
     MediaTemplateService,
@@ -115,6 +120,45 @@ class DeviceModelBindingUpdate(BaseModel):
 class DevicePreserveConfigUpdate(BaseModel):
     preserve_providers: list[str] = Field(default_factory=list)
     preserve_models: list[str] = Field(default_factory=list)
+
+
+class HermesProviderCreate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    api_key: str = ""
+    enabled: bool = True
+    notes: str = ""
+    plugin_mode: str = "none"
+    default_headers_json: dict[str, str] = Field(default_factory=dict)
+    source_openclaw_provider_id: int | None = None
+
+
+class HermesProviderUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    api_key: str = ""
+    enabled: bool = True
+    notes: str = ""
+    plugin_mode: str = "none"
+    default_headers_json: dict[str, str] = Field(default_factory=dict)
+    source_openclaw_provider_id: int | None = None
+
+
+class HermesProviderImportOpenClaw(BaseModel):
+    openclaw_provider_id: int
+
+
+class HermesModelCreate(BaseModel):
+    provider_id: int
+    upstream_model: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    enabled: bool = True
+
+
+class HermesModelUpdate(BaseModel):
+    upstream_model: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
+    enabled: bool = True
 
 
 class GatewayAccountCreate(BaseModel):
@@ -281,6 +325,11 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     device_service = DeviceService(store)
     pairing_service = PairingService(store)
     compiler_service = ConfigCompilerService(store)
+    hermes_provider_service = HermesProviderService(store)
+    hermes_model_service = HermesModelService(store)
+    hermes_device_service = HermesDeviceService(store)
+    hermes_pairing_service = HermesPairingService(store)
+    hermes_compiler_service = HermesConfigCompilerService(store)
     gateway_account_service = GatewayAccountService(store)
     gateway_alias_service = GatewayAliasService(store)
     gateway_client_key_service = GatewayClientKeyService(store)
@@ -479,6 +528,242 @@ def create_admin_router(store: SQLiteStore, *, admin_token: str) -> APIRouter:
     def sync_openrouter_free(x_admin_token: str | None = Header(default=None)) -> dict:
         require_admin(x_admin_token)
         return model_service.sync_openrouter_free()
+
+    @router.get("/hermes/providers")
+    def list_hermes_providers(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"providers": hermes_provider_service.list()}
+
+    @router.get("/hermes/providers/{provider_id}")
+    def get_hermes_provider(provider_id: int, x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        provider = hermes_provider_service.get(provider_id)
+        if provider is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hermes provider not found")
+        return {"provider": provider, "models": hermes_model_service.list(provider_id)}
+
+    @router.post("/hermes/providers")
+    def create_hermes_provider(
+        payload: HermesProviderCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "provider": hermes_provider_service.create(
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    api_key=payload.api_key,
+                    enabled=payload.enabled,
+                    notes=payload.notes,
+                    plugin_mode=payload.plugin_mode,
+                    default_headers_json=payload.default_headers_json,
+                    source_openclaw_provider_id=payload.source_openclaw_provider_id,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    @router.patch("/hermes/providers/{provider_id}")
+    def update_hermes_provider(
+        provider_id: int,
+        payload: HermesProviderUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "provider": hermes_provider_service.update(
+                    provider_id,
+                    name=payload.name,
+                    base_url=payload.base_url,
+                    api_key=payload.api_key,
+                    enabled=payload.enabled,
+                    notes=payload.notes,
+                    plugin_mode=payload.plugin_mode,
+                    default_headers_json=payload.default_headers_json,
+                    source_openclaw_provider_id=payload.source_openclaw_provider_id,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    @router.delete("/hermes/providers/{provider_id}")
+    def delete_hermes_provider(
+        provider_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            hermes_provider_service.delete(provider_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "provider_id": provider_id}
+
+    @router.post("/hermes/providers/import-openclaw")
+    def import_openclaw_provider_to_hermes(
+        payload: HermesProviderImportOpenClaw,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return hermes_provider_service.import_openclaw_provider(payload.openclaw_provider_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.get("/hermes/models")
+    def list_hermes_models(
+        provider_id: int | None = None,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {"models": hermes_model_service.list(provider_id)}
+
+    @router.post("/hermes/models")
+    def create_hermes_model(
+        payload: HermesModelCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "model": hermes_model_service.create(
+                    provider_id=payload.provider_id,
+                    upstream_model=payload.upstream_model,
+                    display_name=payload.display_name,
+                    enabled=payload.enabled,
+                )
+            }
+        except ValueError as exc:
+            status_code = status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_409_CONFLICT
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+    @router.patch("/hermes/models/{model_id}")
+    def update_hermes_model(
+        model_id: int,
+        payload: HermesModelUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "model": hermes_model_service.update(
+                    model_id,
+                    upstream_model=payload.upstream_model,
+                    display_name=payload.display_name,
+                    enabled=payload.enabled,
+                )
+            }
+        except ValueError as exc:
+            status_code = status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_409_CONFLICT
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+    @router.delete("/hermes/models/{model_id}")
+    def delete_hermes_model(
+        model_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            hermes_model_service.delete(model_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "model_id": model_id}
+
+    @router.get("/hermes/devices")
+    def list_hermes_devices(x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        return {"devices": hermes_device_service.list()}
+
+    @router.post("/hermes/devices")
+    def create_hermes_device(
+        payload: DeviceCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "device": hermes_device_service.create(
+                    name=payload.name,
+                    device_type=payload.device_type,
+                    hostname=payload.hostname,
+                    platform=payload.platform,
+                    active=payload.active,
+                )
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    @router.patch("/hermes/devices/{device_id}")
+    def update_hermes_device(
+        device_id: int,
+        payload: DeviceUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        try:
+            return {
+                "device": hermes_device_service.update(
+                    device_id,
+                    name=payload.name,
+                    device_type=payload.device_type,
+                    hostname=payload.hostname,
+                    platform=payload.platform,
+                    active=payload.active,
+                )
+            }
+        except ValueError as exc:
+            status_code = status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_409_CONFLICT
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+    @router.delete("/hermes/devices/{device_id}")
+    def delete_hermes_device(device_id: int, x_admin_token: str | None = Header(default=None)) -> dict:
+        require_admin(x_admin_token)
+        try:
+            hermes_device_service.delete(device_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return {"ok": True, "device_id": device_id}
+
+    @router.post("/hermes/devices/{device_id}/pairing-token")
+    def create_hermes_pairing_token(
+        device_id: int,
+        payload: PairingTokenCreate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return hermes_pairing_service.issue_pairing_token(
+            device_id=device_id,
+            expires_in_seconds=payload.expires_in_seconds,
+        )
+
+    @router.put("/hermes/devices/{device_id}/models")
+    def assign_hermes_device_models(
+        device_id: int,
+        payload: DeviceModelBindingUpdate,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        return {
+            "device": hermes_device_service.assign_models(
+                device_id=device_id,
+                model_ids=payload.model_ids,
+            )
+        }
+
+    @router.get("/hermes/devices/{device_id}/config-preview")
+    def get_hermes_device_config_preview(
+        device_id: int,
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict:
+        require_admin(x_admin_token)
+        device = hermes_device_service.get(device_id)
+        if device is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Hermes device {device_id} not found",
+            )
+        return hermes_compiler_service.compile_device_config(device_id)
 
     @router.get("/gateway/accounts")
     def list_gateway_accounts(x_admin_token: str | None = Header(default=None)) -> dict:

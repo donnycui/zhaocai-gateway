@@ -1,19 +1,31 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import GatewayAccountsPage from "./GatewayAccountsPage";
+import HermesProvidersPage from "./HermesProvidersPage";
 import MediaProvidersPage from "./MediaProvidersPage";
 import UniversalTemplatesPage from "./UniversalTemplatesPage";
-import { api, type Model, type Provider, type ProviderTestReport } from "../lib/api";
+import {
+  api,
+  type HermesModel,
+  type HermesProvider,
+  type Model,
+  type Provider,
+  type ProviderTestReport,
+} from "../lib/api";
 
 interface ProvidersPageProps {
   providers: Provider[];
   models: Model[];
+  hermesProviders: HermesProvider[];
+  hermesModels: HermesModel[];
   onRefresh: () => Promise<void>;
   onCreate: () => void;
   onEdit: (providerId: number) => void;
+  onCreateHermes: () => void;
+  onEditHermes: (providerId: number) => void;
 }
 
-type ProviderModule = "openclaw" | "gateway" | "media" | "universal";
+type ProviderModule = "openclaw" | "hermes" | "gateway" | "media" | "universal";
 
 const avatarToneClasses = [
   "tone-coral",
@@ -118,9 +130,13 @@ function DeleteIcon() {
 export default function ProvidersPage({
   providers,
   models,
+  hermesProviders,
+  hermesModels,
   onRefresh,
   onCreate,
   onEdit,
+  onCreateHermes,
+  onEditHermes,
 }: ProvidersPageProps) {
   const [activeModule, setActiveModule] = useState<ProviderModule>("openclaw");
   const [message, setMessage] = useState<string>("");
@@ -308,11 +324,12 @@ export default function ProvidersPage({
       <div className="panel">
         <div className="panel-header" style={{ marginBottom: 0 }}>
           <h3>资源中心</h3>
-          <p>从这里分模块管理 OpenClaw、Gateway、Media 和 Universal 资源。当前默认先保留 OpenClaw 为主入口。</p>
+          <p>从这里分模块管理 OpenClaw、Hermes、Gateway、Media 和 Universal 资源。</p>
         </div>
         <div className="module-tab-row">
           {[
             { id: "openclaw", label: "OpenClaw", summary: `${providers.length} 个供应商 / ${models.length} 个模型` },
+            { id: "hermes", label: "Hermes", summary: `${hermesProviders.length} 个供应商 / ${hermesModels.length} 个模型` },
             { id: "gateway", label: "Gateway", summary: "统一对外模型供给与 fallback" },
             { id: "media", label: "Media", summary: "媒体供应商与模板 catalog" },
             { id: "universal", label: "Universal", summary: "模板池与跨模块导入" },
@@ -331,6 +348,16 @@ export default function ProvidersPage({
       </div>
 
       {activeModule === "openclaw" ? renderOpenClawModule() : null}
+      {activeModule === "hermes" ? (
+        <HermesProvidersPage
+          providers={hermesProviders}
+          models={hermesModels}
+          openclawProviders={providers}
+          onRefresh={onRefresh}
+          onCreate={onCreateHermes}
+          onEdit={onEditHermes}
+        />
+      ) : null}
       {activeModule === "gateway" ? <GatewayAccountsPage /> : null}
       {activeModule === "media" ? <MediaProvidersPage /> : null}
       {activeModule === "universal" ? <UniversalTemplatesPage /> : null}

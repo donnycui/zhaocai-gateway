@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 import hashlib
 import secrets
 
@@ -9,7 +9,7 @@ from zhaocai_gateway.db.store import SQLiteStore
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _hash_key(raw_api_key: str) -> str:

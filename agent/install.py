@@ -7,7 +7,12 @@ from pathlib import Path
 import shlex
 import shutil
 
-from agent.config import DEFAULT_AGENT_CONFIG_PATH, DEFAULT_OUTPUT_PATH, load_agent_config
+from agent.config import (
+    AgentTarget,
+    DEFAULT_AGENT_CONFIG_PATH,
+    default_output_path_for,
+    load_agent_config,
+)
 
 
 @dataclass(frozen=True)
@@ -25,20 +30,23 @@ class DoctorCheck:
 
 def build_systemd_service(
     *,
+    target: AgentTarget,
     python_path: str,
     config_path: str,
     interval_seconds: int,
     working_directory: str,
 ) -> str:
+    service_title = "Zhaocai Hermes Node Agent" if target == "hermes" else "Zhaocai Gateway Node Agent"
+    target_flag = f" --target {target}" if target == "hermes" else ""
     return f"""[Unit]
-Description=Zhaocai Gateway Node Agent
+Description={service_title}
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory={working_directory}
-ExecStart={python_path} -m agent.cli run --config-path {config_path} --interval {interval_seconds}
+ExecStart={python_path} -m agent.cli run{target_flag} --config-path {config_path} --interval {interval_seconds}
 Restart=always
 RestartSec=5
 
@@ -49,24 +57,32 @@ WantedBy=default.target
 
 def build_launchd_plist(
     *,
+    target: AgentTarget,
     python_path: str,
     config_path: str,
     interval_seconds: int,
     working_directory: str,
 ) -> str:
+    launchd_label = "com.zhaocai.hermes-agent" if target == "hermes" else "com.zhaocai.agent"
+    target_lines = (
+        "      <string>--target</string>\n"
+        f"      <string>{target}</string>\n"
+        if target == "hermes"
+        else ""
+    )
     return f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
 <plist version=\"1.0\">
   <dict>
     <key>Label</key>
-    <string>com.zhaocai.agent</string>
+    <string>{launchd_label}</string>
     <key>ProgramArguments</key>
     <array>
       <string>{python_path}</string>
       <string>-m</string>
       <string>agent.cli</string>
       <string>run</string>
-      <string>--config-path</string>
+{target_lines}      <string>--config-path</string>
       <string>{config_path}</string>
       <string>--interval</string>
       <string>{interval_seconds}</string>
@@ -88,46 +104,50 @@ def build_launchd_plist(
 
 def systemd_install_artifact(
     *,
+    target: AgentTarget = "openclaw",
     python_path: str,
     config_path: str,
     interval_seconds: int,
     working_directory: str,
     output_path: str | None = None,
 ) -> InstallArtifact:
-    target = (
+    target_path = (
         Path(output_path)
         if output_path
-        else Path.home() / ".config" / "systemd" / "user" / "zhaocai-agent.service"
+        else default_service_path("systemd", target)
     )
     content = build_systemd_service(
+        target=target,
         python_path=python_path,
         config_path=config_path,
         interval_seconds=interval_seconds,
         working_directory=working_directory,
     )
-    return InstallArtifact(path=target, content=content)
+    return InstallArtifact(path=target_path, content=content)
 
 
 def launchd_install_artifact(
     *,
+    target: AgentTarget = "openclaw",
     python_path: str,
     config_path: str,
     interval_seconds: int,
     working_directory: str,
     output_path: str | None = None,
 ) -> InstallArtifact:
-    target = (
+    target_path = (
         Path(output_path)
         if output_path
-        else Path.home() / "Library" / "LaunchAgents" / "com.zhaocai.agent.plist"
+        else default_service_path("launchd", target)
     )
     content = build_launchd_plist(
+        target=target,
         python_path=python_path,
         config_path=config_path,
         interval_seconds=interval_seconds,
         working_directory=working_directory,
     )
-    return InstallArtifact(path=target, content=content)
+    return InstallArtifact(path=target_path, content=content)
 
 
 def write_install_artifact(artifact: InstallArtifact) -> Path:
@@ -165,15 +185,18 @@ def detect_service_manager(system_name: str | None = None) -> str:
     raise ValueError(f"Unsupported platform for agent install: {normalized}")
 
 
-def default_service_path(service_manager: str) -> Path:
+def default_service_path(service_manager: str, target: AgentTarget = "openclaw") -> Path:
     if service_manager == "launchd":
-        return Path.home() / "Library" / "LaunchAgents" / "com.zhaocai.agent.plist"
-    return Path.home() / ".config" / "systemd" / "user" / "zhaocai-agent.service"
+        file_name = "com.zhaocai.hermes-agent.plist" if target == "hermes" else "com.zhaocai.agent.plist"
+        return Path.home() / "Library" / "LaunchAgents" / file_name
+    file_name = "zhaocai-hermes-agent.service" if target == "hermes" else "zhaocai-agent.service"
+    return Path.home() / ".config" / "systemd" / "user" / file_name
 
 
 def install_artifact_for_manager(
     *,
     service_manager: str,
+    target: AgentTarget = "openclaw",
     python_path: str,
     config_path: str,
     interval_seconds: int,
@@ -182,6 +205,7 @@ def install_artifact_for_manager(
 ) -> InstallArtifact:
     if service_manager == "launchd":
         return launchd_install_artifact(
+            target=target,
             python_path=python_path,
             config_path=config_path,
             interval_seconds=interval_seconds,
@@ -190,6 +214,7 @@ def install_artifact_for_manager(
         )
     if service_manager == "systemd":
         return systemd_install_artifact(
+            target=target,
             python_path=python_path,
             config_path=config_path,
             interval_seconds=interval_seconds,
@@ -199,23 +224,29 @@ def install_artifact_for_manager(
     raise ValueError(f"Unsupported service manager: {service_manager}")
 
 
-def install_next_steps(service_manager: str, artifact_path: str | Path) -> list[str]:
+def install_next_steps(
+    service_manager: str,
+    artifact_path: str | Path,
+    target: AgentTarget = "openclaw",
+) -> list[str]:
     path = str(artifact_path)
     if service_manager == "launchd":
         return [
             f"launchctl unload {path} >/dev/null 2>&1 || true",
             f"launchctl load {path}",
         ]
+    service_name = "zhaocai-hermes-agent.service" if target == "hermes" else "zhaocai-agent.service"
     return [
         "systemctl --user daemon-reload",
-        "systemctl --user enable --now zhaocai-agent.service",
-        "systemctl --user status zhaocai-agent.service",
+        f"systemctl --user enable --now {service_name}",
+        f"systemctl --user status {service_name}",
     ]
 
 
 def collect_doctor_checks(
     *,
     config_path: str | Path = DEFAULT_AGENT_CONFIG_PATH,
+    target: AgentTarget = "openclaw",
     service_manager: str | None = None,
     service_path: str | Path | None = None,
     working_directory: str | Path | None = None,
@@ -224,29 +255,37 @@ def collect_doctor_checks(
     lookup = command_lookup or shutil.which
     manager = service_manager or detect_service_manager()
     config_file = Path(config_path).expanduser()
-    resolved_service_path = Path(service_path).expanduser() if service_path else default_service_path(manager)
     checks: list[DoctorCheck] = []
+    effective_target = target
 
     if config_file.exists():
         try:
             config = load_agent_config(config_file)
+            effective_target = config.target
             checks.append(DoctorCheck("agent 配置", True, f"已找到 {config_file}"))
             output_path = Path(config.output_path).expanduser()
             reload_command = config.reload_command
         except Exception as exc:
             checks.append(DoctorCheck("agent 配置", False, f"配置文件不可读取: {exc}"))
-            output_path = Path(DEFAULT_OUTPUT_PATH).expanduser()
+            output_path = default_output_path_for(target).expanduser()
             reload_command = ""
     else:
         checks.append(DoctorCheck("agent 配置", False, f"未找到 {config_file}"))
-        output_path = Path(DEFAULT_OUTPUT_PATH).expanduser()
+        output_path = default_output_path_for(target).expanduser()
         reload_command = ""
+
+    resolved_service_path = (
+        Path(service_path).expanduser()
+        if service_path
+        else default_service_path(manager, effective_target)
+    )
 
     output_dir = output_path.parent
     output_writable = _writable_or_creatable(output_dir)
+    output_label = "Hermes 配置目录" if effective_target == "hermes" else "OpenClaw 配置目录"
     checks.append(
         DoctorCheck(
-            "OpenClaw 配置目录",
+            output_label,
             output_writable,
             f"{output_dir} {'可写' if output_writable else '不可写'}",
         )

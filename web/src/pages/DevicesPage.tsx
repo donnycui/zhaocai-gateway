@@ -196,8 +196,8 @@ export default function DevicesPage({
     <section className="page two-column">
       <div className="panel">
         <div className="panel-header">
-          <h3>设备列表</h3>
-          <p>选择设备后，直接勾选它可以使用的模型。</p>
+          <h3>OpenClaw 设备列表</h3>
+          <p>选择设备后，直接勾选它可以使用的 OpenClaw 模型。</p>
         </div>
         <div className="device-list">
           {devices.length === 0 ? (
@@ -237,7 +237,7 @@ export default function DevicesPage({
       <div className="stack">
         <div className="panel">
           <div className="panel-header">
-            <h3>设备模型分配</h3>
+            <h3>OpenClaw 设备模型分配</h3>
             <p>{selectedDevice ? `正在编辑：${selectedDevice.name}` : "请先选择一台设备。"}</p>
           </div>
           <div className="topbar-actions" style={{ marginBottom: 12 }}>
@@ -399,8 +399,8 @@ export default function DevicesPage({
         <div className="panel">
           <div className="page-header">
             <div>
-              <h3>配置预览</h3>
-              <p>在 agent 同步前，先查看这台设备将收到的完整配置。</p>
+              <h3>OpenClaw 配置预览</h3>
+              <p>在 OpenClaw agent 同步前，先查看这台设备将收到的完整配置。</p>
             </div>
             <button className="secondary-button" onClick={() => void loadPreview()} disabled={!selectedDevice}>
               加载预览

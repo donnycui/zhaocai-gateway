@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from zhaocai_gateway.db.store import SQLiteStore
 
@@ -21,7 +21,7 @@ class GatewayUsageService:
     ) -> dict:
         hours = self._parse_window_hours(window)
         since_iso = (
-            datetime.now(UTC) - timedelta(hours=hours)
+            datetime.now(timezone.utc) - timedelta(hours=hours)
         ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         items = [
             asdict(item)

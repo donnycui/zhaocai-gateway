@@ -130,6 +130,63 @@ class MediaProvider:
 
 
 @dataclass(frozen=True)
+class HermesProvider:
+    id: int
+    name: str
+    base_url: str
+    api_key_encrypted: str
+    enabled: bool
+    notes: str
+    plugin_mode: str
+    default_headers_json: dict[str, str]
+    source_openclaw_provider_id: int | None
+
+
+@dataclass(frozen=True)
+class HermesModel:
+    id: int
+    provider_id: int
+    upstream_model: str
+    display_name: str
+    enabled: bool
+    provider_name: str | None = None
+
+
+@dataclass(frozen=True)
+class HermesDevice:
+    id: int
+    name: str
+    device_type: str
+    hostname: str
+    platform: str
+    active: bool
+    last_seen_at: str | None
+    sync_token_hash: str
+    current_config_version: int
+
+
+@dataclass(frozen=True)
+class HermesPairingToken:
+    id: int
+    device_id: int
+    token_hash: str
+    expires_at: str
+    used_at: str | None
+    created_at: str
+
+
+@dataclass(frozen=True)
+class HermesConfigSnapshot:
+    id: int
+    device_id: int
+    version: int
+    etag: str
+    payload_json: dict[str, Any]
+    content_hash: str
+    created_at: str
+
+
+@dataclass(frozen=True)
 class MediaTemplate:
     id: int
     provider_id: int

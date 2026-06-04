@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 
-import { api, type Device } from "../lib/api";
+import { api, type HermesDevice } from "../lib/api";
 
-interface NodesPageProps {
-  devices: Device[];
+interface HermesNodesPageProps {
+  devices: HermesDevice[];
   onRefresh: () => Promise<void>;
 }
 
-export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
+export default function HermesNodesPage({ devices, onRefresh }: HermesNodesPageProps) {
   const [form, setForm] = useState({
     name: "",
     device_type: "vps",
@@ -15,7 +15,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     platform: "",
   });
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
-  const [message, setMessage] = useState<string>("");
+  const [message, setMessage] = useState("");
   const [pairingInfo, setPairingInfo] = useState<{
     deviceId: number;
     deviceName: string;
@@ -30,11 +30,11 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     event.preventDefault();
     setMessage("");
     if (editingDeviceId == null) {
-      await api.createDevice(form);
-      setMessage("节点已创建。");
+      await api.createHermesDevice(form);
+      setMessage("Hermes 节点已创建。");
     } else {
-      await api.updateDevice(editingDeviceId, form);
-      setMessage("节点已更新。");
+      await api.updateHermesDevice(editingDeviceId, form);
+      setMessage("Hermes 节点已更新。");
       setEditingDeviceId(null);
     }
     setForm({
@@ -46,7 +46,7 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     await onRefresh();
   }
 
-  function handleEditDevice(device: Device) {
+  function handleEditDevice(device: HermesDevice) {
     setEditingDeviceId(device.id);
     setForm({
       name: device.name,
@@ -67,24 +67,22 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     });
   }
 
-  async function handleDeleteDevice(device: Device) {
-    const confirmed = window.confirm(`确认删除节点 ${device.name} 吗？`);
-    if (!confirmed) {
-      return;
-    }
-    await api.deleteDevice(device.id);
+  async function handleDeleteDevice(device: HermesDevice) {
+    const confirmed = window.confirm(`确认删除 Hermes 节点 ${device.name} 吗？`);
+    if (!confirmed) return;
+    await api.deleteHermesDevice(device.id);
     if (editingDeviceId === device.id) {
       handleCancelEdit();
     }
     if (pairingInfo?.deviceId === device.id) {
       setPairingInfo(null);
     }
-    setMessage("节点已删除。");
+    setMessage("Hermes 节点已删除。");
     await onRefresh();
   }
 
-  async function handleIssueToken(device: Device) {
-    const token = await api.issuePairingToken(device.id);
+  async function handleIssueToken(device: HermesDevice) {
+    const token = await api.issueHermesPairingToken(device.id);
     setPairingInfo({
       deviceId: device.id,
       deviceName: device.name,
@@ -97,20 +95,28 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
   const installCommand = useMemo(() => {
     if (!pairingInfo) {
-      return "先为 OpenClaw 设备签发一次性 pairing token，安装命令会自动生成。";
+      return "先为 Hermes 设备签发一次性 pairing token，安装命令会自动生成。";
     }
 
     const server = "https://zhaocai.mintstudio.cn";
-    const registerStep = `.venv/bin/python -m agent.cli register \\\n  --server ${server} \\\n  --token ${pairingInfo.pairingToken} \\\n  --reload-cmd \"$(command -v openclaw) gateway restart\"`;
+    const configPath = "$HOME/.zhaocai-gateway/hermes-agent.json";
+    const outputPath = "$HOME/.hermes/config.yaml";
+    const registerStep = [
+      ".venv/bin/python -m agent.cli register \\",
+      "  --target hermes \\",
+      `  --server ${server} \\`,
+      `  --token ${pairingInfo.pairingToken} \\`,
+      `  --config-path "${configPath}" \\`,
+      `  --output-path "${outputPath}"`,
+    ].join("\n");
 
     const baseSetup = [
-      "command -v openclaw >/dev/null || { echo '未找到 openclaw，请先安装 OpenClaw'; exit 1; }",
       "[ -d zhaocai-gateway ] || git clone https://github.com/donnycui/zhaocai-gateway.git",
       "cd zhaocai-gateway",
       "python3 -m venv .venv",
       ".venv/bin/pip install -r requirements.txt",
       registerStep,
-      ".venv/bin/python -m agent.cli sync-once",
+      `.venv/bin/python -m agent.cli sync-once --target hermes --config-path "${configPath}"`,
     ];
 
     const platform = pairingInfo.platform.toLowerCase();
@@ -126,23 +132,25 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
         "sudo apt update",
         "sudo apt install -y python3-venv",
         ...baseSetup,
-        ".venv/bin/python -m agent.cli doctor --service-manager systemd",
-        ".venv/bin/python -m agent.cli install --service-manager systemd \\",
-        "  --config-path \"$HOME/.zhaocai-gateway/agent.json\" \\",
+        `.venv/bin/python -m agent.cli doctor --target hermes --config-path "${configPath}" --service-manager systemd`,
+        ".venv/bin/python -m agent.cli install \\",
+        "  --target hermes \\",
+        `  --config-path "${configPath}" \\`,
+        "  --service-manager systemd \\",
         "  --python-path \"$PWD/.venv/bin/python\" \\",
         "  --working-directory \"$PWD\"",
         "systemctl --user daemon-reload",
-        "systemctl --user enable --now zhaocai-agent.service",
-        "systemctl --user status zhaocai-agent.service",
+        "systemctl --user enable --now zhaocai-hermes-agent.service",
+        "systemctl --user status zhaocai-hermes-agent.service",
       ].join("\n");
     }
 
     return [
       ...baseSetup,
-      ".venv/bin/python -m agent.cli doctor",
-      ".venv/bin/python -m agent.cli install",
-      "launchctl unload ~/Library/LaunchAgents/com.zhaocai.agent.plist >/dev/null 2>&1 || true",
-      "launchctl load ~/Library/LaunchAgents/com.zhaocai.agent.plist",
+      `.venv/bin/python -m agent.cli doctor --target hermes --config-path "${configPath}"`,
+      `.venv/bin/python -m agent.cli install --target hermes --config-path "${configPath}"`,
+      "launchctl unload ~/Library/LaunchAgents/com.zhaocai.hermes-agent.plist >/dev/null 2>&1 || true",
+      "launchctl load ~/Library/LaunchAgents/com.zhaocai.hermes-agent.plist",
     ].join("\n");
   }, [pairingInfo]);
 
@@ -150,46 +158,28 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
     <section className="page two-column">
       <form className="panel form-panel" onSubmit={handleCreateDevice}>
         <div className="panel-header">
-          <h3>{editingDeviceId == null ? "创建 OpenClaw 节点" : "编辑 OpenClaw 节点"}</h3>
-          <p>先在控制面登记 OpenClaw 设备，再让本地 agent 完成配对。</p>
+          <h3>{editingDeviceId == null ? "创建 Hermes 节点" : "编辑 Hermes 节点"}</h3>
+          <p>先在控制面登记 Hermes 设备，再让本地 agent 完成配对。</p>
         </div>
         {message ? <p className="inline-message">{message}</p> : null}
         <label>
           <span>名称</span>
-          <input
-            value={form.name}
-            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-          />
+          <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
         </label>
         <label>
           <span>设备类型</span>
-          <input
-            value={form.device_type}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, device_type: event.target.value }))
-            }
-          />
+          <input value={form.device_type} onChange={(event) => setForm((current) => ({ ...current, device_type: event.target.value }))} />
         </label>
         <label>
           <span>主机名</span>
-          <input
-            value={form.hostname}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, hostname: event.target.value }))
-            }
-          />
+          <input value={form.hostname} onChange={(event) => setForm((current) => ({ ...current, hostname: event.target.value }))} />
         </label>
         <label>
           <span>平台</span>
-          <input
-            value={form.platform}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, platform: event.target.value }))
-            }
-          />
+          <input value={form.platform} onChange={(event) => setForm((current) => ({ ...current, platform: event.target.value }))} />
         </label>
         <div className="topbar-actions">
-          <button type="submit">{editingDeviceId == null ? "创建 OpenClaw 节点" : "保存修改"}</button>
+          <button type="submit">{editingDeviceId == null ? "创建 Hermes 节点" : "保存修改"}</button>
           {editingDeviceId != null ? (
             <button type="button" className="secondary-button" onClick={handleCancelEdit}>
               取消编辑
@@ -201,12 +191,12 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
       <div className="stack">
         <div className="panel">
           <div className="panel-header">
-            <h3>OpenClaw Pairing Token</h3>
-            <p>为目标设备签发一次性 token，再去目标机器执行 OpenClaw 注册命令。</p>
+            <h3>Hermes Pairing Token</h3>
+            <p>为目标设备签发一次性 token，再去目标机器执行 Hermes 注册命令。</p>
           </div>
           <div className="device-list">
             {devices.length === 0 ? (
-              <div className="empty-state">还没有创建任何节点。</div>
+              <div className="empty-state">还没有创建任何 Hermes 节点。</div>
             ) : (
               devices.map((device) => (
                 <div key={device.id} className="device-card static-card">
@@ -215,25 +205,13 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
                     <span>{device.device_type}</span>
                   </div>
                   <div className="topbar-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => handleEditDevice(device)}
-                    >
+                    <button type="button" className="secondary-button" onClick={() => handleEditDevice(device)}>
                       编辑
                     </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleDeleteDevice(device)}
-                    >
+                    <button type="button" className="secondary-button" onClick={() => void handleDeleteDevice(device)}>
                       删除
                     </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => void handleIssueToken(device)}
-                    >
+                    <button type="button" className="secondary-button" onClick={() => void handleIssueToken(device)}>
                       签发 Token
                     </button>
                   </div>
@@ -245,8 +223,8 @@ export default function NodesPage({ devices, onRefresh }: NodesPageProps) {
 
         <div className="panel">
           <div className="panel-header">
-            <h3>OpenClaw 安装命令</h3>
-            <p>{latestDevice ? `最新节点：${latestDevice.name}` : "请先创建 OpenClaw 节点。"}</p>
+            <h3>Hermes 安装命令</h3>
+            <p>{latestDevice ? `最新节点：${latestDevice.name}` : "请先创建 Hermes 节点。"}</p>
           </div>
           <pre className="code-block">{installCommand}</pre>
           {pairingInfo ? (

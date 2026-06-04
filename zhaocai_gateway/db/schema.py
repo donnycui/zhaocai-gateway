@@ -183,6 +183,76 @@ CREATE TABLE IF NOT EXISTS media_providers (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS hermes_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_url TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    plugin_mode TEXT NOT NULL DEFAULT 'none',
+    default_headers_json TEXT NOT NULL DEFAULT '{}',
+    source_openclaw_provider_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hermes_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL,
+    upstream_model TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(provider_id, upstream_model),
+    FOREIGN KEY(provider_id) REFERENCES hermes_providers(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS hermes_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    device_type TEXT NOT NULL,
+    hostname TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    last_seen_at TEXT,
+    sync_token_hash TEXT NOT NULL DEFAULT '',
+    current_config_version INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hermes_device_model_bindings (
+    device_id INTEGER NOT NULL,
+    model_id INTEGER NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (device_id, model_id),
+    FOREIGN KEY(device_id) REFERENCES hermes_devices(id) ON DELETE CASCADE,
+    FOREIGN KEY(model_id) REFERENCES hermes_models(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS hermes_pairing_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(device_id) REFERENCES hermes_devices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS hermes_config_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    etag TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(device_id, version),
+    FOREIGN KEY(device_id) REFERENCES hermes_devices(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS media_templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     provider_id INTEGER NOT NULL,
