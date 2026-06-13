@@ -17,9 +17,10 @@ class HermesConfigCompilerService:
         if device is None:
             raise ValueError(f"Hermes device {device_id} not found")
 
-        providers: OrderedDict[str, dict[str, str]] = OrderedDict()
+        providers: OrderedDict[str, dict[str, object]] = OrderedDict()
         plugin_files: dict[str, str] = {}
-        ordered_model_keys: list[str] = []
+        ordered_model_refs: list[tuple[str, str]] = []
+        provider_model_ids: OrderedDict[str, list[str]] = OrderedDict()
 
         for model in self.store.list_hermes_models_for_device(device_id):
             if not model.enabled:
@@ -30,10 +31,16 @@ class HermesConfigCompilerService:
 
             provider_name = provider.name
             if provider_name not in providers:
+                provider_headers = self._headers_for_provider_config(
+                    plugin_mode=provider.plugin_mode,
+                    headers=provider.default_headers_json,
+                )
                 providers[provider_name] = {
                     "base_url": provider.base_url,
                     "api_key": provider.api_key_encrypted,
                 }
+                if provider_headers:
+                    providers[provider_name]["default_headers"] = provider_headers
                 if provider.plugin_mode == "default_headers":
                     plugin_files[provider_name] = self._render_default_headers_plugin(
                         provider_name=provider_name,
@@ -41,16 +48,31 @@ class HermesConfigCompilerService:
                         headers=provider.default_headers_json,
                     )
 
-            ordered_model_keys.append(f"{provider_name}/{model.upstream_model}")
+            provider_model_ids.setdefault(provider_name, [])
+            if model.upstream_model not in provider_model_ids[provider_name]:
+                provider_model_ids[provider_name].append(model.upstream_model)
+            ordered_model_refs.append((provider_name, model.upstream_model))
+
+        for provider_name, model_ids in provider_model_ids.items():
+            if not model_ids:
+                continue
+            provider_config = providers[provider_name]
+            provider_config["model"] = model_ids[0]
+            provider_config["default_model"] = model_ids[0]
+            provider_config["models"] = OrderedDict((model_id, {}) for model_id in model_ids)
 
         config_payload: OrderedDict[str, object] = OrderedDict()
         config_payload["providers"] = providers
 
         model_payload: OrderedDict[str, object] = OrderedDict()
-        if ordered_model_keys:
-            model_payload["default"] = ordered_model_keys[0]
-            if len(ordered_model_keys) > 1:
-                model_payload["fallbacks"] = ordered_model_keys[1:]
+        if ordered_model_refs:
+            primary_provider, primary_model = ordered_model_refs[0]
+            model_payload["default"] = f"{primary_provider}/{primary_model}"
+            if len(ordered_model_refs) > 1:
+                model_payload["fallbacks"] = [
+                    f"{provider_name}/{upstream_model}"
+                    for provider_name, upstream_model in ordered_model_refs[1:]
+                ]
         config_payload["model"] = model_payload
 
         config_yaml = yaml.safe_dump(
@@ -72,6 +94,16 @@ class HermesConfigCompilerService:
         if latest is not None:
             return latest
         return self.create_snapshot(device_id)
+
+    @staticmethod
+    def _headers_for_provider_config(
+        *,
+        plugin_mode: str,
+        headers: dict[str, str],
+    ) -> dict[str, str]:
+        if plugin_mode != "default_headers":
+            return {}
+        return dict(headers or {})
 
     @staticmethod
     def _render_default_headers_plugin(

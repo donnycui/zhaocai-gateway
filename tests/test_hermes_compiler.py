@@ -23,6 +23,12 @@ def test_compile_hermes_device_yaml_and_plugin(store):
         display_name="GPT-5.5",
         enabled=True,
     )
+    fallback_model = store.create_hermes_model(
+        provider_id=provider.id,
+        upstream_model="gpt-5.5-mini",
+        display_name="GPT-5.5 Mini",
+        enabled=True,
+    )
     device = store.create_hermes_device(
         name="hermes-compiler",
         device_type="vps",
@@ -30,15 +36,32 @@ def test_compile_hermes_device_yaml_and_plugin(store):
         platform="linux",
         active=True,
     )
-    store.set_hermes_device_model_bindings(device_id=device.id, model_ids=[model.id])
+    store.set_hermes_device_model_bindings(
+        device_id=device.id,
+        model_ids=[model.id, fallback_model.id],
+    )
 
     payload = HermesConfigCompilerService(store).compile_device_config(device.id)
 
     parsed = yaml.safe_load(payload["config_yaml"])
-    assert parsed["providers"]["relay-a"]["base_url"] == "https://relay-a.example.com/v1"
+    provider_config = parsed["providers"]["relay-a"]
+    assert provider_config["base_url"] == "https://relay-a.example.com/v1"
+    assert provider_config["default_headers"] == {
+        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
+        "X-Title": "Hermes",
+    }
+    assert provider_config["model"] == "gpt-5.5"
+    assert provider_config["default_model"] == "gpt-5.5"
+    assert list(provider_config["models"]) == ["gpt-5.5", "gpt-5.5-mini"]
     assert parsed["model"]["default"] == "relay-a/gpt-5.5"
+    assert parsed["model"]["fallbacks"] == ["relay-a/gpt-5.5-mini"]
+    assert "fallback_model" not in parsed
     assert "relay-a" in payload["plugin_files"]
     assert 'name="relay-a"' in payload["plugin_files"]["relay-a"]
+    assert (
+        '"HTTP-Referer": "https://hermes-agent.nousresearch.com"'
+        in payload["plugin_files"]["relay-a"]
+    )
 
 
 def test_hermes_snapshot_reuses_version_when_payload_unchanged(store):
