@@ -46,18 +46,24 @@ def test_compile_hermes_device_yaml_and_plugin(store):
     parsed = yaml.safe_load(payload["config_yaml"])
     provider_config = parsed["providers"]["relay-a"]
     assert provider_config["base_url"] == "https://relay-a.example.com/v1"
-    assert provider_config["default_headers"] == {
-        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-        "X-Title": "Hermes",
-    }
+    assert "default_headers" not in provider_config
     assert provider_config["model"] == "gpt-5.5"
     assert provider_config["default_model"] == "gpt-5.5"
     assert list(provider_config["models"]) == ["gpt-5.5", "gpt-5.5-mini"]
-    assert parsed["model"]["default"] == "relay-a/gpt-5.5"
-    assert parsed["model"]["fallbacks"] == ["relay-a/gpt-5.5-mini"]
-    assert "fallback_model" not in parsed
+    assert parsed["model"]["provider"] == "relay-a"
+    assert parsed["model"]["default"] == "gpt-5.5"
+    assert parsed["fallback_model"] == [
+        {
+            "provider": "relay-a",
+            "model": "gpt-5.5-mini",
+            "base_url": "https://relay-a.example.com/v1",
+            "api_key": "sk-a",
+        }
+    ]
     assert "relay-a" in payload["plugin_files"]
+    assert "custom" in payload["plugin_files"]
     assert 'name="relay-a"' in payload["plugin_files"]["relay-a"]
+    assert 'name="custom"' in payload["plugin_files"]["custom"]
     assert (
         '"HTTP-Referer": "https://hermes-agent.nousresearch.com"'
         in payload["plugin_files"]["relay-a"]

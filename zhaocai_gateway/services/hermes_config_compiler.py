@@ -21,6 +21,8 @@ class HermesConfigCompilerService:
         plugin_files: dict[str, str] = {}
         ordered_model_refs: list[tuple[str, str]] = []
         provider_model_ids: OrderedDict[str, list[str]] = OrderedDict()
+        common_default_headers: dict[str, str] | None = None
+        default_headers_conflict = False
 
         for model in self.store.list_hermes_models_for_device(device_id):
             if not model.enabled:
@@ -40,7 +42,10 @@ class HermesConfigCompilerService:
                     "api_key": provider.api_key_encrypted,
                 }
                 if provider_headers:
-                    providers[provider_name]["default_headers"] = provider_headers
+                    if common_default_headers is None:
+                        common_default_headers = provider_headers
+                    elif common_default_headers != provider_headers:
+                        default_headers_conflict = True
                 if provider.plugin_mode == "default_headers":
                     plugin_files[provider_name] = self._render_default_headers_plugin(
                         provider_name=provider_name,
@@ -61,19 +66,27 @@ class HermesConfigCompilerService:
             provider_config["default_model"] = model_ids[0]
             provider_config["models"] = OrderedDict((model_id, {}) for model_id in model_ids)
 
+        if common_default_headers and not default_headers_conflict:
+            plugin_files["custom"] = self._render_default_headers_plugin(
+                provider_name="custom",
+                base_url="",
+                headers=common_default_headers,
+            )
+
         config_payload: OrderedDict[str, object] = OrderedDict()
         config_payload["providers"] = providers
 
         model_payload: OrderedDict[str, object] = OrderedDict()
         if ordered_model_refs:
             primary_provider, primary_model = ordered_model_refs[0]
-            model_payload["default"] = f"{primary_provider}/{primary_model}"
-            if len(ordered_model_refs) > 1:
-                model_payload["fallbacks"] = [
-                    f"{provider_name}/{upstream_model}"
-                    for provider_name, upstream_model in ordered_model_refs[1:]
-                ]
+            model_payload["provider"] = primary_provider
+            model_payload["default"] = primary_model
         config_payload["model"] = model_payload
+        if len(ordered_model_refs) > 1:
+            config_payload["fallback_model"] = [
+                self._fallback_entry(provider_name, upstream_model, providers)
+                for provider_name, upstream_model in ordered_model_refs[1:]
+            ]
 
         config_yaml = yaml.safe_dump(
             json.loads(json.dumps(config_payload, ensure_ascii=False)),
@@ -104,6 +117,24 @@ class HermesConfigCompilerService:
         if plugin_mode != "default_headers":
             return {}
         return dict(headers or {})
+
+    @staticmethod
+    def _fallback_entry(
+        provider_name: str,
+        upstream_model: str,
+        providers: OrderedDict[str, dict[str, object]],
+    ) -> OrderedDict[str, object]:
+        provider_config = providers.get(provider_name, {})
+        entry: OrderedDict[str, object] = OrderedDict()
+        entry["provider"] = provider_name
+        entry["model"] = upstream_model
+        base_url = provider_config.get("base_url")
+        api_key = provider_config.get("api_key")
+        if isinstance(base_url, str) and base_url.strip():
+            entry["base_url"] = base_url
+        if isinstance(api_key, str) and api_key.strip():
+            entry["api_key"] = api_key
+        return entry
 
     @staticmethod
     def _render_default_headers_plugin(

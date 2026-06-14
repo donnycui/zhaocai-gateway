@@ -53,8 +53,53 @@ def _split_provider_model(model_key: object) -> tuple[str, str] | None:
     return provider_name, upstream_model
 
 
+def _string_value(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _iter_model_entries(raw: object) -> list[dict]:
+    if isinstance(raw, dict):
+        return [raw]
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    return []
+
+
+def _fallback_entry(
+    provider_name: str,
+    upstream_model: str,
+    providers: dict,
+    source: dict | None = None,
+) -> dict:
+    entry = {
+        key: value
+        for key, value in dict(source or {}).items()
+        if key not in {"provider", "model"}
+    }
+    entry["provider"] = provider_name
+    entry["model"] = upstream_model
+
+    provider_config = providers.get(provider_name)
+    if isinstance(provider_config, dict):
+        for key in ("base_url", "api_key", "key_env", "api_key_env", "api_mode", "transport"):
+            if _string_value(entry.get(key)):
+                continue
+            value = provider_config.get(key)
+            if _string_value(value):
+                entry[key] = _string_value(value)
+    return entry
+
+
+def _fallback_identity(entry: dict) -> tuple[str, str, str]:
+    return (
+        _string_value(entry.get("provider")).lower(),
+        _string_value(entry.get("model")).lower(),
+        _string_value(entry.get("base_url")).rstrip("/").lower(),
+    )
+
+
 def _augment_config_yaml_for_hermes_runtime(config_yaml: str) -> str:
-    """Add picker fields without changing Hermes provider/model routes."""
+    """Normalize old sync payloads to Hermes runtime fields and picker indexes."""
     try:
         config_payload = yaml.safe_load(config_yaml) or {}
     except Exception:
@@ -69,78 +114,92 @@ def _augment_config_yaml_for_hermes_runtime(config_yaml: str) -> str:
 
     changed = False
     ordered_model_refs: list[tuple[str, str]] = []
+    seen_model_refs: set[tuple[str, str]] = set()
+    fallback_entries: list[dict] = []
+    seen_fallbacks: set[tuple[str, str, str]] = set()
+
+    def add_model_ref(provider_name: str, upstream_model: str) -> None:
+        provider_name = provider_name.strip()
+        upstream_model = upstream_model.strip()
+        identity = (provider_name, upstream_model)
+        if provider_name and upstream_model and identity not in seen_model_refs:
+            seen_model_refs.add(identity)
+            ordered_model_refs.append(identity)
+
+    def add_fallback(provider_name: str, upstream_model: str, source: dict | None = None) -> None:
+        entry = _fallback_entry(provider_name, upstream_model, providers, source=source)
+        identity = _fallback_identity(entry)
+        if not identity[0] or not identity[1] or identity in seen_fallbacks:
+            return
+        seen_fallbacks.add(identity)
+        fallback_entries.append(entry)
+        add_model_ref(entry["provider"], entry["model"])
+
     default_value = model_payload.get("default")
-    default_ref = _split_provider_model(default_value)
-    if default_ref is not None:
-        ordered_model_refs.append(default_ref)
-    else:
-        existing_provider = model_payload.get("provider")
-        if (
-            isinstance(existing_provider, str)
-            and existing_provider.strip()
-            and isinstance(default_value, str)
-            and default_value.strip()
-        ):
-            provider_name = existing_provider.strip()
-            upstream_model = default_value.strip()
-            ordered_model_refs.append((provider_name, upstream_model))
-            model_payload["default"] = f"{provider_name}/{upstream_model}"
+    existing_provider = _string_value(model_payload.get("provider"))
+    if existing_provider and _string_value(default_value):
+        provider_name = existing_provider
+        upstream_model = _string_value(default_value)
+        add_model_ref(provider_name, upstream_model)
+        if model_payload.get("provider") != provider_name:
+            model_payload["provider"] = provider_name
             changed = True
+        if model_payload.get("default") != upstream_model:
+            model_payload["default"] = upstream_model
+            changed = True
+    else:
+        default_ref = _split_provider_model(default_value)
+        if default_ref is not None:
+            provider_name, upstream_model = default_ref
+            add_model_ref(provider_name, upstream_model)
+            if model_payload.get("provider") != provider_name:
+                model_payload["provider"] = provider_name
+                changed = True
+            if model_payload.get("default") != upstream_model:
+                model_payload["default"] = upstream_model
+                changed = True
+
+    primary_provider = _string_value(model_payload.get("provider"))
 
     fallbacks = model_payload.get("fallbacks")
     if isinstance(fallbacks, list):
-        normalized_fallbacks = []
         for item in fallbacks:
+            if isinstance(item, dict):
+                provider_name = _string_value(item.get("provider")) or primary_provider
+                upstream_model = _string_value(item.get("model"))
+                if provider_name and upstream_model:
+                    add_fallback(provider_name, upstream_model, source=item)
+                continue
             fallback_ref = _split_provider_model(item)
             if fallback_ref is not None:
-                ordered_model_refs.append(fallback_ref)
-                normalized_fallbacks.append(f"{fallback_ref[0]}/{fallback_ref[1]}")
-            else:
-                normalized_fallbacks.append(item)
-        if normalized_fallbacks != fallbacks:
-            model_payload["fallbacks"] = normalized_fallbacks
+                add_fallback(fallback_ref[0], fallback_ref[1])
+            elif primary_provider and _string_value(item):
+                add_fallback(primary_provider, _string_value(item))
+        model_payload.pop("fallbacks", None)
+        changed = True
+
+    existing_fallback_model = config_payload.get("fallback_model")
+    for item in _iter_model_entries(existing_fallback_model):
+        provider_name = _string_value(item.get("provider"))
+        upstream_model = _string_value(item.get("model"))
+        if provider_name and upstream_model:
+            add_fallback(provider_name, upstream_model, source=item)
+
+    for item in _iter_model_entries(config_payload.get("fallback_providers")):
+        provider_name = _string_value(item.get("provider"))
+        upstream_model = _string_value(item.get("model"))
+        if provider_name and upstream_model:
+            add_model_ref(provider_name, upstream_model)
+
+    if fallback_entries:
+        if config_payload.get("fallback_model") != fallback_entries:
+            config_payload["fallback_model"] = fallback_entries
             changed = True
-
-    fallback_model = config_payload.get("fallback_model")
-    fallback_model_items = (
-        fallback_model
-        if isinstance(fallback_model, list)
-        else [fallback_model]
-        if isinstance(fallback_model, dict)
-        else []
-    )
-    recovered_fallbacks = []
-    for item in fallback_model_items:
-        if not isinstance(item, dict):
-            continue
-        provider_name = item.get("provider")
-        upstream_model = item.get("model")
-        if (
-            isinstance(provider_name, str)
-            and provider_name.strip()
-            and isinstance(upstream_model, str)
-            and upstream_model.strip()
-        ):
-            provider_name = provider_name.strip()
-            upstream_model = upstream_model.strip()
-            ordered_model_refs.append((provider_name, upstream_model))
-            recovered_fallbacks.append(f"{provider_name}/{upstream_model}")
-
-    if recovered_fallbacks:
-        existing_fallbacks = model_payload.get("fallbacks")
-        next_fallbacks = list(existing_fallbacks) if isinstance(existing_fallbacks, list) else []
-        for fallback_key in recovered_fallbacks:
-            if fallback_key not in next_fallbacks:
-                next_fallbacks.append(fallback_key)
-        if next_fallbacks != existing_fallbacks:
-            model_payload["fallbacks"] = next_fallbacks
-            changed = True
-
-    if "fallback_model" in config_payload:
+    elif "fallback_model" in config_payload:
         config_payload.pop("fallback_model", None)
         changed = True
 
-    for obsolete_key in ("provider", "base_url", "api_key", "default_headers"):
+    for obsolete_key in ("base_url", "api_key", "default_headers"):
         if obsolete_key in model_payload:
             model_payload.pop(obsolete_key, None)
             changed = True
@@ -155,7 +214,9 @@ def _augment_config_yaml_for_hermes_runtime(config_yaml: str) -> str:
             provider_models[provider_name].append(upstream_model)
 
     if not provider_models:
-        return config_yaml
+        if not changed:
+            return config_yaml
+        return yaml.safe_dump(config_payload, sort_keys=False, allow_unicode=True)
 
     for provider_name, models in provider_models.items():
         provider_config = providers[provider_name]

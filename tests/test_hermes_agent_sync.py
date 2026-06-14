@@ -105,12 +105,9 @@ def test_hermes_agent_get_config_and_apply(tmp_path):
     payload = config.json()
     assert "config_yaml" in payload
     parsed_payload = yaml.safe_load(payload["config_yaml"])
-    assert parsed_payload["model"]["default"] == "relay-hermes/gpt-5.5"
-    assert "provider" not in parsed_payload["model"]
-    assert parsed_payload["providers"]["relay-hermes"]["default_headers"] == {
-        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-        "X-Title": "Hermes",
-    }
+    assert parsed_payload["model"]["provider"] == "relay-hermes"
+    assert parsed_payload["model"]["default"] == "gpt-5.5"
+    assert "default_headers" not in parsed_payload["providers"]["relay-hermes"]
 
     output_path = tmp_path / "config.yaml"
     agent_config = AgentConfig(
@@ -143,19 +140,19 @@ def test_hermes_agent_get_config_and_apply(tmp_path):
     result = sync_once(agent_config, sync_client)
     assert result.changed is True
     parsed_output = yaml.safe_load(output_path.read_text(encoding="utf-8"))
-    assert parsed_output["model"]["default"] == "relay-hermes/gpt-5.5"
-    assert "provider" not in parsed_output["model"]
+    assert parsed_output["model"]["provider"] == "relay-hermes"
+    assert parsed_output["model"]["default"] == "gpt-5.5"
     assert "default_headers" not in parsed_output["model"]
-    assert parsed_output["providers"]["relay-hermes"]["default_headers"] == {
-        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-        "X-Title": "Hermes",
-    }
+    assert "default_headers" not in parsed_output["providers"]["relay-hermes"]
     assert parsed_output["providers"]["relay-hermes"]["models"] == {"gpt-5.5": {}}
     manifest_path = output_path.parent / ".zhaocai-hermes-managed-plugins.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert "relay-hermes" in manifest
+    assert "custom" in manifest
     plugin_path = output_path.parent / "plugins" / "model-providers" / "relay-hermes" / "__init__.py"
     assert plugin_path.exists()
+    custom_plugin_path = output_path.parent / "plugins" / "model-providers" / "custom" / "__init__.py"
+    assert custom_plugin_path.exists()
     assert sync_client.applied_reports == [(2, "applied")]
 
 
@@ -183,10 +180,17 @@ model:
     assert provider_config["model"] == "gpt-5.5"
     assert provider_config["default_model"] == "gpt-5.5"
     assert list(provider_config["models"]) == ["gpt-5.5", "gpt-5.5-mini"]
-    assert parsed["model"]["default"] == "relay-hermes/gpt-5.5"
-    assert parsed["model"]["fallbacks"] == ["relay-hermes/gpt-5.5-mini"]
-    assert "provider" not in parsed["model"]
-    assert "fallback_model" not in parsed
+    assert parsed["model"]["provider"] == "relay-hermes"
+    assert parsed["model"]["default"] == "gpt-5.5"
+    assert "fallbacks" not in parsed["model"]
+    assert parsed["fallback_model"] == [
+        {
+            "provider": "relay-hermes",
+            "model": "gpt-5.5-mini",
+            "base_url": "https://relay-hermes.example.com/v1",
+            "api_key": "sk-hermes",
+        }
+    ]
 
 
 def test_hermes_writer_recovers_split_model_config(tmp_path):
@@ -217,11 +221,18 @@ fallback_model:
     write_hermes_config(output_path, payload)
 
     parsed = yaml.safe_load(output_path.read_text(encoding="utf-8"))
-    assert parsed["model"]["default"] == "relay-hermes/gpt-5.5"
-    assert parsed["model"]["fallbacks"] == ["relay-hermes/gpt-5.5-mini"]
-    assert "provider" not in parsed["model"]
+    assert parsed["model"]["provider"] == "relay-hermes"
+    assert parsed["model"]["default"] == "gpt-5.5"
+    assert "fallbacks" not in parsed["model"]
     assert "base_url" not in parsed["model"]
     assert "api_key" not in parsed["model"]
     assert "default_headers" not in parsed["model"]
-    assert "fallback_model" not in parsed
+    assert parsed["fallback_model"] == [
+        {
+            "base_url": "https://relay-hermes.example.com/v1",
+            "api_key": "sk-hermes",
+            "provider": "relay-hermes",
+            "model": "gpt-5.5-mini",
+        }
+    ]
     assert parsed["providers"]["relay-hermes"]["models"] == {"gpt-5.5": {}, "gpt-5.5-mini": {}}
